@@ -1,0 +1,1073 @@
+حتماً. این نسخه را می‌توانی مستقیماً و یک‌جا به Cursor بدهی. سعی کردم prompt طوری باشد که Cursor فقط scaffold نکند و در نهایت یک repository واقعاً قابل اجرا تحویل بدهد.
+
+You are a senior frontend architect and TypeScript engineer.
+
+Build a production-ready frontend Design System monorepo from scratch.
+
+The goal is to create a centralized Company Design System that can be used as the shared UI foundation for multiple React/Vite applications.
+
+The Design System must be based on Mantine, use Turborepo + pnpm for monorepo management, and use Storybook as the main visual documentation and component exploration environment.
+
+The repository must include two real example consumer applications:
+
+- monosuite-assets-management
+- monosuite-war-room
+
+These applications are reference/consumer projects that prove the Design System can be consumed by multiple products.
+
+Do not stop at scaffolding. Configure everything and make sure the complete repository works end-to-end.
+
+---
+
+# 1. TECHNOLOGY STACK
+
+Use:
+
+- React
+- TypeScript
+- Vite
+- Mantine
+- Storybook
+- Turborepo
+- pnpm
+- Vitest
+- React Testing Library
+- ESLint
+- Prettier
+
+Use the latest stable versions that are mutually compatible.
+
+Do NOT use:
+
+- Nx
+- npm
+- yarn
+
+Turborepo must be used for task orchestration.
+
+pnpm must be used for package management and workspaces.
+
+---
+
+# 2. MAIN GOAL
+
+The repository represents a centralized Company Design System.
+
+The architecture should be:
+
+Company Design System
+        |
+        +-- @company/theme
+        |
+        +-- @company/ui
+        |
+        +-- @company/icons
+        |
+        +-- @company/utils
+        |
+        +-- Storybook
+        |
+        +-- monosuite-assets-management
+        |
+        +-- monosuite-war-room
+
+The key principle is:
+
+Mantine is the underlying UI framework.
+
+@company/ui is the public UI API for applications.
+
+Storybook documents the actual components from @company/ui.
+
+The two example applications consume the shared packages.
+
+Applications should NOT directly depend on Mantine UI components.
+
+---
+
+# 3. MONOREPO STRUCTURE
+
+Create this structure:
+
+company-design-system/
+
+├── apps/
+│   ├── storybook/
+│   │
+│   ├── monosuite-assets-management/
+│   │
+│   └── monosuite-war-room/
+│
+├── packages/
+│   ├── ui/
+│   │
+│   ├── theme/
+│   │
+│   ├── icons/
+│   │
+│   └── utils/
+│
+├── package.json
+├── pnpm-workspace.yaml
+├── turbo.json
+├── tsconfig.json
+├── eslint.config.*
+├── prettier.config.*
+├── .gitignore
+└── README.md
+
+Use:
+
+apps/*
+packages/*
+
+inside pnpm-workspace.yaml.
+
+---
+
+# 4. PACKAGE NAMESPACE
+
+Use:
+
+@company/ui
+@company/theme
+@company/icons
+@company/utils
+
+Keep the package namespace easy to replace with a real company scope later.
+
+Do not use relative imports between packages when a package import is appropriate.
+
+---
+
+# 5. @company/theme
+
+Create:
+
+packages/theme/
+
+This package owns the centralized Design System theme.
+
+Use Mantine's createTheme API.
+
+The package must contain the visual language of the company.
+
+Include:
+
+- colors
+- semantic colors
+- typography
+- font family
+- font sizes
+- font weights
+- line heights
+- spacing
+- radius
+- shadows
+- breakpoints
+- component defaults
+- common component styles
+
+Organize the code cleanly.
+
+Suggested structure:
+
+packages/theme/
+└── src/
+    ├── colors.ts
+    ├── typography.ts
+    ├── spacing.ts
+    ├── radius.ts
+    ├── shadows.ts
+    ├── breakpoints.ts
+    ├── components.ts
+    ├── theme.ts
+    └── index.ts
+
+Export:
+
+import { companyTheme } from "@company/theme";
+
+The theme must be created centrally.
+
+Do not duplicate theme configuration inside Storybook or applications.
+
+Use semantic tokens where possible.
+
+Examples:
+
+- primary
+- secondary
+- success
+- warning
+- danger
+- background
+- surface
+- text
+- muted
+- border
+
+Avoid hardcoded visual values inside components if they belong to the design system.
+
+---
+
+# 6. THEME ARCHITECTURE FOR FUTURE PROJECTS
+
+The architecture must support project-specific themes in the future.
+
+Potential future structure:
+
+@company/theme
+├── base theme
+├── assets management theme
+└── war room theme
+
+Do NOT create unnecessary separate themes in the initial implementation.
+
+For now, create one shared companyTheme.
+
+However, make the theme architecture extensible so that future projects can override things such as:
+
+- primary colors
+- branding
+- radius
+- typography
+- component variants
+
+without duplicating the whole theme.
+
+---
+
+# 7. @company/ui
+
+Create:
+
+packages/ui/
+
+This is the main public UI package.
+
+It should wrap or extend Mantine where appropriate.
+
+Important architectural rule:
+
+Application developers should import UI components from:
+
+@company/ui
+
+and NOT directly from:
+
+@mantine/core
+
+For example:
+
+import { Button, Card, TextInput } from "@company/ui";
+
+instead of:
+
+import { Button } from "@mantine/core";
+
+Mantine is an implementation detail behind the Company Design System.
+
+However, do NOT blindly wrap every Mantine component.
+
+If a Mantine component already satisfies our requirements, re-export it from @company/ui.
+
+Create custom wrappers only when we need:
+
+- company-specific defaults
+- company-specific variants
+- custom styling
+- custom behavior
+- standardized API
+- additional functionality
+- custom documentation
+
+Prefer simple solutions.
+
+Do not over-engineer.
+
+---
+
+# 8. INITIAL UI COMPONENTS
+
+Create a representative initial component set:
+
+- Button
+- TextInput
+- Select
+- Checkbox
+- Switch
+- Card
+- Modal
+- Badge
+- Alert
+- Loader
+
+Each component should be implemented consistently.
+
+Suggested structure:
+
+packages/ui/src/components/Button/
+├── Button.tsx
+├── Button.stories.tsx
+├── Button.test.tsx
+└── index.ts
+
+Do not necessarily create stories inside the UI package if the chosen Storybook architecture makes a centralized stories directory cleaner.
+
+The final architecture should remain easy to maintain.
+
+Create:
+
+packages/ui/src/index.ts
+
+as the public API.
+
+Only expose intended public components through the package entry point.
+
+Do not expose internal implementation details unnecessarily.
+
+---
+
+# 9. UI COMPONENT DESIGN PRINCIPLES
+
+Components should:
+
+- be strongly typed
+- support accessibility
+- use Mantine primitives where appropriate
+- follow the centralized theme
+- avoid hardcoded design tokens
+- have predictable APIs
+- support composition
+- work in Vite React applications
+
+Use React best practices.
+
+Avoid unnecessary state management libraries.
+
+Do not introduce a global state library.
+
+---
+
+# 10. BUTTON
+
+Button should demonstrate the Design System architecture clearly.
+
+Support reasonable variants such as:
+
+- primary
+- secondary
+- danger
+- subtle
+
+Support:
+
+- size
+- disabled
+- loading
+- fullWidth
+- left icon
+- right icon
+
+Use Mantine's underlying Button implementation where appropriate.
+
+Document all important variants in Storybook.
+
+---
+
+# 11. @company/icons
+
+Create:
+
+packages/icons/
+
+This package owns the icon abstraction.
+
+Keep it simple and extensible.
+
+The rest of the application should not be tightly coupled to a specific icon implementation.
+
+Applications should be able to do:
+
+import { SomeIcon } from "@company/icons";
+
+If an icon library is required, choose a lightweight and compatible solution.
+
+Do not add unnecessary icon dependencies.
+
+---
+
+# 12. @company/utils
+
+Create:
+
+packages/utils/
+
+Only add genuinely reusable utilities.
+
+Do not create arbitrary utility functions just to fill the package.
+
+Set up the package so more shared utilities can be added later.
+
+---
+
+# 13. STORYBOOK
+
+Create:
+
+apps/storybook/
+
+Configure Storybook for:
+
+- React
+- Vite
+- TypeScript
+- Mantine
+
+Storybook must consume the actual components from:
+
+@company/ui
+
+Do NOT duplicate component implementations inside Storybook.
+
+Storybook is the visual/documentation layer of the Design System.
+
+It should represent the actual components used by applications.
+
+---
+
+# 14. STORYBOOK STRUCTURE
+
+Organize Storybook into:
+
+Foundations
+
+- Colors
+- Typography
+- Spacing
+- Radius
+- Shadows
+- Icons
+
+Components
+
+- Button
+- TextInput
+- Select
+- Checkbox
+- Switch
+- Card
+- Modal
+- Badge
+- Alert
+- Loader
+
+Future section:
+
+Patterns
+
+This can initially be empty or minimally prepared.
+
+---
+
+# 15. STORYBOOK CONTROLS
+
+Use Storybook Controls where appropriate.
+
+For components such as Button, allow designers/developers to inspect:
+
+- variant
+- size
+- disabled
+- loading
+- fullWidth
+- icons
+
+For inputs:
+
+- label
+- placeholder
+- disabled
+- error
+- required
+- description
+
+Stories should demonstrate meaningful states.
+
+Avoid creating dozens of redundant stories.
+
+---
+
+# 16. STORYBOOK MANTINE PROVIDER
+
+Storybook must render all components using the company theme.
+
+Configure a global decorator or equivalent:
+
+<MantineProvider theme={companyTheme}>
+    ...
+</MantineProvider>
+
+The theme must come from:
+
+@company/theme
+
+Do not define a separate Storybook theme.
+
+---
+
+# 17. STORYBOOK AS DESIGN SOURCE OF TRUTH
+
+The Storybook experience should be useful for both designers and developers.
+
+The intention is:
+
+Designer
+    ↓
+Storybook
+    ↓
+Design System components
+    ↓
+Product applications
+
+The Storybook should clearly communicate:
+
+- available components
+- variants
+- states
+- sizes
+- intended usage
+- composition
+- responsive behavior where relevant
+- accessibility states
+
+Add useful component descriptions and documentation.
+
+---
+
+# 18. EXAMPLE APPLICATION 1
+
+Create:
+
+apps/monosuite-assets-management/
+
+Use:
+
+- Vite
+- React
+- TypeScript
+
+This is a reference application representing an Asset Management product.
+
+It should demonstrate real consumption of the Design System.
+
+Create a simple but polished dashboard containing:
+
+- application shell
+- header
+- sidebar/navigation
+- page title
+- search
+- filters
+- assets table
+- status badges
+- pagination
+- primary action button
+- empty state
+- loading state
+
+Use shared components from:
+
+@company/ui
+
+Use icons from:
+
+@company/icons
+
+Use theme from:
+
+@company/theme
+
+Do NOT directly import Mantine UI components from @mantine/core.
+
+Keep business logic minimal.
+
+This is a reference implementation, not a complete product.
+
+---
+
+# 19. EXAMPLE APPLICATION 2
+
+Create:
+
+apps/monosuite-war-room/
+
+Use:
+
+- Vite
+- React
+- TypeScript
+
+This is a reference application representing an Operations / War Room dashboard.
+
+It should demonstrate a different UI use case while using the exact same Design System.
+
+Create a dashboard containing:
+
+- application shell
+- header
+- sidebar/navigation
+- page title
+- KPI cards
+- system health indicators
+- active incidents
+- alerts
+- activity feed
+- primary action
+- secondary actions
+- loading state
+- error state
+- empty state
+
+Use:
+
+@company/ui
+@company/theme
+@company/icons
+@company/utils
+
+Do NOT directly import Mantine UI components from @mantine/core.
+
+Keep business logic minimal.
+
+---
+
+# 20. CONSUMER APPLICATION RULE
+
+The two applications are reference consumers.
+
+They must NOT own shared components.
+
+DO:
+
+import { Button, Card, Badge } from "@company/ui";
+
+DO:
+
+import { SomeIcon } from "@company/icons";
+
+DO:
+
+import { companyTheme } from "@company/theme";
+
+DO NOT:
+
+import { Button } from "@mantine/core";
+
+DO NOT:
+
+duplicate Button/Card/Badge/etc. inside the applications.
+
+If a UI component is required by both applications and does not exist, add it to @company/ui.
+
+---
+
+# 21. WORKSPACE DEPENDENCIES
+
+Use pnpm workspace dependencies.
+
+Applications should depend on:
+
+"@company/ui": "workspace:*"
+"@company/theme": "workspace:*"
+"@company/icons": "workspace:*"
+"@company/utils": "workspace:*"
+
+Only add dependencies that are actually used.
+
+---
+
+# 22. TURBOREPO
+
+Configure Turborepo.
+
+Root commands should include:
+
+pnpm dev
+pnpm build
+pnpm lint
+pnpm test
+pnpm storybook
+pnpm dev:assets
+pnpm dev:war-room
+
+Turborepo should orchestrate tasks.
+
+Configure proper task dependencies.
+
+Build should respect package dependency order.
+
+Use caching appropriately.
+
+Do not introduce unnecessary Turbo complexity.
+
+---
+
+# 23. DEVELOPMENT COMMANDS
+
+These commands must work from the repository root:
+
+pnpm install
+
+pnpm dev
+
+pnpm storybook
+
+pnpm dev:assets
+
+pnpm dev:war-room
+
+pnpm build
+
+pnpm lint
+
+pnpm test
+
+Where:
+
+pnpm storybook
+starts Storybook.
+
+pnpm dev:assets
+starts monosuite-assets-management.
+
+pnpm dev:war-room
+starts monosuite-war-room.
+
+pnpm dev
+can start the main development applications in a sensible way using Turborepo.
+
+---
+
+# 24. TYPESCRIPT
+
+Use strict TypeScript.
+
+Enable:
+
+- strict
+- noImplicitAny
+- strictNullChecks
+
+Avoid any.
+
+Use proper package exports.
+
+Generate TypeScript declarations for packages where appropriate.
+
+Make packages consumable from other Vite/React projects.
+
+---
+
+# 25. PACKAGE BUILDING
+
+Each package should be independently buildable.
+
+At minimum:
+
+@company/ui
+@company/theme
+@company/icons
+@company/utils
+
+must have proper package.json configuration.
+
+Configure:
+
+- main/module exports as appropriate
+- types
+- exports
+- build scripts
+
+Make sure the generated packages can be consumed by external Vite/React applications.
+
+---
+
+# 26. TESTING
+
+Use:
+
+- Vitest
+- React Testing Library
+
+Set up a lightweight testing architecture.
+
+At minimum, test:
+
+Button:
+- renders correctly
+- variants
+- disabled state
+- loading state
+
+TextInput:
+- renders
+- accepts input
+- disabled state
+
+Do not over-engineer testing.
+
+---
+
+# 27. LINTING
+
+Configure ESLint.
+
+All apps and packages should use consistent lint rules.
+
+Use a centralized configuration where practical.
+
+Make sure:
+
+pnpm lint
+
+works successfully.
+
+---
+
+# 28. FORMATTING
+
+Configure Prettier.
+
+Make sure the whole repository follows the same formatting rules.
+
+Add useful scripts such as:
+
+format
+format:check
+
+if appropriate.
+
+---
+
+# 29. GITIGNORE
+
+Create an appropriate .gitignore for:
+
+- Node
+- pnpm
+- Vite
+- Storybook
+- Turborepo
+- build output
+- coverage
+- environment files
+
+Do not commit generated artifacts.
+
+---
+
+# 30. README
+
+Create a useful root README.
+
+It must explain:
+
+1. What this repository is
+2. Why it exists
+3. Technology stack
+4. Monorepo architecture
+5. Folder structure
+6. Package responsibilities
+7. How to install
+8. How to run Storybook
+9. How to run Assets Management
+10. How to run War Room
+11. How to build
+12. How to test
+13. How to lint
+14. How to create a new component
+15. How to add a new package
+16. How applications consume @company/ui
+17. How the theme works
+18. Architectural principles
+
+Include practical code examples.
+
+---
+
+# 31. ARCHITECTURAL PRINCIPLES
+
+Follow these rules strictly:
+
+1. Mantine is the underlying UI framework.
+2. @company/ui is the public UI API.
+3. Applications should not directly import Mantine UI components.
+4. Storybook consumes the real @company/ui package.
+5. Storybook must not duplicate component implementations.
+6. Theme configuration lives in @company/theme.
+7. Design tokens should be centralized.
+8. Shared components belong in @company/ui.
+9. Shared icons belong in @company/icons.
+10. Shared utilities belong in @company/utils.
+11. Do not duplicate components across applications.
+12. Keep packages independently buildable.
+13. Keep the architecture scalable.
+14. Prefer simple solutions over premature abstractions.
+15. Do not introduce unnecessary dependencies.
+16. Do not use Nx.
+17. Use pnpm.
+18. Use Turborepo.
+19. Use TypeScript strictly.
+20. Keep the public package APIs clean.
+
+---
+
+# 32. IMPORTANT: MANTINE ABSTRACTION
+
+Do not create a wrapper component for every single Mantine component automatically.
+
+For example, do NOT blindly create:
+
+CompanyAccordion
+CompanyAvatar
+CompanyDivider
+CompanyStack
+CompanyGroup
+CompanyContainer
+
+unless there is a real Design System reason.
+
+If a Mantine component already follows the company Design System, it can be re-exported through @company/ui.
+
+Create wrappers only when we need company-specific behavior or API.
+
+The goal is to provide a stable company API while avoiding unnecessary abstraction.
+
+---
+
+# 33. FUTURE PROJECT SCALABILITY
+
+The architecture must make it easy to add:
+
+apps/
+├── another-product/
+├── another-dashboard/
+└── another-admin/
+
+and:
+
+packages/
+├── charts/
+├── data-table/
+├── forms/
+└── date-picker/
+
+later.
+
+Do not hardcode assumptions that only the two initial applications will ever exist.
+
+---
+
+# 34. DESIGN SYSTEM PHILOSOPHY
+
+Treat this repository as a real internal Design System product.
+
+The Design System should become the single source of truth for implementation-level UI.
+
+The intended workflow is:
+
+1. Define visual language and tokens.
+2. Implement components using Mantine.
+3. Document components in Storybook.
+4. Validate components in real example applications.
+5. Reuse components across multiple products.
+6. Version and evolve the Design System independently.
+
+The goal is to reduce duplicated UI implementation across projects.
+
+---
+
+# 35. QUALITY BAR
+
+The result should look and feel like a professionally maintained frontend monorepo.
+
+Avoid:
+
+- placeholder TODO implementations
+- fake package configurations
+- duplicated components
+- broken imports
+- unused dependencies
+- unnecessary abstractions
+- overly complex architecture
+- direct Mantine usage inside consumer apps
+- hardcoded design values scattered throughout the codebase
+
+Use clean naming and consistent structure.
+
+---
+
+# 36. FINAL VALIDATION
+
+Before considering the task complete, actually verify the repository.
+
+Run and fix any issues from:
+
+pnpm install
+
+pnpm build
+
+pnpm lint
+
+pnpm test
+
+pnpm storybook
+
+pnpm dev:assets
+
+pnpm dev:war-room
+
+Verify:
+
+1. pnpm workspace resolves all packages.
+2. Turborepo detects all apps and packages.
+3. Storybook starts.
+4. Storybook can import @company/ui.
+5. Storybook uses @company/theme.
+6. @company/ui builds.
+7. @company/theme builds.
+8. @company/icons builds.
+9. @company/utils builds.
+10. monosuite-assets-management starts.
+11. monosuite-war-room starts.
+12. Both applications consume @company/ui.
+13. Neither application directly imports Mantine UI components.
+14. TypeScript has no errors.
+15. Tests pass.
+16. Lint passes.
+17. Production builds succeed.
+
+If you encounter configuration or dependency issues, diagnose and fix them instead of leaving TODOs.
+
+---
+
+# 37. FINAL OUTPUT
+
+After implementation, provide a concise summary containing:
+
+- created architecture
+- created packages
+- created applications
+- important architectural decisions
+- commands to run the repository
+- any assumptions made
+
+Most importantly:
+
+DO NOT merely generate a plan.
+
+Actually create and configure the complete working repository.
+
+این نسخه عمداً دو اپلیکیشن را داخل apps/ گذاشته تا Cursor مجبور شود Design System را در یک سناریوی واقعی validate کند، نه اینکه فقط یک Storybook نمایشی بسازد

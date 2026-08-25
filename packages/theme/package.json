@@ -1,0 +1,35 @@
+{
+  "name": "@monosuite/theme",
+  "version": "0.0.0",
+  "description": "Centralized design tokens and Mantine theme for the Monosuite Design System.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.5.2"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

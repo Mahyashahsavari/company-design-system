@@ -1,0 +1,23 @@
+/**
+ * The single stylesheet a Monosuite product needs to import.
+ *
+ * Pulls in Mantine's base styles and Monosuite page-level defaults.
+ *
+ *   import '@monosuite/theme/styles.css';
+ */
+@import '@mantine/core/styles.css';
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--monosuite-color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100%;
+}

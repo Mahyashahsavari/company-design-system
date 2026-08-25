@@ -1,0 +1,258 @@
+---
+description: MonoSuite design system and frontend UI implementation rules
+alwaysApply: true
+---
+
+# MonoSuite Design System Rules
+
+## 1. Source of Truth
+
+The existing frontend implementation and its design system are the primary implementation source of truth.
+
+Before creating UI:
+
+1. Inspect existing components.
+2. Inspect existing theme configuration.
+3. Inspect existing tokens.
+4. Inspect existing patterns.
+5. Inspect existing Mantine usage.
+
+Do not invent a parallel design system.
+
+---
+
+## 2. Mantine
+
+Mantine is the primary UI component foundation.
+
+Prefer Mantine components whenever an appropriate component exists.
+
+Before creating a custom component, check whether Mantine already provides:
+
+- Button
+- ActionIcon
+- Menu
+- Modal
+- Drawer
+- Popover
+- Tooltip
+- Select
+- Combobox
+- MultiSelect
+- TextInput
+- NumberInput
+- DateInput
+- DateTimePicker
+- Tabs
+- Accordion
+- Badge
+- Avatar
+- Table
+- ScrollArea
+- Skeleton
+- Progress
+- Notification
+- Stepper
+
+Use existing project wrappers when they exist.
+
+---
+
+## 3. Theme
+
+Use the existing Mantine theme.
+
+Do not hard-code component colors if semantic theme tokens exist.
+
+Do not create local theme overrides unless the feature genuinely requires a reusable variant.
+
+---
+
+## 4. Color
+
+Primary:
+
+#069494
+
+Semantic colors must come from the existing theme where available.
+
+Do not introduce arbitrary colors for individual components.
+
+---
+
+## 5. Typography
+
+Use the project typography configuration.
+
+If the project uses Nunito:
+
+- use Nunito consistently
+- do not introduce another font
+- respect the existing font scale
+
+---
+
+## 6. Icons
+
+Use Tabler Icons when that is the project's existing icon library.
+
+Do not mix unrelated icon libraries.
+
+---
+
+## 7. Component Variants
+
+Prefer reusable variants over one-off styling.
+
+Example:
+
+Instead of:
+
+custom button CSS for one screen
+
+prefer:
+
+existing button variant
+
+or:
+
+a reusable new variant if the pattern is used repeatedly.
+
+---
+
+## 8. Tokens
+
+Use existing tokens for:
+
+- spacing
+- colors
+- typography
+- radius
+- shadows
+- borders
+- component sizes
+
+Avoid arbitrary magic numbers.
+
+---
+
+## 9. Responsive Layout
+
+Prefer Mantine layout primitives and CSS grid/flexbox.
+
+Avoid absolute positioning for primary layout.
+
+Use:
+
+- Grid
+- Flex
+- Stack
+- Group
+- SimpleGrid
+- Container
+- ScrollArea
+
+where appropriate.
+
+---
+
+## 10. Component Composition
+
+Prefer composition over creating large monolithic components.
+
+Example:
+
+RoomPage
+├── RoomHeader
+├── IncidentContext
+├── Workflow
+├── Collaboration
+├── Participants
+├── MediaControlBar
+└── RoomActions
+
+Each component should have a clear responsibility.
+
+---
+
+## 11. State
+
+Do not duplicate state that already exists in the application.
+
+Use the existing:
+
+- state management
+- hooks
+- context
+- API models
+- event mechanisms
+
+when available.
+
+---
+
+## 12. Accessibility
+
+All custom components must preserve:
+
+- keyboard navigation
+- focus management
+- accessible names
+- appropriate ARIA semantics
+- sufficient contrast
+
+Do not sacrifice accessibility for visual appearance.
+
+---
+
+## 13. Dark Mode
+
+All components must work in both:
+
+- Light
+- Dark
+
+Do not use hard-coded light-only colors.
+
+Use theme-aware values.
+
+---
+
+## 14. Implementation Safety
+
+When modifying existing UI:
+
+- make the smallest necessary change
+- do not refactor unrelated components
+- do not change backend contracts
+- do not change API behavior
+- do not remove existing functionality
+
+If a new UI state is required but backend support is unavailable:
+
+implement an isolated prototype/mock state rather than inventing backend behavior.
+
+---
+
+## 15. Reusability
+
+If the same visual/interaction pattern appears in multiple features, consider promoting it to a reusable component.
+
+Do not prematurely abstract a component that is only used once.
+
+---
+
+## 16. Definition of Done
+
+A UI implementation is not complete until:
+
+- Light mode works
+- Dark mode works
+- Loading state exists where necessary
+- Empty state exists where necessary
+- Error state exists where necessary
+- Disabled state exists where necessary
+- Keyboard interaction works
+- Existing components are reused
+- No unnecessary duplicate component exists
+- No unrelated functionality is broken

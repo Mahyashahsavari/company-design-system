@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+storybook-static/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Vite
+.vite/
+vite.config.*.timestamp-*
+
+# Testing
+coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+

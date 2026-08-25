@@ -1,0 +1,43 @@
+{
+  "name": "@monosuite/ui",
+  "version": "0.0.0",
+  "description": "MonosuiteProvider — wires @monosuite/theme into Mantine. Product UI comes from @mantine/core directly.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.5.2",
+    "@monosuite/theme": "*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,463 @@
+---
+description: Feature rules for War Room Incident Room workspace — layout, regions, actions, states, mock data, and media
+globs: apps/monosuite-war-room/src/pages/room/**/*
+alwaysApply: false
+---
+
+# Room Workspace (Incident Room)
+
+Feature-specific contract for the **in-room** Incident Response workspace only.
+
+Do **not** mix this file with Create Room, Room Settings product pages, or global UX/UI/DS rules.
+
+| Concern | Lives in |
+| --- | --- |
+| Status = Icon + Color + Label | `01-war-room-ux.mdc` |
+| Cards, hierarchy, cyber character (no cyberpunk) | `02-war-room-ui.mdc` |
+| Mantine, tokens, no static hex in apps | `03-monosuite-design-system.mdc`, `mantine-direct-usage.mdc` |
+| This page layout, regions, room actions, media, mocks | **this file** |
+
+Prototype source of truth for media + room interactions: `.idea/IWR-Design/IWR-Design/index.html` + `app.js`.
+
+---
+
+## 1. Scope
+
+### In scope
+
+- Incident Room page after enter (`apps/monosuite-war-room/src/pages/room/**`)
+- Regions listed below
+- Pre-Join / Live / Reconnecting / Screen Sharing / No Media / Closed
+- Local mock data and local-only interactions (no backend)
+
+### Out of scope
+
+- Create Room flow
+- Global nav destinations other than room-active affordances
+- Inventing parallel colour systems or hex in the app
+
+---
+
+## 2. Page layout (target)
+
+```
+┌─ Global Header (always-dark chrome) ─────────────────────────────┐
+├─ Left nav │ MAIN ─────────────────────────────────── │ Tools ────┤
+│  (icons)  │ LEFT CONTEXT │ CENTER WORKBENCH          │ RIGHT     │
+│           │ Attacker     │ Command + Incident info   │ Partic.   │
+│           │ Victim       │ Response Workflow         │ Chat      │
+│           │ (+ adapters) │ Investigation & Collab    │ Assets    │
+│           │              │ (+ Screen Share / Video)  │ Evidence  │
+│           │              │                           │ History   │
+├───────────┴──────────────┴───────────────────────────┴───────────┤
+└─ Media Control Bar (always-dark chrome, full width) ─────────────┘
+```
+
+### Region rules
+
+1. **Global header** — always dark via `--monosuite-color-chrome*`. Does not flip with light/dark scheme.
+2. **Media bar** — always dark via the same chrome tokens. Full width under main + tools.
+3. **Main workbench + tool panels** — follow light/dark semantic surfaces (`--monosuite-color-background|surface|surface-sunken`, `body`, `default-border`).
+4. **Attacker header** — semantic `danger` (never raw hex).
+5. **Victim header** — semantic `neutral` / chrome-adjacent dark strip on raised surface; not the same as attacker.
+6. Communication must not dominate investigation unless Screen Share or Video is active.
+
+---
+
+## 3. Regions, content, actions, mock data
+
+### 3.1 Incident Command Area
+
+**Where:** Top of center column (below breadcrumb).
+
+**Shows**
+
+- LIVE (or room state) badge + “Room”
+- Started duration (e.g. `Started 12 min ago`)
+- Participant count
+- Presence avatars (compact)
+- Title, incident id, severity badge, Commander line
+- Room Actions menu + Close Room
+
+**Actions**
+
+| Action | Behaviour (mock) |
+| --- | --- |
+| Invite Participants | Toast / invite affordance |
+| Add Evidence | Toast — upload dialog placeholder (PNG, PDF, LOG, CSV, JSON — max 100 MB) |
+| Export Room Summary | Toast |
+| Room Settings | Toast / open settings placeholder |
+| Close Room | Confirm then leave / closed state |
+
+**Mock**
+
+```ts
+INCIDENT = {
+  id: 'INC-20481',
+  title: 'Suspicious lateral movement detected',
+  severity: 'Critical',
+  status: 'Active',
+  scenario: 'Lateral Movement',
+  mitre: 'Credential Access → Valid Accounts',
+  owner: 'Sarah Johnson', // Commander
+  occurred: '21:42',
+  detected: '21:47',
+  source: 'CoreLog',
+}
+ROOM_START_MINUTES = 12
+```
+
+---
+
+### 3.2 Attacker Context
+
+**Where:** Left column, top card.
+
+**Shows**
+
+- Header: `Attacker Host/IP` + badge `Multi Attacker` (when >1)
+- Primary identity: IP / FQDN
+- Key fields from Threat Intelligence adapter
+- Link/summary of attacker-related source sync
+
+**Actions**
+
+- Expand / collapse details
+- Open related adapter (Threat Intelligence)
+- Switch attacker when multi (mock selector if needed)
+
+**Mock**
+
+```ts
+ATTACKER_CONTEXT = {
+  label: 'Attacker Host/IP',
+  multi: true,
+  multiLabel: 'Multi Attacker',
+  primary: '185.23.45.10',
+  fields: [
+    { label: 'Threat Actor', value: 'FIN7 (medium confidence)' },
+    { label: 'IOC Match', value: 'IOC-8842' },
+    { label: 'Category', value: 'C2 Infrastructure' },
+    { label: 'Reputation Score', value: '92 / 100' },
+  ],
+  sourceId: 'ti',
+}
+```
+
+---
+
+### 3.3 Victim Context
+
+**Where:** Left column, below Attacker.
+
+**Shows**
+
+- Header: `Victim Host/IP` + badge `Multi Victim` (when >1)
+- Primary: host / IP / FQDN
+- Key AD / victim-user fields
+
+**Actions**
+
+- Expand / collapse details
+- Open related adapter (Active Directory)
+- Switch victim when multi
+
+**Mock**
+
+```ts
+VICTIM_CONTEXT = {
+  label: 'Victim Host/IP',
+  multi: true,
+  multiLabel: 'Multi Victim',
+  primary: '10.20.4.114',
+  hostname: 'workstation-114',
+  fields: [
+    { label: 'Account', value: 'jsmith@corp.local' },
+    { label: 'Display Name', value: 'John Smith' },
+    { label: 'Department', value: 'Finance' },
+    { label: 'Workstation', value: 'workstation-114' },
+    { label: 'Account Status', value: 'Enabled' },
+  ],
+  sourceId: 'ad',
+}
+```
+
+---
+
+### 3.4 Incident / Attack Information
+
+**Where:** Inside Command Area body (and/or short strip under it). Not a second full duplicate of Attacker/Victim cards.
+
+**Shows:** id, severity, MITRE line, scenario, times, source.
+
+**Actions:** View full incident (drawer), edit manual incident (drawer).
+
+**Mock:** same `INCIDENT` + MITRE drawer defaults (`credential-access` / Valid Accounts).
+
+---
+
+### 3.5 Adapter / Data Sources
+
+**Where:** Summaries under Attacker/Victim or expandable in left context; full list also available from tools if needed.
+
+**Shows:** adapter name, role, data type, sync status, last sync, field list when expanded.
+
+**Actions:** Expand source, Sync all, View sources.
+
+**Mock:** `CONNECTED_SOURCES` — CoreLog (synced), Active Directory (synced), Threat Intelligence (partial).
+
+---
+
+### 3.6 Response Workflow
+
+**Where:** Center, below Command Area.
+
+**Shows:** Title `Response Workflow`, protocol `NIC800`, horizontal steps with status `completed | current | pending`.
+
+**Actions:** Focus/select step (read-oriented); do not bury collaboration under workflow.
+
+**Mock:** `WORKFLOW_STEPS` — Detected → Triage → Investigation (current) → Containment → Recovery.
+
+---
+
+### 3.7 Investigation & Collaboration
+
+**Where:** Center, primary work area.
+
+**Shows**
+
+- Title + Live War Room presence (count, duration, avatars, typing)
+- Tabs: Questions / Findings / Decisions (with counts)
+- Question cards: expand, answers, discussion, decisions
+- Live Activity timeline (side of workspace when space allows)
+
+**Actions**
+
+| Action | Behaviour |
+| --- | --- |
+| Switch tab | Filter lists via `getQuestionsForTab` |
+| Expand question | Toggle body |
+| Add answer / Submit / Cancel | Local state |
+| View discussion | Toggle thread |
+| Record Decision | Persist choice + history entry |
+| Typing indicator | Mock “Sarah is typing…” |
+
+**Mock:** `INITIAL_QUESTIONS` (Q1 open with answers, Q2 decision options, Q3 answered findings).
+
+---
+
+### 3.8 Participants (right tools)
+
+**Shows:** Name, initials, role, online/away, typing.
+
+**Actions:** Invite (same as command), select participant (highlight).
+
+**Mock:** Sarah (Commander, typing), Mike, Alex (away), David (Viewer).
+
+---
+
+### 3.9 Chat
+
+**Shows:** Room chat messages (author, time, text). Supporting only — not the visual hero.
+
+**Actions:** Send message (append mock), scroll history.
+
+**Mock**
+
+```ts
+CHAT_MESSAGES = [
+  { id: 'c1', author: 'Sarah Johnson', time: '12:45', text: 'Focus on 185.23.45.10 auth burst first.' },
+  { id: 'c2', author: 'Mike Chen', time: '12:47', text: 'TI partial sync — IOC-8842 looks solid.' },
+  { id: 'c3', author: 'Alex Smith', time: '12:50', text: 'Pulling DMZ firewall slice now.' },
+]
+```
+
+---
+
+### 3.10 Assets
+
+**Shows:** name, type, IP, severity.
+
+**Actions:** Select asset → detail affordance / toast.
+
+**Mock:** `ASSETS` — srv-prod-01 (critical), db-prod-02 (high), workstation-114 (medium).
+
+---
+
+### 3.11 Evidence
+
+**Shows:** list of attached evidence items (name, type, by, time).
+
+**Actions:** Add Evidence (same policy as Room Actions), open item (toast).
+
+**Mock**
+
+```ts
+EVIDENCE_ITEMS = [
+  { id: 'e1', name: 'auth-burst-export.json', type: 'JSON', by: 'Mike Chen', time: '12:48' },
+  { id: 'e2', name: 'corelog-alert-CL-8847291.png', type: 'PNG', by: 'Sarah Johnson', time: '12:49' },
+  { id: 'e3', name: 'firewall-dmz-slice.log', type: 'LOG', by: 'Alex Smith', time: '12:51' },
+]
+```
+
+---
+
+### 3.12 Room History
+
+**Shows:** time, actor, action; highlight important rows (e.g. Decision recorded).
+
+**Actions:** Read-only scroll; optional filter later (not required for mock).
+
+**Mock:** `INITIAL_HISTORY`.
+
+---
+
+### 3.13 Live Media + Video presence
+
+**Where:** Driven by Media Bar; video tiles / audio strip appear when joined.
+
+**Dock visual modes (match IWR)**
+
+| Class / mode | When |
+| --- | --- |
+| `prejoin` | `joined === false` — Join Live CTA |
+| `joined` | After join — full controls |
+| `audio` | Joined, camera off, not presenting — avatar strip + Speaking |
+| `video` | Joined, camera on, not presenting — video tiles |
+| `presenting` | Screen share active and not minimized |
+| `self-share` | Local user is sharer |
+| `conn-poor` / `conn-reconnecting` / `conn-lost` | Connection state |
+
+**Live people mock**
+
+```ts
+LIVE_PEOPLE = [
+  { id: 'sarah', name: 'Sarah Johnson', initials: 'SJ', camera: true },
+  { id: 'mike', name: 'Mike Chen', initials: 'MC', camera: true },
+  { id: 'alex', name: 'Alex Smith', initials: 'AS', camera: false },
+  { id: 'you', name: 'You', initials: 'HS', camera: true },
+]
+speakingId = 'sarah'
+```
+
+---
+
+### 3.14 Screen Share
+
+**Rules (feature-specific)**
+
+- **Only one sharer** at a time (self **or** remote).
+- Starting share while remote share active stops/replaces per product mock (follow IWR: self share clears remote presenter).
+- Layout modes: `split` | `room` | `full` | `minimized`.
+- Minimized: compact restore banner inside collaboration header area.
+- Stage mock content: CoreLog alert desk (CL-8847291, Source IP, destination, victim user, FIN7 · IOC-8842, event rows).
+
+**Actions:** Share, Stop Sharing, Minimize, Fit to room / Split, Fullscreen / Exit full, Restore.
+
+**Default remote sharer mock:** Mike Chen · Analyst workstation.
+
+---
+
+### 3.15 Floating / docked Media Control Bar
+
+**Implementation reference:** IWR `#media-dock` structure and `renderMediaControls()` behaviour. Use Mantine + chrome tokens — do not paste raw prototype CSS hex.
+
+**Always visible regions**
+
+- Left status: LIVE / LIVE ROOM, participant count, comm note or duration, optional “participants can see your screen”
+- Center: Join Live **or** session controls
+- Right (when joined): connection mark + label + Retry when lost/reconnecting
+
+**Controls (joined)**
+
+| Control | States |
+| --- | --- |
+| Microphone | On / Muted |
+| Camera | On / Off |
+| Speaker | On / Muted |
+| Screen Share | Off / Sharing |
+| Stop Sharing | Visible only when self-sharing |
+| Settings | Opens Media Settings modal |
+| More | Test devices, Connection details |
+
+**Media Settings mock devices**
+
+- Mic: Default / Headset USB / Communications Headset
+- Speaker: Default / External / Headset Earphone
+- Camera: Integrated / Studio / Virtual
+- Connection quality select: Good / Fair / Poor (demo)
+
+**Connection cycle (demo):** `connected → poor → reconnecting → lost` (and Retry).
+
+**Initial media state**
+
+```ts
+media = {
+  joined: false,
+  mic: true,
+  camera: false,
+  speaker: true,
+  share: false,
+  remoteShareBy: null,
+  shareLayout: 'split',
+  connection: 'idle',
+  speakingId: 'sarah',
+}
+```
+
+---
+
+### 3.16 Room Actions (summary)
+
+All room-level actions from Command Area + Media More + tool invites funnel to the same mock handlers (toast / local state / history append). Do not invent a second action model.
+
+---
+
+## 4. Page states
+
+| State | Layout / media |
+| --- | --- |
+| **Pre-Join-Ready** | Full IR layout; dock `prejoin`; Join Live; no video stage |
+| **Live** | Dock `joined`; controls on; connection Connected |
+| **No Media** | Live but camera off & no share — audio strip; collaboration full size |
+| **Screen Sharing** | Stage visible (unless minimized); single sharer; dock `presenting` / `self-share` |
+| **Reconnecting / Poor / Lost** | Status on dock; Retry when lost; content preserved |
+| **Closed** | After Close Room — exit or read-only; media stopped |
+
+Breadcrumb reflects state when useful (e.g. `Incident Room / Pre-Join-Ready` vs incident id).
+
+---
+
+## 5. Theme (this page only)
+
+- Header + Media bar: `--monosuite-color-chrome`, `chrome-raised`, `chrome-border`, `chrome-text`, `chrome-text-muted` (scheme-independent).
+- Nested inset panels (answer quotes, rails): `--monosuite-color-surface-sunken`.
+- Page background: `--monosuite-color-background`.
+- No `#hex` / `rgba()` in app files; no `gray-0/1` page fills.
+
+---
+
+## 6. File map (implementation)
+
+| Region | Primary files |
+| --- | --- |
+| Page shell | `RoomPage.tsx`, `AppChrome.tsx` |
+| Command | `RoomCommandHeader.tsx` |
+| Attacker / Victim | left-context components (feature-local) |
+| Workflow | `response-workflow/*` |
+| Collaboration | `InvestigationWorkspace.tsx`, `QuestionCard.tsx`, `LiveActivity.tsx` |
+| Right tools | `ContextSidebar.tsx` or split panels |
+| Media | `MediaDock.tsx`, `MediaSettingsModal.tsx`, `ScreenShareStage.tsx` |
+| State | `hooks/useRoomState.ts` |
+| Mocks | `data.ts` |
+
+---
+
+## 7. Implementation checklist
+
+When changing this feature:
+
+1. Keep region map in §2 — do not collapse Attacker/Victim back into a single generic sidebar without updating this rule.
+2. Port media behaviour from IWR before inventing new dock UX.
+3. Extend `data.ts` mocks when adding UI sections (Chat, Evidence, Attacker/Victim).
+4. Leave global status/colour grammar to `01` / `02` / `03`.

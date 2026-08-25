@@ -1,0 +1,72 @@
+---
+description: What has been built in this monorepo and how to work with it
+alwaysApply: true
+---
+
+# Monosuite Design System — Project Status
+
+## What exists today
+
+### Monorepo (`company-design-system/`)
+
+- **npm workspaces** + **Turborepo 2** (`tasks` key in `turbo.json`)
+- **TypeScript strict**, ESLint 9 flat config, Prettier
+- **Node 24 LTS** recommended (`.nvmrc`)
+
+### Packages
+
+| Package | Status |
+| --- | --- |
+| `@monosuite/theme` | Done — colors, typography, spacing, radius, shadows, breakpoints, Mantine component defaults, semantic CSS variables (light/dark), `createMonosuiteTheme()`, `styles.css`. Apps use `--monosuite-color-*` / Mantine colour props — no static hex in product UI. |
+| `@monosuite/ui` | Done — `MonosuiteProvider` only (wires theme + CSS variables into Mantine) |
+| `@monosuite/utils` | Done — `formatBytes`, `formatNumber`, `formatPercent`, `formatDate`, `formatRelativeTime` + Vitest tests |
+
+### Apps
+
+| App | Port | Purpose |
+| --- | --- | --- |
+| `monosuite-assets-management` | 5173 | Asset table, filters, pagination, empty/loading states |
+| `monosuite-war-room` | 5174 | KPI cards, health, incidents, activity feed, error/empty/loading states |
+
+### Intentionally removed / not used
+
+- **Storybook** — removed; not part of this repo
+- **`@monosuite/icons`** — removed; use **`@tabler/icons-react`** directly
+- **Custom Mantine wrappers** — never add them to `@monosuite/ui`
+
+## Commands
+
+```bash
+npm install
+npm run dev:assets      # http://localhost:5173
+npm run dev:war-room    # http://localhost:5174
+npm run build
+npm run lint
+npm run test
+npm run typecheck
+```
+
+## Adding a new product app
+
+1. Create `apps/<product-name>/` with Vite + React + TypeScript.
+2. Dependencies: `@mantine/core`, `@mantine/hooks`, `@tabler/icons-react`, `@monosuite/theme`, `@monosuite/ui`, optionally `@monosuite/utils`.
+3. Entry: import `@monosuite/theme/styles.css`, wrap with `<MonosuiteProvider>`.
+4. Add `"@monosuite/*": "*"` workspace deps and a root script `dev:<name>` if useful.
+5. Use Mantine + Tabler directly — no wrapper layer.
+
+## Theming a product differently later
+
+```ts
+import { createMonosuiteTheme } from '@monosuite/theme';
+
+const productTheme = createMonosuiteTheme({ primaryColor: 'danger' });
+
+<MonosuiteProvider theme={productTheme}>...</MonosuiteProvider>
+```
+
+## When editing this repo
+
+- Token changes → `packages/theme/src/`
+- Provider changes → `packages/ui/src/provider/`
+- New shared formatter → `packages/utils/src/` (only if reused by 2+ apps)
+- UI in products → Mantine + Tabler in `apps/*`

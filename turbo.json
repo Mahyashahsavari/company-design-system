@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "stream",
+  "globalDependencies": ["tsconfig.base.json", "eslint.config.mjs", "postcss.config.base.cjs"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.stories.tsx", "!**/*.test.tsx", "!**/*.test.ts"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {},
+    "test": {},
+    "typecheck": {}
+  }
+}

@@ -1,0 +1,345 @@
+---
+description: Global UX principles for MonoSuite War Room
+alwaysApply: true
+---
+
+# MonoSuite War Room — Global UX Rules
+
+## 1. Product Mental Model
+
+MonoSuite War Room is an enterprise cybersecurity Incident Response product.
+
+The primary goal is to help security teams:
+
+- understand an incident
+- investigate the incident
+- collaborate with other responders
+- make decisions
+- coordinate response actions
+- track evidence and operational history
+
+The product must feel like an Incident Response environment, not a generic collaboration or meeting application.
+
+---
+
+## 2. UX Priority
+
+When making UX decisions, prioritize:
+
+1. Incident understanding
+2. Security context
+3. Investigation
+4. Decision making
+5. Response coordination
+6. Collaboration
+7. Operational context
+8. Communication and media
+
+Communication is a supporting capability.
+
+Do not allow secondary functionality to visually or functionally dominate the primary security workflow.
+
+---
+
+## 3. Enterprise UX
+
+The interface should feel:
+
+- professional
+- operational
+- trustworthy
+- predictable
+- structured
+- information-rich
+- calm under pressure
+
+Avoid consumer-oriented patterns unless they clearly improve usability.
+
+Avoid unnecessary:
+
+- decoration
+- animation
+- gamification
+- excessive gradients
+- visual effects
+- large illustrations
+- unnecessary modals
+
+---
+
+## 4. Information Hierarchy
+
+Every page must establish a clear hierarchy.
+
+Users should be able to quickly identify:
+
+- where they are
+- what they are working on
+- what is important
+- what requires attention
+- what changed
+- what they can do next
+
+Do not give equal visual weight to all information.
+
+Critical information must be more visually prominent than supporting metadata.
+
+---
+
+## 5. Progressive Disclosure
+
+Do not show every available property at the same time.
+
+Use:
+
+- sections
+- tabs
+- drawers
+- expandable panels
+- popovers
+- contextual menus
+
+when additional detail is needed.
+
+The default state should expose the information necessary for the current task.
+
+---
+
+## 6. Consistency
+
+Use the same interaction patterns for similar actions.
+
+Examples:
+
+- similar forms should behave similarly
+- status indicators should use consistent semantics
+- actions should appear in predictable locations
+- destructive actions should always use consistent treatment
+- loading states should behave consistently
+
+Do not introduce a new interaction pattern when an existing product pattern already solves the problem.
+
+---
+
+## 7. User Control
+
+Users should always understand:
+
+- what action they are performing
+- what will happen
+- whether the action succeeded
+- whether the action failed
+- how to recover from failure
+
+Avoid surprising automatic behavior.
+
+For destructive actions, provide appropriate confirmation.
+
+---
+
+## 8. Permissions
+
+UX must respect the product's permission model.
+
+Never assume that:
+
+role = permission
+
+Use actual permission/RBAC state where available.
+
+When an action is unavailable, communicate the reason whenever that information is useful to the user.
+
+Possible reasons include:
+
+- insufficient permission
+- room policy
+- system configuration
+- unavailable resource
+- service failure
+
+---
+
+## 9. States
+
+Every important component should consider:
+
+- Default
+- Hover
+- Focus
+- Active
+- Disabled
+- Loading
+- Empty
+- Success
+- Warning
+- Error
+
+For asynchronous operations also consider:
+
+- Pending
+- Processing
+- Completed
+- Failed
+- Retry
+
+Do not design only the happy path.
+
+---
+
+## 10. Error Handling
+
+Errors should communicate:
+
+1. What happened?
+2. What is affected?
+3. What can the user do?
+
+Avoid generic messages such as:
+
+"Something went wrong."
+
+Prefer actionable messages.
+
+Errors that require user attention should remain visible until resolved or dismissed appropriately.
+
+Do not rely only on temporary Toast notifications for important failures.
+
+---
+
+## 11. Loading
+
+Never leave the user wondering whether the system is working.
+
+Use appropriate:
+
+- skeletons
+- progress indicators
+- loading buttons
+- inline loading states
+
+Do not block the entire page when only one component is loading.
+
+---
+
+## 12. Empty States
+
+An empty state should explain:
+
+- what is empty
+- why it may be empty
+- what the user can do next
+
+Whenever appropriate, provide a relevant action.
+
+---
+
+## 13. Accessibility
+
+All interactive elements must be accessible.
+
+Requirements:
+
+- keyboard accessibility
+- visible focus state
+- meaningful accessible labels
+- adequate contrast
+- semantic controls
+- state must not rely only on color
+- icon-only controls require accessible names
+
+Use WCAG AA as the baseline unless the product requirements specify otherwise.
+
+---
+
+## 14. Navigation
+
+Navigation must make the user's current location clear.
+
+Use consistent:
+
+- page titles
+- breadcrumbs
+- navigation states
+- back behavior
+- section hierarchy
+
+Do not make users rely on browser history to understand where they are.
+
+---
+
+## 15. Interaction Density
+
+War Room is an enterprise operational environment.
+
+High information density is acceptable.
+
+However:
+
+High density ≠ clutter.
+
+Use:
+
+- grouping
+- hierarchy
+- whitespace
+- progressive disclosure
+- compact metadata
+
+to maintain clarity.
+
+---
+
+## 16. Responsive Behaviour
+
+The primary target is desktop enterprise environments.
+
+Design primarily for:
+
+- 1280px
+- 1440px
+- 1920px
+
+At smaller desktop widths:
+
+- preserve primary workflows
+- move secondary actions into menus
+- avoid overlap
+- preserve important status information
+
+Do not optimize for mobile unless explicitly requested.
+
+---
+
+## 17. Security Product Language
+
+Use precise cybersecurity terminology.
+
+Do not replace established security concepts with generic consumer terminology.
+
+Prefer:
+
+Incident
+Asset
+Attacker
+Victim
+Evidence
+Response
+Workflow
+Adapter
+Source
+Finding
+Decision
+Action
+Participant
+
+when those concepts are actually represented.
+
+---
+
+## 18. Core Principle
+
+Every UX decision should answer:
+
+"Does this help the security team understand, investigate, decide, or respond to the incident?"
+
+If not, reconsider whether the element is necessary.

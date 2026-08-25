@@ -1,0 +1,330 @@
+---
+description: Global UI rules for MonoSuite War Room
+alwaysApply: true
+---
+
+# MonoSuite War Room — Global UI Rules
+
+## 1. Visual Character
+
+The UI must feel:
+
+- cybersecurity-focused
+- enterprise-grade
+- operational
+- trustworthy
+- modern
+- precise
+
+Avoid generic SaaS dashboard aesthetics when they weaken the Incident Response context.
+
+Do not use excessive "cyberpunk" decoration.
+
+---
+
+## 2. Visual Hierarchy
+
+Use visual hierarchy to communicate:
+
+- importance
+- urgency
+- state
+- relationship
+- ownership
+- actionability
+
+Do not use visual decoration as a substitute for hierarchy.
+
+---
+
+## 3. Layout
+
+Prefer structured layouts based on:
+
+- clear regions
+- consistent spacing
+- predictable alignment
+- logical grouping
+
+Avoid unnecessary nested cards.
+
+Do not put every section inside a bordered card.
+
+Use background changes, spacing, dividers, and typography when a card is unnecessary.
+
+---
+
+## 4. Cards
+
+Cards should represent meaningful conceptual objects.
+
+Good examples:
+
+- Incident
+- Asset
+- Participant
+- Evidence
+- Finding
+- Decision
+
+Avoid:
+
+"Card for the sake of grouping."
+
+Do not wrap the entire page in cards.
+
+---
+
+## 5. Typography
+
+Use the project's defined typography system.
+
+If Nunito is defined by the product design system, use Nunito consistently.
+
+Do not introduce additional fonts.
+
+Typography hierarchy should distinguish:
+
+- Page title
+- Section title
+- Object/entity title
+- Primary information
+- Metadata
+- Supporting information
+
+Avoid excessive font-weight changes.
+
+---
+
+## 6. Color
+
+Primary product color:
+
+#069494
+
+Use semantic colors for:
+
+- Success
+- Warning
+- Error
+- Danger
+- Information
+- Neutral
+
+Never use color as the only method of communicating state.
+
+Combine:
+
+Color
++
+Icon
++
+Label
++
+Context
+
+where appropriate.
+
+---
+
+## 7. Dark Mode
+
+Dark mode is a first-class UI state.
+
+Do not simply invert the light theme.
+
+Dark mode must preserve:
+
+- hierarchy
+- readability
+- contrast
+- semantic meaning
+- status visibility
+
+Use the existing theme tokens.
+
+Avoid pure black unless explicitly defined by the design system.
+
+---
+
+## 8. Cybersecurity Visual Language
+
+Cybersecurity identity should come primarily from:
+
+- information architecture
+- threat relationships
+- incident states
+- operational statuses
+- workflows
+- evidence
+- provenance
+
+Do NOT create cybersecurity identity primarily through:
+
+- neon colors
+- glowing borders
+- excessive gradients
+- animated particles
+- decorative grids
+- excessive glassmorphism
+
+---
+
+## 9. Status Indicators
+
+Status indicators should be consistent across the product.
+
+Every important status should have:
+
+- semantic meaning
+- consistent color
+- recognizable icon where appropriate
+- readable label
+
+Do not create different visual meanings for the same status in different features.
+
+---
+
+## 10. Icons
+
+Use the project's existing icon library.
+
+If Tabler Icons are already used, continue using Tabler Icons.
+
+Do not use emojis as interface icons.
+
+Icon-only controls must have:
+
+- accessible labels
+- tooltip when needed
+- visible focus state
+
+---
+
+## 11. Buttons
+
+Button hierarchy must communicate priority.
+
+Use:
+
+- Primary for the main action
+- Secondary for supporting actions
+- Tertiary/Ghost for low-emphasis actions
+- Destructive for destructive actions
+
+Do not make every action a Primary button.
+
+---
+
+## 12. Forms
+
+Forms should:
+
+- group related fields
+- use meaningful section headings
+- clearly identify required fields
+- provide contextual help
+- show validation close to the relevant field
+
+Avoid unnecessarily long uninterrupted forms.
+
+Use progressive disclosure when a form contains advanced configuration.
+
+---
+
+## 13. Modals / Drawers
+
+Use modals for focused decisions.
+
+Use drawers when:
+
+- the user needs contextual detail
+- the current page should remain visible
+- the task contains multiple related fields
+
+Avoid nested modal flows.
+
+---
+
+## 14. Tables
+
+Tables should prioritize:
+
+- scanability
+- sorting
+- filtering
+- status visibility
+- meaningful columns
+
+Do not show every available field by default.
+
+Use contextual actions rather than excessive action columns.
+
+---
+
+## 15. Animation
+
+Animation should communicate state or relationship.
+
+Appropriate:
+
+- workflow transitions
+- loading
+- participant state changes
+- connection recovery
+- opening/closing contextual panels
+
+Avoid decorative animation.
+
+The product should remain calm during high-pressure Incident Response.
+
+---
+
+## 16. Spacing
+
+Use the project's spacing tokens.
+
+Do not introduce arbitrary spacing values when an existing token provides the required rhythm.
+
+Maintain consistent vertical rhythm between:
+
+- sections
+- controls
+- labels
+- content
+
+---
+
+## 17. Component Reuse
+
+Before creating a new UI component:
+
+1. Search the existing frontend.
+2. Search the existing design system.
+3. Check Mantine.
+4. Reuse an existing component.
+5. Extend it if necessary.
+6. Create a new component only when required.
+
+Do not create duplicate:
+
+- buttons
+- inputs
+- cards
+- badges
+- menus
+- dialogs
+- drawers
+- tabs
+- tooltips
+- status components
+
+---
+
+## 18. Visual Consistency
+
+A new feature must look like part of MonoSuite.
+
+Do not create a completely new visual language for each feature.
+
+New visual patterns should be promoted to the design system only when they are reusable across multiple features.
