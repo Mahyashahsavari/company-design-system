@@ -1,13 +1,14 @@
 import {
-  Avatar,
-  Badge,
+  ActionIcon,
+  Box,
   Button,
   Group,
   Menu,
-  Stack,
   Text,
-  ThemeIcon,
+  Tooltip,
+  Transition,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import type { ReactNode } from 'react';
 import {
   IconAdjustments,
@@ -22,6 +23,7 @@ import {
   IconScreenShare,
   IconScreenShareOff,
   IconSettings,
+  IconShieldLock,
   IconUsers,
   IconVideo,
   IconVideoOff,
@@ -29,12 +31,19 @@ import {
   IconVolumeOff,
   IconWifiOff,
 } from '@tabler/icons-react';
-import { CONNECTION_UI, LIVE_PEOPLE, type ConnectionState } from '../data';
-import type { MediaState } from '../hooks/useRoomState';
+import { CONNECTION_UI, type ConnectionState } from '../data';
+import {
+  resolveLocalCameraState,
+  resolveLocalMicState,
+  resolveLocalShareState,
+  resolveLocalSpeakerState,
+  type MediaState,
+} from '../hooks/useRoomState';
 
 interface MediaDockProps {
   media: MediaState;
   durationLabel: string;
+  participantCount: number;
   onJoin: () => void;
   onToggleMedia: (key: 'mic' | 'camera' | 'speaker') => void;
   onShare: () => void;
@@ -42,14 +51,26 @@ interface MediaDockProps {
   onSettings: () => void;
   onRetry: () => void;
   onMore: (action: string) => void;
+  /** Render controls only — parent supplies the chrome shell. */
+  embedded?: boolean;
+  /** Sidebar / split panel — compact grid, no overlap. */
+  density?: 'default' | 'sidebar';
+  /** Hide LIVE / participant count / duration — shown in parent header instead. */
+  hideStatusMeta?: boolean;
+  /** Replaces status meta on the left of live controls (e.g. compact avatars). */
+  leadingSlot?: ReactNode;
 }
 
-const chromeMuted = 'var(--monosuite-color-chrome-text-muted)';
-const chromeText = 'var(--monosuite-color-chrome-text)';
+type ControlVisual = 'on' | 'off' | 'muted' | 'sharing' | 'warn' | 'danger';
 
+/**
+ * Floating Live Room Control Dock.
+ * Distinguishes “War Room is active” (pre-join) from “joined live communication”.
+ */
 export function MediaDock({
   media,
   durationLabel,
+  participantCount,
   onJoin,
   onToggleMedia,
   onShare,
@@ -57,267 +78,901 @@ export function MediaDock({
   onSettings,
   onRetry,
   onMore,
+  embedded = false,
+  density = 'default',
+  hideStatusMeta = false,
+  leadingSlot,
 }: MediaDockProps) {
-  const { joined, mic, camera, speaker, share, connection, speakingId } = media;
+  const compact = useMediaQuery('(max-width: 64em)', false, {
+    getInitialValueInEffect: false,
+  });
+
+  const { joined, connection } = media;
   const conn = (joined ? connection : 'idle') as ConnectionState;
   const connUi = conn !== 'idle' ? CONNECTION_UI[conn] : null;
-  const presenting = Boolean(media.remoteShareBy || share) && media.shareLayout !== 'minimized';
-  const showAudioStrip = joined && !camera && !presenting;
-  const speakerPerson =
-    LIVE_PEOPLE.find((p) => p.id === speakingId) ?? LIVE_PEOPLE[0];
+
+  const mic = micControlMeta(resolveLocalMicState(media));
+  const camera = cameraControlMeta(resolveLocalCameraState(media));
+  const speaker = speakerControlMeta(resolveLocalSpeakerState(media));
+  const share = shareControlMeta(resolveLocalShareState(media), media.remoteShareBy);
+
+  const liveControlProps = {
+    mic,
+    camera,
+    speaker,
+    share,
+    onToggleMedia,
+    onShare,
+    onStopShare,
+    onSettings,
+    onMore,
+    conn,
+    connUi,
+    onRetry,
+  };
+
+  const controls = (
+    <Group gap={compact ? 8 : 12} wrap="nowrap" align="center" justify="center">
+        {!hideStatusMeta ? (
+          <Group gap={8} wrap="nowrap" style={{ flexShrink: 1, minWidth: 0 }}>
+            <StatusChip
+              tone="live"
+              label={joined ? 'LIVE' : 'LIVE ROOM'}
+              pulsing={joined}
+            />
+            <MetaItem
+              icon={<IconUsers size={13} stroke={1.75} />}
+              label={`${participantCount} participants`}
+            />
+            {!compact && (
+              <MetaItem
+                label={joined ? `${durationLabel} active` : 'Communication not started'}
+              />
+            )}
+            {compact && !joined && (
+              <MetaItem label="Not started" />
+            )}
+          </Group>
+        ) : joined && leadingSlot ? (
+          <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
+            {leadingSlot}
+          </Group>
+        ) : null}
+
+        {(!hideStatusMeta || leadingSlot) && <DockDivider />}
+
+        <Transition
+          mounted={!joined}
+          transition="fade"
+          duration={150}
+          timingFunction="ease"
+        >
+          {(styles) => (
+            <Button
+              style={styles}
+              size="sm"
+              color="teal"
+              radius="xl"
+              leftSection={<IconPlayerPlay size={16} />}
+              onClick={onJoin}
+              data-testid="dock-join"
+              aria-label="Join live communication"
+              styles={{ root: { fontWeight: 700 } }}
+            >
+              Join Live
+            </Button>
+          )}
+        </Transition>
+
+        <Transition
+          mounted={joined}
+          transition="fade"
+          duration={180}
+          timingFunction="ease"
+        >
+          {(styles) => (
+            <Group gap={6} wrap="nowrap" data-testid="dock-live-controls" style={styles}>
+              <DockControl
+                testId="dock-mic"
+                label="Microphone"
+                stateLabel={mic.stateLabel}
+                visual={mic.visual}
+                disabled={mic.disabled}
+                pressed={mic.pressed}
+                onClick={() => onToggleMedia('mic')}
+                icon={mic.icon}
+              />
+              <DockControl
+                testId="dock-camera"
+                label="Camera"
+                stateLabel={camera.stateLabel}
+                visual={camera.visual}
+                disabled={camera.disabled}
+                pressed={camera.pressed}
+                onClick={() => onToggleMedia('camera')}
+                icon={camera.icon}
+              />
+              <DockControl
+                testId="dock-speaker"
+                label="Speaker"
+                stateLabel={speaker.stateLabel}
+                visual={speaker.visual}
+                disabled={speaker.disabled}
+                pressed={speaker.pressed}
+                onClick={() => onToggleMedia('speaker')}
+                icon={speaker.icon}
+              />
+
+              <DockDivider />
+
+              <Group gap={4} wrap="nowrap">
+                <DockControl
+                  testId="dock-share"
+                  label="Screen Share"
+                  stateLabel={share.stateLabel}
+                  visual={share.visual}
+                  disabled={share.disabled}
+                  pressed={share.pressed}
+                  onClick={share.pressed ? onStopShare : onShare}
+                  icon={share.icon}
+                />
+                {media.share && (
+                  <Button
+                    size="xs"
+                    color="danger"
+                    variant="light"
+                    leftSection={<IconScreenShareOff size={14} />}
+                    onClick={onStopShare}
+                    data-testid="dock-stop-sharing"
+                    aria-label="Stop sharing your screen"
+                  >
+                    Stop Sharing
+                  </Button>
+                )}
+              </Group>
+
+              {media.share && !compact && (
+                <Group gap={6} wrap="nowrap" data-testid="dock-share-viewers">
+                  <Box
+                    component="span"
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: 'var(--mantine-color-success-filled)',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text
+                    size="xs"
+                    c="var(--monosuite-color-chrome-text-muted)"
+                    fw={600}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {participantCount} participants can see your screen
+                  </Text>
+                </Group>
+              )}
+
+              <DockDivider />
+
+              <DockControl
+                testId="dock-settings"
+                label="Media Settings"
+                stateLabel="Open"
+                visual="off"
+                pressed={false}
+                onClick={onSettings}
+                icon={<IconSettings size={18} stroke={1.75} />}
+              />
+
+              <Menu shadow="md" width={220} position="top" withinPortal>
+                <Menu.Target>
+                  <Tooltip label="More" withArrow position="top">
+                    <ActionIcon
+                      variant="subtle"
+                      color="neutral"
+                      size={36}
+                      radius="md"
+                      aria-label="More"
+                      data-testid="dock-more"
+                      styles={{
+                        root: {
+                          color: 'var(--monosuite-color-chrome-text-muted)',
+                          border: '1px solid transparent',
+                        },
+                      }}
+                    >
+                      <IconDots size={18} stroke={1.75} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item
+                    leftSection={<IconAdjustments size={14} />}
+                    onClick={() => onMore('devices')}
+                  >
+                    Test devices
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconNetwork size={14} />}
+                    onClick={() => onMore('connection')}
+                  >
+                    Connection details
+                  </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconShieldLock size={14} />}
+                  onClick={() => onMore('simulate-moderator-mute')}
+                >
+                  Simulate moderator mute
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconScreenShare size={14} />}
+                  onClick={() => onMore('simulate-mike-share')}
+                >
+                  Simulate Mike sharing
+                </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+
+              {connUi && (
+                <>
+                  <DockDivider />
+                  <Group gap={6} wrap="nowrap" data-testid="dock-connection">
+                    <StatusChip
+                      tone={
+                        conn === 'connected'
+                          ? 'ok'
+                          : conn === 'poor' || conn === 'reconnecting'
+                            ? 'warn'
+                            : 'danger'
+                      }
+                      label={
+                        conn === 'connected' ? 'Connected' : connUi.label.replace(/\.\.\.$/, '')
+                      }
+                      icon={
+                        conn === 'poor' ? (
+                          <IconAlertTriangle size={12} />
+                        ) : conn === 'reconnecting' ? (
+                          <IconLoader2 size={12} />
+                        ) : conn === 'lost' ? (
+                          <IconWifiOff size={12} />
+                        ) : undefined
+                      }
+                    />
+                    {(conn === 'lost' || conn === 'reconnecting') && (
+                      <Tooltip label="Retry connection" withArrow>
+                        <ActionIcon
+                          size={28}
+                          radius="md"
+                          variant="light"
+                          color="teal"
+                          aria-label="Retry connection"
+                          onClick={onRetry}
+                        >
+                          <IconRefresh size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                  </Group>
+                </>
+              )}
+            </Group>
+          )}
+        </Transition>
+      </Group>
+  );
+
+  if (embedded) {
+    return (
+      <Box
+        data-testid="media-control-dock"
+        data-joined={joined ? 'true' : 'false'}
+        data-density={density}
+        className={density === 'sidebar' ? 'monosuite-media-dock-sidebar' : undefined}
+        px={density === 'sidebar' ? 8 : 10}
+        py={density === 'sidebar' ? 8 : 5}
+      >
+        {density === 'sidebar' ? (
+          joined ? (
+            <SidebarDockControls {...liveControlProps} />
+          ) : (
+            <Button
+              fullWidth
+              size="sm"
+              color="teal"
+              radius="md"
+              leftSection={<IconPlayerPlay size={16} />}
+              onClick={onJoin}
+              data-testid="dock-join"
+              aria-label="Join live communication"
+              styles={{ root: { fontWeight: 700 } }}
+            >
+              Join Live
+            </Button>
+          )
+        ) : (
+          controls
+        )}
+      </Box>
+    );
+  }
 
   return (
-    <Group
-      h="100%"
-      px="md"
-      justify="space-between"
-      wrap="nowrap"
-      gap="md"
+    <Box
+      data-testid="media-control-dock"
+      data-joined={joined ? 'true' : 'false'}
       style={{
+        width: 'fit-content',
+        maxWidth: '100%',
+        marginInline: 'auto',
+        padding: '6px 12px',
+        borderRadius: 14,
         background: 'var(--monosuite-color-chrome)',
-        color: chromeText,
-        borderTop: '1px solid color-mix(in srgb, var(--mantine-color-teal-filled) 32%, transparent)',
+        color: 'var(--monosuite-color-chrome-text)',
+        border: '1px solid var(--monosuite-color-chrome-border)',
+        boxShadow: 'var(--mantine-shadow-lg)',
+        outline: joined
+          ? '1px solid color-mix(in srgb, var(--mantine-color-teal-filled) 36%, transparent)'
+          : undefined,
+        minHeight: 64,
+        maxHeight: 72,
       }}
     >
-      <Group gap="md" wrap="nowrap" style={{ minWidth: 0 }}>
-        <Group gap={6}>
-          <Badge
-            color="success"
-            variant="filled"
-            size="sm"
-            leftSection={
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: 'var(--mantine-color-white)',
-                  display: 'inline-block',
-                }}
-              />
-            }
-          >
-            {joined ? 'LIVE' : 'LIVE ROOM'}
-          </Badge>
-          <Group gap={4} c={chromeMuted}>
-            <IconUsers size={14} />
-            <Text size="xs">{LIVE_PEOPLE.length} participants</Text>
-          </Group>
-          {!joined && (
-            <Text size="xs" c={chromeMuted}>
-              Communication not started
-            </Text>
-          )}
-          {joined && (
-            <Text size="xs" c={chromeMuted}>
-              {durationLabel} active
-            </Text>
-          )}
-          {share && (
-            <Text size="xs" c="teal.4">
-              {LIVE_PEOPLE.length} participants can see your screen
-            </Text>
-          )}
-        </Group>
+      {controls}
+    </Box>
+  );
+}
 
-        {showAudioStrip && (
-          <Group gap={8}>
-            <Group gap={4}>
-              {LIVE_PEOPLE.slice(0, 3).map((p) => (
-                <Avatar key={p.id} size={24} radius="xl" color={p.color}>
-                  {p.initials}
-                </Avatar>
-              ))}
-            </Group>
-            <Group gap={4} c={chromeMuted}>
-              <IconMicrophone size={14} />
-              <Text size="xs">
-                Speaking:{' '}
-                <Text span size="xs" c={chromeText} fw={600}>
-                  {speakerPerson?.name}
-                </Text>
-              </Text>
-            </Group>
-          </Group>
-        )}
+function DockDivider({ className }: { className?: string }) {
+  return (
+    <Box
+      aria-hidden
+      className={className}
+      style={{
+        width: 1,
+        height: 28,
+        flexShrink: 0,
+        background: 'var(--monosuite-color-chrome-border)',
+      }}
+    />
+  );
+}
+
+type LiveControlBundle = {
+  mic: ReturnType<typeof micControlMeta>;
+  camera: ReturnType<typeof cameraControlMeta>;
+  speaker: ReturnType<typeof speakerControlMeta>;
+  share: ReturnType<typeof shareControlMeta>;
+  onToggleMedia: (key: 'mic' | 'camera' | 'speaker') => void;
+  onShare: () => void;
+  onStopShare: () => void;
+  onSettings: () => void;
+  onMore: (action: string) => void;
+  conn: ConnectionState | 'idle';
+  connUi: { label: string; detail: string } | null;
+  onRetry: () => void;
+};
+
+/** Compact grid for narrow split collaboration panel — prevents control overlap. */
+function SidebarDockControls({
+  mic,
+  camera,
+  speaker,
+  share,
+  onToggleMedia,
+  onShare,
+  onStopShare,
+  onSettings,
+  onMore,
+  conn,
+  connUi,
+  onRetry,
+}: LiveControlBundle) {
+  const controlSize = 28;
+
+  return (
+    <Box className="monosuite-media-dock-sidebar-toolbar" data-testid="dock-live-controls">
+      <Group gap={4} wrap="nowrap" className="monosuite-media-dock-sidebar-primary">
+        <DockControl
+          testId="dock-mic"
+          size={controlSize}
+          label="Microphone"
+          stateLabel={mic.stateLabel}
+          visual={mic.visual}
+          disabled={mic.disabled}
+          pressed={mic.pressed}
+          onClick={() => onToggleMedia('mic')}
+          icon={mic.icon}
+        />
+        <DockControl
+          testId="dock-camera"
+          size={controlSize}
+          label="Camera"
+          stateLabel={camera.stateLabel}
+          visual={camera.visual}
+          disabled={camera.disabled}
+          pressed={camera.pressed}
+          onClick={() => onToggleMedia('camera')}
+          icon={camera.icon}
+        />
+        <DockControl
+          testId="dock-speaker"
+          size={controlSize}
+          label="Speaker"
+          stateLabel={speaker.stateLabel}
+          visual={speaker.visual}
+          disabled={speaker.disabled}
+          pressed={speaker.pressed}
+          onClick={() => onToggleMedia('speaker')}
+          icon={speaker.icon}
+        />
+        <DockControl
+          testId="dock-share"
+          size={controlSize}
+          label="Screen Share"
+          stateLabel={share.stateLabel}
+          visual={share.visual}
+          disabled={share.disabled}
+          pressed={share.pressed}
+          onClick={share.pressed ? onStopShare : onShare}
+          icon={share.icon}
+        />
       </Group>
 
-      {!joined ? (
-        <Button color="teal" leftSection={<IconPlayerPlay size={16} />} onClick={onJoin}>
-          Join Live
-        </Button>
-      ) : (
-        <Group gap="xs" wrap="nowrap">
-          <DockBtn
-            label="Microphone"
-            state={mic ? 'On' : 'Muted'}
-            active={mic}
-            onClick={() => onToggleMedia('mic')}
-            icon={mic ? <IconMicrophone size={16} /> : <IconMicrophoneOff size={16} />}
-          />
-          <DockBtn
-            label="Camera"
-            state={camera ? 'On' : 'Off'}
-            active={camera}
-            onClick={() => onToggleMedia('camera')}
-            icon={camera ? <IconVideo size={16} /> : <IconVideoOff size={16} />}
-          />
-          <DockBtn
-            label="Speaker"
-            state={speaker ? 'On' : 'Muted'}
-            active={speaker}
-            onClick={() => onToggleMedia('speaker')}
-            icon={speaker ? <IconVolume size={16} /> : <IconVolumeOff size={16} />}
-          />
-          <DockBtn
-            label="Screen Share"
-            state={share ? 'Sharing' : 'Off'}
-            active={share}
-            onClick={onShare}
-            icon={<IconScreenShare size={16} />}
-          />
-          {share && (
-            <Button
-              size="xs"
-              color="danger"
-              variant="light"
-              leftSection={<IconScreenShareOff size={14} />}
-              onClick={onStopShare}
-            >
-              Stop Sharing
-            </Button>
-          )}
-          <Button
-            size="xs"
-            variant="subtle"
-            c={chromeMuted}
-            leftSection={<IconSettings size={14} />}
-            onClick={onSettings}
-          >
-            Settings
-          </Button>
-          <Menu shadow="md" width={200} position="top-end">
-            <Menu.Target>
-              <Button size="xs" variant="subtle" c={chromeMuted} leftSection={<IconDots size={14} />}>
-                More
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<IconAdjustments size={14} />}
-                onClick={() => onMore('devices')}
-              >
-                Test devices
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconNetwork size={14} />}
-                onClick={() => onMore('connection')}
-              >
-                Connection details
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      )}
+      <Box className="monosuite-media-dock-sidebar-divider" aria-hidden />
 
-      {joined && connUi && (
-        <Group gap={6} wrap="nowrap">
-          <ConnIcon state={conn} />
-          <Stack gap={0}>
-            <Text size="xs" c={chromeMuted} fw={600}>
-              {connUi.label}
-            </Text>
-          </Stack>
-          {(conn === 'lost' || conn === 'reconnecting') && (
-            <Button
-              size="compact-xs"
-              variant="light"
-              color="teal"
-              leftSection={<IconRefresh size={12} />}
-              onClick={onRetry}
+      <Group gap={4} wrap="nowrap" className="monosuite-media-dock-sidebar-secondary">
+        <DockControl
+          testId="dock-settings"
+          size={controlSize}
+          label="Media Settings"
+          stateLabel="Open"
+          visual="off"
+          pressed={false}
+          onClick={onSettings}
+          icon={<IconSettings size={15} stroke={1.75} />}
+        />
+        <Menu shadow="md" width={220} position="top" withinPortal>
+          <Menu.Target>
+            <Tooltip label="More" withArrow position="top">
+              <ActionIcon
+                variant="subtle"
+                color="neutral"
+                size={controlSize}
+                radius="md"
+                aria-label="More"
+                data-testid="dock-more"
+                styles={{
+                  root: {
+                    color: 'var(--monosuite-color-chrome-text-muted)',
+                    border: '1px solid transparent',
+                  },
+                }}
+              >
+                <IconDots size={15} stroke={1.75} />
+              </ActionIcon>
+            </Tooltip>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item leftSection={<IconAdjustments size={14} />} onClick={() => onMore('devices')}>
+              Test devices
+            </Menu.Item>
+            <Menu.Item leftSection={<IconNetwork size={14} />} onClick={() => onMore('connection')}>
+              Connection details
+            </Menu.Item>
+            <Menu.Item
+              leftSection={<IconShieldLock size={14} />}
+              onClick={() => onMore('simulate-moderator-mute')}
             >
-              Retry
-            </Button>
-          )}
-        </Group>
-      )}
+              Simulate moderator mute
+            </Menu.Item>
+            <Menu.Item
+              leftSection={<IconScreenShare size={14} />}
+              onClick={() => onMore('simulate-mike-share')}
+            >
+              Simulate Mike sharing
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+        {connUi ? (
+          <Tooltip
+            label={
+              conn === 'connected' ? 'Connected' : connUi.label.replace(/\.\.\.$/, '')
+            }
+            withArrow
+            position="top"
+          >
+            <ActionIcon
+              variant="subtle"
+              color={
+                conn === 'connected'
+                  ? 'success'
+                  : conn === 'poor' || conn === 'reconnecting'
+                    ? 'warning'
+                    : 'danger'
+              }
+              size={controlSize}
+              radius="md"
+              aria-label="Connection status"
+              data-testid="dock-connection"
+              onClick={conn === 'reconnecting' || conn === 'lost' ? onRetry : undefined}
+              styles={{
+                root: {
+                  color: 'var(--monosuite-color-chrome-text-muted)',
+                  border: '1px solid transparent',
+                },
+              }}
+            >
+              {conn === 'poor' ? (
+                <IconAlertTriangle size={15} />
+              ) : conn === 'reconnecting' ? (
+                <IconLoader2 size={15} />
+              ) : conn === 'lost' ? (
+                <IconWifiOff size={15} />
+              ) : (
+                <IconNetwork size={15} />
+              )}
+            </ActionIcon>
+          </Tooltip>
+        ) : null}
+      </Group>
+    </Box>
+  );
+}
+
+function MetaItem({ icon, label }: { icon?: ReactNode; label: string }) {
+  return (
+    <Group gap={4} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
+      {icon}
+      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>
+        {label}
+      </Text>
     </Group>
   );
 }
 
-function DockBtn({
+function StatusChip({
   label,
-  state,
-  active,
-  onClick,
+  tone,
+  pulsing,
   icon,
 }: {
   label: string;
-  state: string;
-  active: boolean;
-  onClick: () => void;
-  icon: ReactNode;
+  tone: 'live' | 'ok' | 'warn' | 'danger';
+  pulsing?: boolean;
+  icon?: ReactNode;
 }) {
+  const color =
+    tone === 'live' || tone === 'ok'
+      ? 'var(--mantine-color-success-filled)'
+      : tone === 'warn'
+        ? 'var(--mantine-color-warning-filled)'
+        : 'var(--mantine-color-danger-filled)';
+
   return (
-    <Button
-      size="xs"
-      variant={active ? 'light' : 'subtle'}
-      color={active ? 'teal' : 'neutral'}
-      onClick={onClick}
-      styles={{
-        root: {
-          height: 'auto',
-          padding: '4px 8px',
-          flexDirection: 'column',
-          gap: 0,
-          color: active ? undefined : 'var(--monosuite-color-chrome-text-muted)',
-        },
-        label: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 },
+    <Group
+      gap={6}
+      wrap="nowrap"
+      px={8}
+      py={4}
+      style={{
+        borderRadius: 999,
+        background:
+          tone === 'live'
+            ? 'color-mix(in srgb, var(--mantine-color-teal-filled) 18%, transparent)'
+            : 'var(--monosuite-color-chrome-raised)',
       }}
     >
-      {icon}
-      <Text size="xs" lh={1.2}>
+      {icon ?? (
+        <Box
+          component="span"
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: color,
+            boxShadow: pulsing ? `0 0 0 3px color-mix(in srgb, ${color} 28%, transparent)` : undefined,
+            flexShrink: 0,
+          }}
+        />
+      )}
+      <Text
+        size="xs"
+        fw={700}
+        style={{
+          whiteSpace: 'nowrap',
+          letterSpacing: '0.04em',
+          color:
+            tone === 'live'
+              ? 'var(--mantine-color-teal-filled)'
+              : 'var(--monosuite-color-chrome-text)',
+        }}
+      >
         {label}
       </Text>
-      <Text size="xs" c="dimmed" lh={1.2}>
-        {state}
-      </Text>
-    </Button>
+    </Group>
   );
 }
 
-function ConnIcon({ state }: { state: ConnectionState }) {
-  if (state === 'poor') {
-    return (
-      <ThemeIcon size="sm" color="warning" variant="light">
-        <IconAlertTriangle size={12} />
-      </ThemeIcon>
-    );
-  }
-  if (state === 'reconnecting') {
-    return (
-      <ThemeIcon size="sm" color="accent" variant="light">
-        <IconLoader2 size={12} />
-      </ThemeIcon>
-    );
-  }
-  if (state === 'lost') {
-    return (
-      <ThemeIcon size="sm" color="danger" variant="light">
-        <IconWifiOff size={12} />
-      </ThemeIcon>
-    );
-  }
+/** Icon + label + pressed/muted affordance — state is never color-only. */
+function DockControl({
+  label,
+  stateLabel,
+  visual,
+  disabled,
+  pressed,
+  onClick,
+  icon,
+  testId,
+  size = 36,
+}: {
+  label: string;
+  stateLabel: string;
+  visual: ControlVisual;
+  disabled?: boolean;
+  pressed: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  testId: string;
+  size?: number;
+}) {
+  const tooltip = `${label}: ${stateLabel}`;
+  const styles = visualStyles(visual);
+
   return (
-    <ThemeIcon size="sm" color="success" variant="filled" radius="xl">
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'var(--mantine-color-white)',
+    <Tooltip label={tooltip} withArrow position="top">
+      <ActionIcon
+        variant={styles.variant}
+        color={styles.color}
+        size={size}
+        radius="md"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={tooltip}
+        aria-pressed={pressed}
+        data-testid={testId}
+        data-state={stateLabel.toLowerCase().replace(/\s+/g, '-')}
+        styles={{
+          root: {
+            position: 'relative',
+            border: styles.border,
+            color: styles.colorToken,
+            background: styles.background,
+            transition: 'background-color 120ms ease, color 120ms ease, border-color 120ms ease',
+          },
         }}
-      />
-    </ThemeIcon>
+      >
+        {icon}
+        {visual === 'muted' && (
+          <Text
+            component="span"
+            size="xs"
+            fw={800}
+            style={{
+              position: 'absolute',
+              right: 2,
+              bottom: 1,
+              fontSize: 8,
+              lineHeight: 1,
+              letterSpacing: 0,
+              color: 'var(--mantine-color-danger-filled)',
+            }}
+          >
+            MUTE
+          </Text>
+        )}
+        {visual === 'sharing' && (
+          <Box
+            component="span"
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: 3,
+              right: 3,
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--mantine-color-white)',
+            }}
+          />
+        )}
+      </ActionIcon>
+    </Tooltip>
   );
+}
+
+function visualStyles(visual: ControlVisual): {
+  variant: 'filled' | 'light' | 'subtle';
+  color: string;
+  border: string;
+  background?: string;
+  colorToken?: string;
+} {
+  switch (visual) {
+    case 'on':
+      return {
+        variant: 'light',
+        color: 'teal',
+        border: '1px solid color-mix(in srgb, var(--mantine-color-teal-filled) 45%, transparent)',
+      };
+    case 'sharing':
+      return {
+        variant: 'filled',
+        color: 'teal',
+        border: '1px solid var(--mantine-color-teal-filled)',
+      };
+    case 'muted':
+      return {
+        variant: 'light',
+        color: 'danger',
+        border: '1px solid color-mix(in srgb, var(--mantine-color-danger-filled) 40%, transparent)',
+      };
+    case 'warn':
+      return {
+        variant: 'light',
+        color: 'warning',
+        border: '1px solid color-mix(in srgb, var(--mantine-color-warning-filled) 40%, transparent)',
+      };
+    case 'danger':
+      return {
+        variant: 'light',
+        color: 'danger',
+        border: '1px solid color-mix(in srgb, var(--mantine-color-danger-filled) 40%, transparent)',
+      };
+    case 'off':
+    default:
+      return {
+        variant: 'subtle',
+        color: 'neutral',
+        border: '1px solid var(--monosuite-color-chrome-border)',
+        background: 'var(--monosuite-color-chrome-raised)',
+        colorToken: 'var(--monosuite-color-chrome-text-muted)',
+      };
+  }
+}
+
+function micControlMeta(state: ReturnType<typeof resolveLocalMicState>) {
+  switch (state) {
+    case 'on':
+      return {
+        stateLabel: 'On',
+        visual: 'on' as const,
+        pressed: true,
+        icon: <IconMicrophone size={18} stroke={1.75} />,
+      };
+    case 'off':
+      return {
+        stateLabel: 'Muted',
+        visual: 'muted' as const,
+        pressed: false,
+        icon: <IconMicrophoneOff size={18} stroke={1.75} />,
+      };
+    case 'muted-by-moderator':
+      return {
+        stateLabel: 'Muted by moderator',
+        visual: 'muted' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconMicrophoneOff size={18} stroke={1.75} />,
+      };
+    case 'permission-denied':
+      return {
+        stateLabel: 'Permission denied',
+        visual: 'danger' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconMicrophoneOff size={18} stroke={1.75} />,
+      };
+    case 'connecting':
+      return {
+        stateLabel: 'Connecting',
+        visual: 'warn' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconLoader2 size={18} stroke={1.75} />,
+      };
+  }
+}
+
+function cameraControlMeta(state: ReturnType<typeof resolveLocalCameraState>) {
+  switch (state) {
+    case 'on':
+      return {
+        stateLabel: 'On',
+        visual: 'on' as const,
+        pressed: true,
+        icon: <IconVideo size={18} stroke={1.75} />,
+      };
+    case 'off':
+      return {
+        stateLabel: 'Off',
+        visual: 'off' as const,
+        pressed: false,
+        icon: <IconVideoOff size={18} stroke={1.75} />,
+      };
+    case 'permission-denied':
+      return {
+        stateLabel: 'Permission denied',
+        visual: 'danger' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconVideoOff size={18} stroke={1.75} />,
+      };
+    case 'connecting':
+      return {
+        stateLabel: 'Connecting',
+        visual: 'warn' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconLoader2 size={18} stroke={1.75} />,
+      };
+  }
+}
+
+function speakerControlMeta(state: ReturnType<typeof resolveLocalSpeakerState>) {
+  switch (state) {
+    case 'on':
+      return {
+        stateLabel: 'On',
+        visual: 'on' as const,
+        pressed: true,
+        icon: <IconVolume size={18} stroke={1.75} />,
+      };
+    case 'off':
+      return {
+        stateLabel: 'Off',
+        visual: 'off' as const,
+        pressed: false,
+        icon: <IconVolumeOff size={18} stroke={1.75} />,
+      };
+    case 'unavailable':
+      return {
+        stateLabel: 'Device unavailable',
+        visual: 'warn' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconVolumeOff size={18} stroke={1.75} />,
+      };
+  }
+}
+
+function shareControlMeta(
+  state: ReturnType<typeof resolveLocalShareState>,
+  remoteShareBy: string | null,
+) {
+  switch (state) {
+    case 'available':
+      return {
+        stateLabel: 'Off',
+        visual: 'off' as const,
+        pressed: false,
+        icon: <IconScreenShare size={18} stroke={1.75} />,
+      };
+    case 'sharing':
+      return {
+        stateLabel: 'Sharing',
+        visual: 'sharing' as const,
+        pressed: true,
+        icon: <IconScreenShare size={18} stroke={1.75} />,
+      };
+    case 'remote-sharing':
+      return {
+        stateLabel: remoteShareBy
+          ? `${remoteShareBy} is sharing`
+          : 'Another participant is sharing',
+        visual: 'warn' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconScreenShareOff size={18} stroke={1.75} />,
+      };
+    case 'permission-denied':
+      return {
+        stateLabel: 'Permission denied',
+        visual: 'danger' as const,
+        pressed: false,
+        disabled: true,
+        icon: <IconScreenShareOff size={18} stroke={1.75} />,
+      };
+  }
 }

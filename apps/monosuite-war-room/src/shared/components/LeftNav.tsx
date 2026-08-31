@@ -39,12 +39,12 @@ export function LeftNav({
         </NavIcon>
       </Stack>
       {showAsideToggle && onToggleAside && (
-        <Tooltip label={asideCollapsed ? 'Show sidebar' : 'Hide sidebar'} position="right">
+        <Tooltip label={asideCollapsed ? 'Expand utility panel' : 'Collapse utility panel'} position="right">
           <ActionIcon
             variant="subtle"
             color="neutral"
             size="lg"
-            aria-label="Toggle context sidebar"
+            aria-label={asideCollapsed ? 'Expand utility panel' : 'Collapse utility panel'}
             onClick={onToggleAside}
           >
             {asideCollapsed ? (

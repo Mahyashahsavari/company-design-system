@@ -1,24 +1,37 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CURRENT_USER } from '../../../shared/constants';
 import {
   CONNECTION_CYCLE,
-  CURRENT_USER,
   INITIAL_HISTORY,
   INITIAL_QUESTIONS,
+  LIVE_PEOPLE,
+  PARTICIPANTS,
   ROOM_START_MINUTES,
   type ConnectionState,
   type ContextTab,
   type HistoryEntry,
+  type LivePerson,
+  type LocalCameraState,
+  type LocalMicState,
+  type LocalShareState,
+  type LocalSpeakerState,
+  type MediaPermission,
+  type Participant,
   type Question,
   type ShareLayout,
   type WorkspaceTab,
+  type PinTarget,
   formatRoomDuration,
   formatRoomDurationShort,
   getQuestionsForTab,
+  getRemoteCamerasOn,
 } from '../data';
 
 export interface MediaState {
   joined: boolean;
+  /** Local user microphone only. */
   mic: boolean;
+  /** Local user camera only — never controls remote participant cameras. */
   camera: boolean;
   speaker: boolean;
   share: boolean;
@@ -26,6 +39,14 @@ export interface MediaState {
   shareLayout: ShareLayout;
   connection: ConnectionState;
   speakingId: string;
+  /** Camera/mic permission for the local device. */
+  permission: MediaPermission;
+  micPermission: MediaPermission;
+  sharePermission: MediaPermission;
+  mutedByModerator: boolean;
+  micConnecting: boolean;
+  cameraConnecting: boolean;
+  speakerUnavailable: boolean;
 }
 
 export interface MediaDevices {
@@ -45,6 +66,13 @@ const INITIAL_MEDIA: MediaState = {
   shareLayout: 'split',
   connection: 'idle',
   speakingId: 'sarah',
+  permission: 'granted',
+  micPermission: 'granted',
+  sharePermission: 'granted',
+  mutedByModerator: false,
+  micConnecting: false,
+  cameraConnecting: false,
+  speakerUnavailable: false,
 };
 
 const INITIAL_DEVICES: MediaDevices = {
@@ -57,6 +85,31 @@ const INITIAL_DEVICES: MediaDevices = {
 function nowTime(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+export function resolveLocalMicState(media: MediaState): LocalMicState {
+  if (media.micConnecting) return 'connecting';
+  if (media.micPermission === 'denied') return 'permission-denied';
+  if (media.mutedByModerator) return 'muted-by-moderator';
+  return media.mic ? 'on' : 'off';
+}
+
+export function resolveLocalCameraState(media: MediaState): LocalCameraState {
+  if (media.cameraConnecting) return 'connecting';
+  if (media.permission === 'denied') return 'permission-denied';
+  return media.camera ? 'on' : 'off';
+}
+
+export function resolveLocalSpeakerState(media: MediaState): LocalSpeakerState {
+  if (media.speakerUnavailable) return 'unavailable';
+  return media.speaker ? 'on' : 'off';
+}
+
+export function resolveLocalShareState(media: MediaState): LocalShareState {
+  if (media.sharePermission === 'denied') return 'permission-denied';
+  if (media.share) return 'sharing';
+  if (media.remoteShareBy) return 'remote-sharing';
+  return 'available';
 }
 
 export function useRoomState() {
@@ -73,10 +126,21 @@ export function useRoomState() {
   const [expandedSource, setExpandedSource] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaState>(INITIAL_MEDIA);
   const [mediaDevices, setMediaDevices] = useState<MediaDevices>(INITIAL_DEVICES);
+  const [livePeople, setLivePeople] = useState<LivePerson[]>(() =>
+    structuredClone(LIVE_PEOPLE),
+  );
+  const [participants, setParticipants] = useState<Participant[]>(() =>
+    structuredClone(PARTICIPANTS),
+  );
   const [toast, setToast] = useState<string | null>(null);
   const [manualIncidentOpen, setManualIncidentOpen] = useState(false);
   const [mediaSettingsOpen, setMediaSettingsOpen] = useState(false);
   const [typingVisible] = useState(true);
+  const [pinnedTarget, setPinnedTarget] = useState<PinTarget | null>(null);
+  const [collaborationFullscreen, setCollaborationFullscreen] = useState(false);
+  const [collaborationSplit, setCollaborationSplit] = useState(false);
+  const [collaborationSplitWidth, setCollaborationSplitWidth] = useState(280);
+  const splitBeforeFullscreenRef = useRef(false);
   const [roomStartTime] = useState(() => Date.now() - ROOM_START_MINUTES * 60 * 1000);
   const [now, setNow] = useState(() => Date.now());
   const [selectedDecision, setSelectedDecision] = useState<Record<number, string>>({
@@ -136,8 +200,18 @@ export function useRoomState() {
     [questions, workspaceTab],
   );
 
-  const presenting = Boolean(
-    (media.share || media.remoteShareBy) && media.shareLayout !== 'minimized',
+  const shareActive = Boolean(media.share || media.remoteShareBy);
+  const shareMinimized = media.shareLayout === 'minimized';
+  const presenting = Boolean(shareActive && !shareMinimized);
+  const remoteCamerasOn = useMemo(() => getRemoteCamerasOn(livePeople), [livePeople]);
+  const mediaSurfaceActive = Boolean(
+    media.joined &&
+      (presenting ||
+        remoteCamerasOn.length > 0 ||
+        media.camera ||
+        media.permission !== 'granted' ||
+        media.connection === 'reconnecting' ||
+        media.connection === 'lost'),
   );
 
   const toggleAside = useCallback(() => {
@@ -222,25 +296,79 @@ export function useRoomState() {
       joined: true,
       connection: 'connected',
     }));
-    showToast('Joined live room');
+    setLivePeople((prev) =>
+      prev.map((p) => {
+        const remote = PARTICIPANTS.find((x) => x.id === p.id);
+        if (p.isLocal || !remote) return p;
+        return { ...p, camera: remote.camera };
+      }),
+    );
+    showToast('Joined live communication');
   }, [showToast]);
 
   const toggleMedia = useCallback(
     (key: 'mic' | 'camera' | 'speaker') => {
       setMedia((m) => {
         if (!m.joined && key !== 'speaker') return m;
-        return { ...m, [key]: !m[key] };
+
+        if (key === 'mic') {
+          if (m.mutedByModerator) {
+            showToast('Microphone muted by moderator');
+            return m;
+          }
+          if (m.micPermission === 'denied') {
+            showToast('Microphone permission denied');
+            return m;
+          }
+          if (m.micConnecting) return m;
+          return { ...m, mic: !m.mic };
+        }
+
+        if (key === 'camera') {
+          const turningOn = !m.camera;
+          if (turningOn && m.permission === 'denied') {
+            showToast('Camera permission denied');
+            return m;
+          }
+          if (turningOn && m.permission === 'unavailable') {
+            showToast('Camera unavailable');
+            return m;
+          }
+          if (m.cameraConnecting) return m;
+          const nextCamera = turningOn;
+          setLivePeople((prev) =>
+            prev.map((p) => (p.isLocal ? { ...p, camera: nextCamera } : p)),
+          );
+          return { ...m, camera: nextCamera };
+        }
+
+        if (m.speakerUnavailable) {
+          showToast('Speaker device unavailable');
+          return m;
+        }
+        return { ...m, speaker: !m.speaker };
       });
     },
-    [],
+    [showToast],
   );
 
   const startShare = useCallback(() => {
+    let nextSharing: boolean | null = null;
     setMedia((m) => {
       if (!m.joined) return m;
+      if (m.sharePermission === 'denied') {
+        showToast('Screen share permission denied');
+        return m;
+      }
+      if (m.remoteShareBy && !m.share) {
+        showToast(`${m.remoteShareBy} is already sharing`);
+        return m;
+      }
       if (m.share) {
+        nextSharing = false;
         return { ...m, share: false, shareLayout: 'split' };
       }
+      nextSharing = true;
       return {
         ...m,
         share: true,
@@ -249,7 +377,11 @@ export function useRoomState() {
         camera: false,
       };
     });
-    showToast('Screen share started');
+    if (nextSharing != null) {
+      if (nextSharing) setPinnedTarget({ kind: 'share' });
+      else setPinnedTarget(null);
+      showToast(nextSharing ? 'Screen share started' : 'Screen share stopped');
+    }
   }, [showToast]);
 
   const stopShare = useCallback(() => {
@@ -259,6 +391,11 @@ export function useRoomState() {
       remoteShareBy: null,
       shareLayout: 'split',
     }));
+    setPinnedTarget((prev) => (prev?.kind === 'share' ? null : prev));
+    setCollaborationFullscreen(false);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    }
     showToast('Screen share stopped');
   }, [showToast]);
 
@@ -266,12 +403,74 @@ export function useRoomState() {
     setMedia((m) => ({ ...m, shareLayout: layout }));
   }, []);
 
-  /** Demo: Mike shares when user is not already sharing */
+  /** Demo: Mike shares while video room is active */
   const simulateRemoteShare = useCallback(() => {
     setMedia((m) => ({
       ...m,
-      remoteShareBy: m.share ? null : 'Mike Chen',
+      joined: true,
+      connection: m.connection === 'idle' ? 'connected' : m.connection,
+      share: false,
+      remoteShareBy: 'Mike Chen',
       shareLayout: 'split',
+    }));
+    setPinnedTarget({ kind: 'share' });
+  }, []);
+
+  const pinParticipant = useCallback((id: string) => {
+    setPinnedTarget({ kind: 'participant', id });
+  }, []);
+
+  const pinShare = useCallback(() => {
+    if (!shareActive) return;
+    setPinnedTarget({ kind: 'share' });
+  }, [shareActive]);
+
+  const unpin = useCallback(() => {
+    setPinnedTarget(null);
+  }, []);
+
+  const setCollaborationFullscreenActive = useCallback((active: boolean) => {
+    if (active) {
+      setCollaborationSplit((split) => {
+        splitBeforeFullscreenRef.current = split;
+        return false;
+      });
+      if (document.fullscreenElement) {
+        void document.exitFullscreen();
+      }
+    }
+    setCollaborationFullscreen(active);
+  }, []);
+
+  const exitCollaborationFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    }
+    setCollaborationFullscreen(false);
+    if (splitBeforeFullscreenRef.current) {
+      setCollaborationSplit(true);
+      splitBeforeFullscreenRef.current = false;
+    }
+  }, []);
+
+  const toggleCollaborationSplit = useCallback(() => {
+    setCollaborationSplit((split) => {
+      const next = !split;
+      if (next) {
+        if (document.fullscreenElement) {
+          void document.exitFullscreen();
+        }
+        setCollaborationFullscreen(false);
+      }
+      return next;
+    });
+  }, []);
+
+  const setMediaPermission = useCallback((permission: MediaPermission) => {
+    setMedia((m) => ({
+      ...m,
+      permission,
+      camera: permission === 'granted' ? m.camera : false,
     }));
   }, []);
 
@@ -305,6 +504,9 @@ export function useRoomState() {
         case 'view-incident':
           setManualIncidentOpen(true);
           break;
+        case 'rooms':
+          showToast('Opening rooms list…');
+          break;
         default:
           showToast(action);
       }
@@ -326,12 +528,138 @@ export function useRoomState() {
   }, [showToast]);
 
   const applyMediaSettings = useCallback(
-    (next: MediaDevices) => {
+    (next: MediaDevices, permission?: MediaPermission) => {
       setMediaDevices(next);
+      if (permission) {
+        setMedia((m) => ({
+          ...m,
+          permission,
+          camera: permission === 'granted' ? m.camera : false,
+        }));
+      }
       setMediaSettingsOpen(false);
       showToast('Media settings applied');
     },
     [showToast],
+  );
+
+  const canManageParticipants = CURRENT_USER.canManageParticipants;
+
+  const activeParticipants = useMemo(
+    () => participants.filter((p) => !p.removed),
+    [participants],
+  );
+
+  const toggleParticipantMic = useCallback(
+    (id: string) => {
+      if (!canManageParticipants) return;
+      let nextMic = false;
+      let targetName = 'Participant';
+      setParticipants((prev) =>
+        prev.map((p) => {
+          if (p.id !== id) return p;
+          nextMic = !p.mic;
+          targetName = p.name;
+          return { ...p, mic: nextMic, speaking: nextMic ? p.speaking : false };
+        }),
+      );
+      if (!nextMic) {
+        setMedia((m) => (m.speakingId === id ? { ...m, speakingId: '' } : m));
+      }
+      showToast(`${targetName} ${nextMic ? 'unmuted' : 'muted'}`);
+      setHistory((h) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `${nextMic ? 'unmuted' : 'muted'} ${targetName}`,
+          highlight: false,
+        },
+        ...h,
+      ]);
+    },
+    [canManageParticipants, showToast],
+  );
+
+  const toggleParticipantCamera = useCallback(
+    (id: string) => {
+      if (!canManageParticipants) return;
+      let nextCamera = false;
+      let targetName = 'Participant';
+      setParticipants((prev) =>
+        prev.map((p) => {
+          if (p.id !== id) return p;
+          nextCamera = !p.camera;
+          targetName = p.name;
+          return { ...p, camera: nextCamera };
+        }),
+      );
+      setLivePeople((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, camera: nextCamera } : p)),
+      );
+      showToast(`${targetName} camera ${nextCamera ? 'enabled' : 'disabled'}`);
+    },
+    [canManageParticipants, showToast],
+  );
+
+  const removeParticipant = useCallback(
+    (id: string) => {
+      if (!canManageParticipants) return;
+      const target = participants.find((p) => p.id === id);
+      setParticipants((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, removed: true, mic: false, camera: false } : p)),
+      );
+      setLivePeople((prev) => prev.filter((p) => p.id !== id));
+      showToast(`${target?.name ?? 'Participant'} removed from room`);
+      setHistory((h) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `removed ${target?.name ?? 'participant'}`,
+          highlight: true,
+        },
+        ...h,
+      ]);
+    },
+    [canManageParticipants, participants, showToast],
+  );
+
+  const setParticipantRole = useCallback(
+    (id: string, role: string) => {
+      if (!canManageParticipants) return;
+      setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, role } : p)));
+      showToast('Participant role updated');
+    },
+    [canManageParticipants, showToast],
+  );
+
+  const viewParticipantDetails = useCallback(
+    (id: string) => {
+      const target = participants.find((p) => p.id === id);
+      showToast(`Details · ${target?.name ?? 'Participant'} · ${target?.role ?? ''}`);
+    },
+    [participants, showToast],
+  );
+
+  const setLocalMediaFlags = useCallback(
+    (
+      flags: Partial<
+        Pick<
+          MediaState,
+          | 'mutedByModerator'
+          | 'micConnecting'
+          | 'cameraConnecting'
+          | 'speakerUnavailable'
+          | 'micPermission'
+          | 'sharePermission'
+          | 'mic'
+          | 'camera'
+          | 'speaker'
+        >
+      >,
+    ) => {
+      setMedia((m) => ({ ...m, ...flags }));
+    },
+    [],
   );
 
   return {
@@ -357,7 +685,25 @@ export function useRoomState() {
     setExpandedSource,
     media,
     mediaDevices,
+    livePeople,
+    participants: activeParticipants,
+    canManageParticipants,
+    remoteCamerasOn,
+    mediaSurfaceActive,
+    shareActive,
+    shareMinimized,
     presenting,
+    pinnedTarget,
+    collaborationFullscreen,
+    collaborationSplit,
+    collaborationSplitWidth,
+    setCollaborationSplitWidth,
+    toggleCollaborationSplit,
+    pinParticipant,
+    pinShare,
+    unpin,
+    setCollaborationFullscreenActive,
+    exitCollaborationFullscreen,
     toast,
     showToast,
     clearToast,
@@ -377,6 +723,18 @@ export function useRoomState() {
     stopShare,
     setShareLayout,
     simulateRemoteShare,
+    setMediaPermission,
+    setLivePeople,
+    toggleParticipantMic,
+    toggleParticipantCamera,
+    /** @deprecated use toggleParticipantMic */
+    muteParticipant: toggleParticipantMic,
+    /** @deprecated use toggleParticipantCamera */
+    disableParticipantCamera: toggleParticipantCamera,
+    removeParticipant,
+    setParticipantRole,
+    viewParticipantDetails,
+    setLocalMediaFlags,
     retryConnection,
     closeRoom,
     roomAction,

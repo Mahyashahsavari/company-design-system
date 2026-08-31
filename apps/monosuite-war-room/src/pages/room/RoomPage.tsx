@@ -1,99 +1,263 @@
-import { AppShell, Breadcrumbs, Group, Stack, Text } from '@mantine/core';
+import { useState } from 'react';
+import { AppShell, Box } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { AppChrome } from '../../shared/components/AppChrome';
 import { Toast } from '../../shared';
+import {
+  ROOM_MEDIA_DOCK_GUTTER,
+  ROOM_MEDIA_DOCK_SAFE_ZONE,
+  ROOM_PAGE_HEADER_GUTTER,
+} from '../../shared/constants';
+import { CollaborationLayer } from './components/CollaborationLayer';
 import { ContextSidebar } from './components/ContextSidebar';
 import { IncidentContextColumn } from './components/IncidentContextColumn';
 import { InvestigationWorkspace } from './components/InvestigationWorkspace';
+import { LiveMediaFloatPanel } from './components/LiveMediaFloatPanel';
 import { ManualIncidentDrawer } from './components/ManualIncidentDrawer';
-import { MediaDock } from './components/MediaDock';
 import { MediaSettingsModal } from './components/MediaSettingsModal';
+import { ResizableSplitPane } from './components/ResizableSplitPane';
 import { ResponseWorkflow } from './components/response-workflow';
 import { RoomCommandHeader } from './components/RoomCommandHeader';
-import { INCIDENT, WORKFLOW_STEPS } from './data';
+import {
+  ATTACKER_ENTITIES,
+  PARTICIPANTS,
+  VICTIM_ENTITIES,
+  WORKFLOW_STEPS,
+} from './data';
 import { useRoomState } from './hooks/useRoomState';
 
+const RAIL_WIDTH = 52;
+
+function handleMediaMore(
+  action: string,
+  room: ReturnType<typeof useRoomState>,
+) {
+  if (action === 'simulate-moderator-mute') {
+    room.setLocalMediaFlags({ mutedByModerator: true, mic: false });
+    room.showToast('Microphone muted by moderator');
+    return;
+  }
+  if (action === 'simulate-mike-share') {
+    room.simulateRemoteShare();
+    room.showToast('Mike Chen is sharing his screen');
+    return;
+  }
+  room.showToast(action === 'devices' ? 'Testing devices…' : 'Connection details');
+}
+
+/** Room page — investigation + separate collaboration/media layer. */
 export function RoomPage() {
   const room = useRoomState();
-  const roomPhase = room.media.joined ? INCIDENT.id : 'Pre-Join-Ready';
+  const [attackerId, setAttackerId] = useState(ATTACKER_ENTITIES[0].id);
+  const [victimId, setVictimId] = useState(VICTIM_ENTITIES[0].id);
+  const compactDesktop = useMediaQuery('(max-width: 87.99em)', true, {
+    getInitialValueInEffect: false,
+  });
+  const utilityWidth = room.asideCollapsed ? RAIL_WIDTH : compactDesktop ? 300 : 340;
+  const collabFullscreen = room.collaborationFullscreen;
+  const collabSplit =
+    room.collaborationSplit && room.media.joined && !collabFullscreen;
+  const showDockedFloat = !collabSplit && !collabFullscreen;
+
+  const collaboration = (
+    <CollaborationLayer
+      media={room.media}
+      livePeople={room.livePeople}
+      participants={room.participants}
+      pinnedTarget={room.pinnedTarget}
+      viewerCount={PARTICIPANTS.length}
+      fullscreen={collabFullscreen}
+      split={collabSplit}
+      durationLabel={room.durationLabel}
+      participantCount={room.participants.length}
+      onJoin={room.joinLive}
+      onToggleMedia={room.toggleMedia}
+      onShare={room.startShare}
+      onStopShare={room.stopShare}
+      onSettings={() => room.setMediaSettingsOpen(true)}
+      onRetry={room.retryConnection}
+      onMore={(action) => handleMediaMore(action, room)}
+      onSplitToggle={room.toggleCollaborationSplit}
+      onShareLayoutChange={room.setShareLayout}
+      onPinParticipant={room.pinParticipant}
+      onUnpin={room.unpin}
+      onFullscreenChange={room.setCollaborationFullscreenActive}
+      onExitFullscreen={room.exitCollaborationFullscreen}
+      canManageParticipants={room.canManageParticipants}
+      onToggleParticipantMic={room.toggleParticipantMic}
+      onToggleParticipantCamera={room.toggleParticipantCamera}
+      onRemoveParticipant={room.removeParticipant}
+      onSetParticipantRole={room.setParticipantRole}
+      onViewParticipantDetails={room.viewParticipantDetails}
+    />
+  );
+
+  const splitUtilityWidth = room.asideCollapsed ? RAIL_WIDTH : compactDesktop ? 260 : 280;
+  const activeUtilityWidth = collabSplit ? splitUtilityWidth : utilityWidth;
+  const minCollabWidth = compactDesktop ? 240 : 260;
+
+  const utilitySidebar = (
+    <Box
+      className="monosuite-room-utility-panel monosuite-context-rail"
+      style={{
+        width: activeUtilityWidth,
+        marginRight: 4,
+        transition: 'width 160ms ease',
+      }}
+    >
+      <ContextSidebar
+        tab={room.sidebarTab}
+        onTabChange={room.setSidebarTab}
+        history={room.history}
+        onInvite={() => room.roomAction('invite')}
+        onAddEvidence={() => room.roomAction('add-evidence')}
+        collapsed={room.asideCollapsed}
+        onExpand={() => {
+          if (room.asideCollapsed) room.toggleAside();
+        }}
+        onToggleCollapse={room.toggleAside}
+        participants={room.participants}
+        media={room.media}
+        canManageParticipants={room.canManageParticipants}
+        onMuteParticipant={room.toggleParticipantMic}
+        onDisableCamera={room.toggleParticipantCamera}
+        onRemoveParticipant={room.removeParticipant}
+        onSetRole={room.setParticipantRole}
+        onViewDetails={room.viewParticipantDetails}
+        onPinParticipant={room.pinParticipant}
+      />
+    </Box>
+  );
+
+  const roomBody = (
+    <Box
+      className="monosuite-room-row"
+      px={ROOM_PAGE_HEADER_GUTTER}
+      pt={ROOM_PAGE_HEADER_GUTTER}
+      pb={ROOM_PAGE_HEADER_GUTTER}
+    >
+      <IncidentContextColumn
+        attackerId={attackerId}
+        victimId={victimId}
+        onAttackerChange={setAttackerId}
+        onVictimChange={setVictimId}
+        onViewIncident={() => room.roomAction('view-incident')}
+      />
+
+      <Box
+        className="monosuite-room-column"
+        style={{ paddingRight: collabSplit ? 8 : 12, gap: 10, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+      >
+        <Box style={{ flexShrink: 0 }}>
+          <ResponseWorkflow steps={WORKFLOW_STEPS} />
+        </Box>
+        <InvestigationWorkspace
+          room={room}
+          dockSafeZone={showDockedFloat}
+          dockSafeZoneHeight={ROOM_MEDIA_DOCK_SAFE_ZONE}
+        />
+      </Box>
+
+      {utilitySidebar}
+    </Box>
+  );
+
+  const splitRightPane = <Box className="monosuite-room-panel">{collaboration}</Box>;
+
+  const liveMediaFloatPanel = (
+    <LiveMediaFloatPanel
+      media={room.media}
+      livePeople={room.livePeople}
+      participants={room.participants}
+      pinnedTarget={room.pinnedTarget}
+      durationLabel={room.durationLabel}
+      participantCount={room.participants.length}
+      onJoin={room.joinLive}
+      onToggleMedia={room.toggleMedia}
+      onShare={room.startShare}
+      onStopShare={room.stopShare}
+      onSettings={() => room.setMediaSettingsOpen(true)}
+      onRetry={room.retryConnection}
+      onMore={(action) => handleMediaMore(action, room)}
+      onSplitToggle={room.toggleCollaborationSplit}
+      onFullscreenChange={room.setCollaborationFullscreenActive}
+      fullscreenActive={collabFullscreen}
+      onExitFullscreen={room.exitCollaborationFullscreen}
+      canManageParticipants={room.canManageParticipants}
+      onPinParticipant={room.pinParticipant}
+      onUnpin={room.unpin}
+      onToggleParticipantMic={room.toggleParticipantMic}
+      onToggleParticipantCamera={room.toggleParticipantCamera}
+      onRemoveParticipant={room.removeParticipant}
+      onSetParticipantRole={room.setParticipantRole}
+      onViewParticipantDetails={room.viewParticipantDetails}
+    />
+  );
+
+  const floatFixed = (
+    <Box
+      style={{
+        position: 'fixed',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        bottom: ROOM_MEDIA_DOCK_GUTTER,
+        width: 'max-content',
+        maxWidth: 'calc(100% - 32px)',
+        zIndex: 10,
+        pointerEvents: 'none',
+      }}
+    >
+      <Box style={{ pointerEvents: 'auto' }}>{liveMediaFloatPanel}</Box>
+    </Box>
+  );
+
+  const splitLeftPane = <Box className="monosuite-room-panel">{roomBody}</Box>;
+
+  const roomWorkspace = (
+    <Box className="monosuite-room-panel" style={{ position: 'relative' }}>
+      {roomBody}
+    </Box>
+  );
 
   return (
     <>
       <AppChrome
-        showAsideToggle
+        showAsideToggle={false}
         asideCollapsed={room.asideCollapsed}
         onToggleAside={room.toggleAside}
-        footerHeight={room.media.joined ? 72 : 56}
-        aside={
-          <AppShell.Aside
-            style={{
-              borderLeft: '1px solid var(--mantine-color-default-border)',
-              background: 'var(--mantine-color-body)',
-            }}
-          >
-            <ContextSidebar
-              tab={room.sidebarTab}
-              onTabChange={room.setSidebarTab}
-              history={room.history}
-              onInvite={() => room.roomAction('invite')}
-              onAddEvidence={() => room.roomAction('add-evidence')}
-            />
-          </AppShell.Aside>
-        }
-        footer={
-          <AppShell.Footer
-            style={{
-              background: 'var(--monosuite-color-chrome)',
-              borderTop: '1px solid var(--monosuite-color-chrome-border)',
-            }}
-          >
-            <MediaDock
-              media={room.media}
-              durationLabel={room.durationLabel}
-              onJoin={room.joinLive}
-              onToggleMedia={room.toggleMedia}
-              onShare={room.startShare}
-              onStopShare={room.stopShare}
-              onSettings={() => room.setMediaSettingsOpen(true)}
-              onRetry={room.retryConnection}
-              onMore={(action) =>
-                room.showToast(action === 'devices' ? 'Testing devices…' : 'Connection details')
-              }
-            />
-          </AppShell.Footer>
-        }
       >
         <AppShell.Main
+          className="monosuite-room-main"
           style={{
             background: 'var(--monosuite-color-background)',
-            minHeight: 'calc(100vh - 52px)',
+            position: 'relative',
           }}
         >
-          <Stack gap="sm" p="md" pb="lg">
-            <Breadcrumbs>
-              <Text size="xs" c="dimmed">
-                Incident Room
-              </Text>
-              <Text size="xs" fw={600}>
-                {roomPhase}
-              </Text>
-            </Breadcrumbs>
+          {collabFullscreen ? (
+            <Box className="monosuite-room-body">{collaboration}</Box>
+          ) : (
+            <Box className="monosuite-room-body">
+              <RoomCommandHeader onRoomAction={room.roomAction} onCloseRoom={room.closeRoom} />
+              <Box className="monosuite-room-workspace">
+                {collabSplit ? (
+                  <ResizableSplitPane
+                    left={splitLeftPane}
+                    right={splitRightPane}
+                    rightWidth={room.collaborationSplitWidth}
+                    onRightWidthChange={(width) => {
+                      room.setCollaborationSplitWidth(Math.max(minCollabWidth, width));
+                    }}
+                    minLeft={compactDesktop ? 400 : 480}
+                    minRight={minCollabWidth}
+                  />
+                ) : (
+                  roomWorkspace
+                )}
+              </Box>
+            </Box>
+          )}
 
-            <Group align="flex-start" gap="md" wrap="nowrap">
-              <IncidentContextColumn />
-
-              <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
-                <RoomCommandHeader
-                  durationShort={room.durationShort}
-                  onRoomAction={room.roomAction}
-                  onCloseRoom={room.closeRoom}
-                />
-
-                <ResponseWorkflow protocol="NIC800" steps={WORKFLOW_STEPS} />
-
-                <InvestigationWorkspace room={room} />
-              </Stack>
-            </Group>
-          </Stack>
+          {showDockedFloat && floatFixed}
         </AppShell.Main>
       </AppChrome>
 
@@ -107,6 +271,7 @@ export function RoomPage() {
         opened={room.mediaSettingsOpen}
         onClose={() => room.setMediaSettingsOpen(false)}
         devices={room.mediaDevices}
+        permission={room.media.permission}
         onApply={room.applyMediaSettings}
       />
 

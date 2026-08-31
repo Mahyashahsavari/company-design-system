@@ -46,6 +46,7 @@ export function GlobalHeader() {
           fw={700}
           size="sm"
           c="var(--monosuite-color-chrome-text)"
+          visibleFrom="lg"
           style={{ whiteSpace: 'nowrap' }}
         >
           MonoSuite War Room
@@ -58,7 +59,8 @@ export function GlobalHeader() {
         aria-label="Global Search"
         size="xs"
         radius="sm"
-        style={{ flex: 1, maxWidth: 420 }}
+        visibleFrom="md"
+        style={{ flex: 1, maxWidth: 420, minWidth: 0 }}
         styles={{
           input: {
             background: 'var(--monosuite-color-chrome-raised)',
@@ -91,8 +93,11 @@ export function GlobalHeader() {
           variant="light"
           color="teal"
           leftSection={<IconSparkles size={14} />}
+          aria-label="MonoAI"
         >
-          MonoAI
+          <Text span visibleFrom="lg" inherit>
+            MonoAI
+          </Text>
         </Button>
         <Group gap={8} wrap="nowrap">
           <Avatar size={28} radius="xl" color="accent">

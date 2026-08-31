@@ -21,3 +21,42 @@ body {
 #root {
   min-height: 100%;
 }
+
+/* Thin scrollbars — native overflow and horizontal tab rails */
+:root {
+  --monosuite-scrollbar-size: 4px;
+}
+
+*,
+*::before,
+*::after {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--monosuite-color-text-muted) 45%, transparent)
+    transparent;
+}
+
+*::-webkit-scrollbar {
+  width: var(--monosuite-scrollbar-size);
+  height: var(--monosuite-scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(
+    in srgb,
+    var(--monosuite-color-text-muted) 50%,
+    var(--monosuite-color-border)
+  );
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--monosuite-color-text-muted) 75%, transparent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

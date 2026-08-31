@@ -1,25 +1,55 @@
 import {
-  Avatar,
+  ActionIcon,
   Badge,
+  Box,
   Group,
   Indicator,
   Stack,
   Tabs,
   Text,
-  Title,
+  ThemeIcon,
+  Tooltip,
 } from '@mantine/core';
-import { IconClock, IconUsers } from '@tabler/icons-react';
+import {
+  IconActivity,
+  IconClock,
+  IconRadar2,
+  IconUsers,
+  IconX,
+} from '@tabler/icons-react';
+import { useState } from 'react';
+import { ROOM_MEDIA_DOCK_SAFE_ZONE } from '../../../shared/constants';
 import { PARTICIPANTS, type WorkspaceTab } from '../data';
 import type { RoomState } from '../hooks/useRoomState';
 import { LiveActivity } from './LiveActivity';
 import { QuestionCard } from './QuestionCard';
-import { ScreenShareStage } from './ScreenShareStage';
 
 interface InvestigationWorkspaceProps {
   room: RoomState;
+  dockSafeZone?: boolean;
+  dockSafeZoneHeight?: number;
 }
 
-export function InvestigationWorkspace({ room }: InvestigationWorkspaceProps) {
+const tabStyles = {
+  tab: {
+    flexShrink: 0,
+    whiteSpace: 'nowrap' as const,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    paddingInline: 14,
+    paddingBlock: 8,
+  },
+};
+
+/** Primary investigation surface — full-width SOC workspace. */
+export function InvestigationWorkspace({
+  room,
+  dockSafeZone = false,
+  dockSafeZoneHeight = ROOM_MEDIA_DOCK_SAFE_ZONE,
+}: InvestigationWorkspaceProps) {
+  const [activityOpen, setActivityOpen] = useState(false);
   const {
     workspaceTab,
     setWorkspaceTab,
@@ -39,154 +69,194 @@ export function InvestigationWorkspace({ room }: InvestigationWorkspaceProps) {
     history,
     typingVisible,
     durationShort,
-    media,
-    setShareLayout,
   } = room;
 
-  const shareActive = Boolean(media.share || media.remoteShareBy);
-  const shareMinimized = media.shareLayout === 'minimized';
+  const tabLabel = (base: string, count: number) => `${base} · ${count}`;
 
   return (
     <Stack
       gap={0}
+      className="monosuite-room-panel monosuite-investigation-workspace"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        borderRadius: 6,
-        background: 'var(--mantine-color-body)',
         flex: 1,
-        minHeight: 360,
+        minHeight: 0,
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: 'var(--mantine-radius-md)',
+        border: '1px solid var(--monosuite-color-border)',
+        background: 'var(--monosuite-color-surface)',
+        boxShadow: 'var(--mantine-shadow-sm)',
       }}
     >
+      <Box className="monosuite-investigation-accent" aria-hidden />
+
       <Group
-        justify="space-between"
         px="md"
-        py="sm"
-        wrap="wrap"
-        style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+        py={8}
+        justify="space-between"
+        wrap="nowrap"
+        gap="sm"
+        className="monosuite-investigation-header"
       >
-        <Title order={5}>Investigation & Collaboration</Title>
-        <Group gap="md" wrap="wrap">
-          <Group gap={6}>
-            <Indicator processing color="success" size={8}>
-              <Badge color="success" variant="light" size="sm">
-                Live War Room
-              </Badge>
-            </Indicator>
-            <Group gap={4} c="dimmed">
-              <IconUsers size={14} />
-              <Text size="xs">
-                <strong>4</strong> in room
-              </Text>
-              <Text size="xs">·</Text>
-              <IconClock size={14} />
-              <Text size="xs">{durationShort}</Text>
-            </Group>
+        <Group gap={10} wrap="nowrap" style={{ minWidth: 0 }}>
+          <ThemeIcon
+            size={30}
+            radius="sm"
+            variant="light"
+            color="brand"
+            aria-hidden
+            style={{ flexShrink: 0 }}
+          >
+            <IconRadar2 size={16} />
+          </ThemeIcon>
+          <Stack gap={0} style={{ minWidth: 0 }}>
+            <Text size="10px" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.1em' }}>
+              Investigation
+            </Text>
+            <Text size="sm" fw={700} lineClamp={1}>
+              Collaboration workspace
+            </Text>
+          </Stack>
+          <Badge size="xs" variant="light" color="brand" style={{ flexShrink: 0 }}>
+            SOC
+          </Badge>
+        </Group>
+
+        <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
+          <Indicator processing color="success" size={8}>
+            <Badge color="success" variant="light" size="sm">
+              LIVE
+            </Badge>
+          </Indicator>
+          <Group gap={4} c="dimmed" wrap="nowrap" visibleFrom="sm">
+            <IconUsers size={14} aria-hidden />
+            <Text size="xs" fw={600}>
+              {PARTICIPANTS.length}
+            </Text>
           </Group>
-          <Avatar.Group spacing="sm">
-            {PARTICIPANTS.map((p) => (
-              <Avatar key={p.id} size={24} radius="xl" color={p.color} title={p.name}>
-                {p.initials}
-              </Avatar>
-            ))}
-          </Avatar.Group>
+          <Group gap={4} c="dimmed" wrap="nowrap" visibleFrom="sm">
+            <IconClock size={14} aria-hidden />
+            <Text size="xs" fw={600}>
+              {durationShort}
+            </Text>
+          </Group>
           {typingVisible && (
-            <Text size="xs" c="dimmed" fs="italic">
+            <Text size="xs" c="dimmed" fs="italic" visibleFrom="lg">
               Sarah is typing…
             </Text>
           )}
+          <Tooltip label={activityOpen ? 'Hide activity feed' : 'Show activity feed'}>
+            <ActionIcon
+              variant={activityOpen ? 'light' : 'subtle'}
+              color={activityOpen ? 'teal' : 'neutral'}
+              size="md"
+              aria-label={activityOpen ? 'Hide activity feed' : 'Show activity feed'}
+              aria-pressed={activityOpen}
+              onClick={() => setActivityOpen((open) => !open)}
+            >
+              <IconActivity size={16} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </Group>
-
-      {shareActive && shareMinimized && (
-        <Group
-          px="md"
-          py="xs"
-          justify="space-between"
-          style={{ background: 'var(--mantine-color-teal-light)' }}
-        >
-          <Text size="sm">
-            Screen share minimized — {media.share ? 'You are sharing' : `${media.remoteShareBy} is sharing`}
-          </Text>
-          <Badge
-            color="success"
-            variant="filled"
-            size="xs"
-            style={{ cursor: 'pointer' }}
-            onClick={() => setShareLayout('split')}
-          >
-            Show screen
-          </Badge>
-        </Group>
-      )}
-
-      {shareActive && !shareMinimized && (
-        <ScreenShareStage
-          selfShare={media.share}
-          sharerName={media.share ? 'You' : media.remoteShareBy ?? 'Mike Chen'}
-          layout={media.shareLayout}
-          onLayoutChange={setShareLayout}
-        />
-      )}
 
       <Tabs
         value={workspaceTab}
         onChange={(v) => v && setWorkspaceTab(v as WorkspaceTab)}
-        px="md"
-        pt="sm"
+        className="monosuite-investigation-tabs"
+        styles={tabStyles}
       >
-        <Tabs.List>
-          <Tabs.Tab value="questions">
-            Questions{' '}
-            <Badge size="xs" ml={4} variant="light" circle>
-              {tabCounts.questions}
-            </Badge>
-          </Tabs.Tab>
-          <Tabs.Tab value="findings">
-            Findings{' '}
-            <Badge size="xs" ml={4} variant="light" circle>
-              {tabCounts.findings}
-            </Badge>
-          </Tabs.Tab>
-          <Tabs.Tab value="decisions">
-            Decisions{' '}
-            <Badge size="xs" ml={4} variant="light" circle>
-              {tabCounts.decisions}
-            </Badge>
-          </Tabs.Tab>
+        <Tabs.List
+          px="md"
+          className="monosuite-hide-scrollbar-x monosuite-investigation-tablist"
+          style={{
+            flexWrap: 'nowrap',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            borderBottom: '1px solid var(--monosuite-color-border)',
+          }}
+        >
+          <Tabs.Tab value="questions">{tabLabel('Questions', tabCounts.questions)}</Tabs.Tab>
+          <Tabs.Tab value="findings">{tabLabel('Findings', tabCounts.findings)}</Tabs.Tab>
+          <Tabs.Tab value="decisions">{tabLabel('Decisions', tabCounts.decisions)}</Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
-      <Group align="flex-start" gap="sm" p="md" wrap="nowrap" style={{ flex: 1 }}>
-        <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
-          {workspaceItems.length === 0 ? (
-            <Text size="sm" c="dimmed" ta="center" py="xl">
-              No items in this view.
-            </Text>
-          ) : (
-            workspaceItems.map((q) => (
-              <QuestionCard
-                key={q.id}
-                question={q}
-                variant={workspaceTab}
-                expanded={expandedQuestion === q.id}
-                answering={answeringQuestion === q.id}
-                discussionOpen={discussionOpen === q.id}
-                selectedDecision={selectedDecision[q.id]}
-                onToggle={() => toggleQuestion(q.id)}
-                onStartAnswer={() => startAddAnswer(q.id)}
-                onCancelAnswer={cancelAddAnswer}
-                onSubmitAnswer={(text) => submitAnswer(q.id, text)}
-                onToggleDiscussion={() => toggleDiscussion(q.id)}
-                onSelectDecision={(choice) =>
-                  setSelectedDecision((prev) => ({ ...prev, [q.id]: choice }))
-                }
-                onRecordDecision={() => recordDecision(q.id)}
-              />
-            ))
-          )}
-        </Stack>
-        <LiveActivity history={history} />
-      </Group>
+      <Box
+        className="monosuite-room-workspace-scroll monosuite-investigation-body"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          position: 'relative',
+          paddingBottom: dockSafeZone ? dockSafeZoneHeight : undefined,
+        }}
+      >
+        <Box px="md" py="sm" pr={activityOpen ? 'min(300px, 38vw)' : undefined} style={{ width: '100%' }}>
+          <Stack gap="sm">
+            {workspaceItems.length === 0 ? (
+              <Text size="sm" c="dimmed" ta="center" py="xl">
+                No items in this view.
+              </Text>
+            ) : (
+              workspaceItems.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  variant={workspaceTab}
+                  expanded={expandedQuestion === q.id}
+                  answering={answeringQuestion === q.id}
+                  discussionOpen={discussionOpen === q.id}
+                  selectedDecision={selectedDecision[q.id]}
+                  onToggle={() => toggleQuestion(q.id)}
+                  onStartAnswer={() => startAddAnswer(q.id)}
+                  onCancelAnswer={cancelAddAnswer}
+                  onSubmitAnswer={(text) => submitAnswer(q.id, text)}
+                  onToggleDiscussion={() => toggleDiscussion(q.id)}
+                  onSelectDecision={(choice) =>
+                    setSelectedDecision((prev) => ({ ...prev, [q.id]: choice }))
+                  }
+                  onRecordDecision={() => recordDecision(q.id)}
+                />
+              ))
+            )}
+          </Stack>
+        </Box>
+
+        {activityOpen && (
+          <Box className="monosuite-investigation-activity-rail">
+            <Group
+              px="sm"
+              py={8}
+              justify="space-between"
+              wrap="nowrap"
+              style={{
+                borderBottom: '1px solid var(--monosuite-color-border)',
+                background: 'var(--monosuite-color-surface-sunken)',
+                flexShrink: 0,
+              }}
+            >
+              <Group gap={6}>
+                <IconActivity size={14} color="var(--mantine-color-teal-filled)" aria-hidden />
+                <Text size="xs" fw={700} tt="uppercase" style={{ letterSpacing: '0.06em' }}>
+                  Live activity
+                </Text>
+              </Group>
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="neutral"
+                aria-label="Close activity feed"
+                onClick={() => setActivityOpen(false)}
+              >
+                <IconX size={14} />
+              </ActionIcon>
+            </Group>
+            <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <LiveActivity history={history} variant="rail" />
+            </Box>
+          </Box>
+        )}
+      </Box>
     </Stack>
   );
 }

@@ -1,11 +1,7 @@
 import { Badge, Box, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import {
-  IconArrowsMaximize,
   IconBellRinging,
   IconDeviceDesktop,
-  IconMaximize,
-  IconMinus,
-  IconScreenShare,
   IconServer,
   IconShieldSearch,
   IconTimeline,
@@ -16,93 +12,114 @@ interface ScreenShareStageProps {
   selfShare: boolean;
   sharerName: string;
   layout: ShareLayout;
+  viewerCount?: number;
   onLayoutChange: (layout: ShareLayout) => void;
+  onStopShare?: () => void;
+  /** When true, header/controls are owned by CollaborationLayer. */
+  embedded?: boolean;
 }
 
+/** Shared screen mock surface for live collaboration. */
 export function ScreenShareStage({
   selfShare,
   sharerName,
   layout,
+  viewerCount: _viewerCount = 4,
   onLayoutChange,
+  embedded = false,
 }: ScreenShareStageProps) {
-  const height = layout === 'full' ? 420 : layout === 'room' ? 360 : 280;
+  const isExpanded = layout === 'full';
+  const stageShellStyle =
+    embedded && isExpanded
+      ? {
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column' as const,
+          padding: 'var(--mantine-spacing-sm) var(--mantine-spacing-md) var(--mantine-spacing-md)',
+        }
+      : {
+          height:
+            layout === 'full'
+              ? 'min(62vh, 520px)'
+              : layout === 'room'
+                ? 'min(36vh, 300px)'
+                : 'min(28vh, 240px)',
+          padding: 'var(--mantine-spacing-sm) var(--mantine-spacing-md) var(--mantine-spacing-md)',
+        };
 
   return (
-    <Stack gap={0} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
-      <Group
-        px="md"
-        py="xs"
-        justify="space-between"
-        wrap="wrap"
-        style={{ background: 'var(--monosuite-color-surface-sunken)' }}
-      >
-        <Group gap="sm">
-          <Box c="dimmed" style={{ display: 'flex', alignItems: 'center' }}>
-            <IconScreenShare size={16} />
-          </Box>
-          <Stack gap={0}>
-            <Text size="sm" fw={600}>
-              {selfShare ? 'You are sharing your screen' : `${sharerName} is sharing his screen`}
+    <Stack
+      gap={0}
+      data-testid={selfShare ? 'self-screen-share-stage' : 'remote-screen-share-stage'}
+      style={embedded && isExpanded ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}
+    >
+      {!embedded && (
+        <Group
+          px="md"
+          py="sm"
+          justify="space-between"
+          wrap="nowrap"
+          style={{
+            background: selfShare
+              ? 'color-mix(in srgb, var(--mantine-color-teal-filled) 16%, var(--monosuite-color-chrome-raised))'
+              : 'var(--monosuite-color-chrome-raised)',
+            borderBottom: '1px solid var(--monosuite-color-chrome-border)',
+          }}
+        >
+          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+            <Badge color="success" size="xs" variant="filled">
+              LIVE SHARING
+            </Badge>
+            <Text size="sm" fw={700} c="var(--monosuite-color-chrome-text)" lineClamp={1}>
+              {selfShare ? 'You are sharing your screen' : `${sharerName} is sharing their screen`}
             </Text>
-            {selfShare && (
-              <Text size="xs" c="dimmed">
-                4 participants can see your screen
-              </Text>
-            )}
-          </Stack>
-          <Badge color="success" size="xs" variant="filled">
-            LIVE
-          </Badge>
+          </Group>
+          <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+            <Button size="compact-xs" variant="subtle" onClick={() => onLayoutChange('minimized')}>
+              Minimize
+            </Button>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => onLayoutChange(layout === 'full' ? 'split' : 'full')}
+            >
+              {layout === 'full' ? 'Exit fullscreen' : 'Fullscreen'}
+            </Button>
+          </Group>
         </Group>
-        <Group gap={4}>
-          <Button
-            size="compact-xs"
-            variant="subtle"
-            c="dimmed"
-            leftSection={<IconMinus size={14} />}
-            onClick={() => onLayoutChange('minimized')}
-          >
-            Minimize
-          </Button>
-          <Button
-            size="compact-xs"
-            variant="subtle"
-            c="dimmed"
-            leftSection={<IconArrowsMaximize size={14} />}
-            onClick={() => onLayoutChange(layout === 'room' ? 'split' : 'room')}
-          >
-            {layout === 'room' ? 'Split view' : 'Fit to room'}
-          </Button>
-          <Button
-            size="compact-xs"
-            variant="subtle"
-            c="dimmed"
-            leftSection={<IconMaximize size={14} />}
-            onClick={() => onLayoutChange(layout === 'full' ? 'split' : 'full')}
-          >
-            {layout === 'full' ? 'Exit full' : 'Fullscreen'}
-          </Button>
-        </Group>
-      </Group>
+      )}
 
-      <Box px="md" pb="md" pt="sm" style={{ height }}>
-        <Paper withBorder radius="sm" h="100%" style={{ overflow: 'hidden' }}>
+      <Box style={stageShellStyle}>
+        <Paper
+          radius="sm"
+          h="100%"
+          style={{
+            flex: embedded && isExpanded ? 1 : undefined,
+            minHeight: embedded && isExpanded ? 0 : undefined,
+            display: embedded && isExpanded ? 'flex' : undefined,
+            flexDirection: embedded && isExpanded ? 'column' : undefined,
+            overflow: 'hidden',
+            background: 'var(--monosuite-color-chrome-raised)',
+            border: '1px solid var(--monosuite-color-chrome-border)',
+          }}
+        >
           <Group
             px="sm"
             py={6}
             justify="space-between"
             style={{
-              background: 'var(--monosuite-color-surface-sunken)',
-              borderBottom: '1px solid var(--mantine-color-default-border)',
+              background: 'var(--monosuite-color-chrome)',
+              borderBottom: '1px solid var(--monosuite-color-chrome-border)',
             }}
           >
             <Group gap={6}>
               <IconDeviceDesktop size={14} />
-              <Text size="xs" fw={600}>
+              <Text size="xs" fw={600} c="var(--monosuite-color-chrome-text)">
                 CoreLog — Alert CL-8847291
               </Text>
             </Group>
-            <Text size="xs" c="dimmed">
+            <Text size="xs" c="var(--monosuite-color-chrome-text-muted)">
               {sharerName} · Analyst workstation
             </Text>
           </Group>
@@ -112,8 +129,8 @@ export function ScreenShareStage({
               p="xs"
               w={120}
               style={{
-                borderRight: '1px solid var(--mantine-color-default-border)',
-                background: 'var(--monosuite-color-surface-sunken)',
+                borderRight: '1px solid var(--monosuite-color-chrome-border)',
+                background: 'var(--monosuite-color-chrome)',
               }}
             >
               {[
@@ -129,11 +146,17 @@ export function ScreenShareStage({
                   py={4}
                   style={{
                     borderRadius: 4,
-                    background: item.active ? 'var(--mantine-color-teal-light)' : undefined,
+                    background: item.active
+                      ? 'color-mix(in srgb, var(--mantine-color-teal-filled) 22%, transparent)'
+                      : undefined,
                   }}
                 >
                   <item.icon size={12} />
-                  <Text size="xs" fw={item.active ? 700 : 400}>
+                  <Text
+                    size="xs"
+                    fw={item.active ? 700 : 400}
+                    c="var(--monosuite-color-chrome-text)"
+                  >
                     {item.label}
                   </Text>
                 </Group>
@@ -144,10 +167,10 @@ export function ScreenShareStage({
                 <Badge color="danger" size="xs">
                   Critical
                 </Badge>
-                <Text size="sm" fw={600}>
+                <Text size="sm" fw={600} c="var(--monosuite-color-chrome-text)">
                   Lateral Movement — Suspicious Auth
                 </Text>
-                <Text size="xs" c="dimmed">
+                <Text size="xs" c="var(--monosuite-color-chrome-text-muted)">
                   Last event 21:46 UTC
                 </Text>
               </Group>
@@ -158,14 +181,22 @@ export function ScreenShareStage({
                   ['Victim user', 'jsmith@corp.local'],
                   ['Threat actor', 'FIN7 · IOC-8842'],
                 ].map(([k, v]) => (
-                  <Paper key={k} withBorder p="xs" radius="sm">
-                    <Text size="xs" c="dimmed">
+                  <Box
+                    key={k}
+                    p="xs"
+                    style={{
+                      borderRadius: 'var(--mantine-radius-sm)',
+                      background: 'var(--monosuite-color-chrome)',
+                      border: '1px solid var(--monosuite-color-chrome-border)',
+                    }}
+                  >
+                    <Text size="xs" c="var(--monosuite-color-chrome-text-muted)">
                       {k}
                     </Text>
-                    <Text size="xs" fw={600} ff="monospace">
+                    <Text size="xs" fw={600} c="var(--monosuite-color-chrome-text)">
                       {v}
                     </Text>
-                  </Paper>
+                  </Box>
                 ))}
               </Group>
               <Stack gap={2}>
@@ -173,15 +204,15 @@ export function ScreenShareStage({
                   gap="md"
                   px="xs"
                   py={4}
-                  style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+                  style={{ borderBottom: '1px solid var(--monosuite-color-chrome-border)' }}
                 >
-                  <Text size="xs" fw={700} w={48}>
+                  <Text size="xs" fw={700} w={48} c="var(--monosuite-color-chrome-text-muted)">
                     Time
                   </Text>
-                  <Text size="xs" fw={700} style={{ flex: 1 }}>
+                  <Text size="xs" fw={700} style={{ flex: 1 }} c="var(--monosuite-color-chrome-text-muted)">
                     Event
                   </Text>
-                  <Text size="xs" fw={700}>
+                  <Text size="xs" fw={700} c="var(--monosuite-color-chrome-text-muted)">
                     Host
                   </Text>
                 </Group>
@@ -196,17 +227,19 @@ export function ScreenShareStage({
                     px="xs"
                     py={4}
                     style={{
-                      background: hot ? 'var(--mantine-color-danger-light)' : undefined,
+                      background: hot
+                        ? 'color-mix(in srgb, var(--mantine-color-danger-filled) 18%, transparent)'
+                        : undefined,
                       borderRadius: 4,
                     }}
                   >
-                    <Text size="xs" w={48} ff="monospace">
+                    <Text size="xs" w={48} c="var(--monosuite-color-chrome-text)">
                       {t as string}
                     </Text>
-                    <Text size="xs" style={{ flex: 1 }}>
+                    <Text size="xs" style={{ flex: 1 }} c="var(--monosuite-color-chrome-text)">
                       {e as string}
                     </Text>
-                    <Text size="xs" c="dimmed">
+                    <Text size="xs" c="var(--monosuite-color-chrome-text-muted)">
                       {h as string}
                     </Text>
                   </Group>

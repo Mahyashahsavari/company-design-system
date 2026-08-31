@@ -26,6 +26,7 @@ export function AppChrome({
 }: AppChromeProps) {
   return (
     <AppShell
+      className="monosuite-war-room-shell"
       header={{ height: 52 }}
       navbar={{ width: 52, breakpoint: 'sm' }}
       aside={
@@ -50,6 +51,7 @@ export function AppChrome({
       </AppShell.Header>
 
       <AppShell.Navbar
+        className="monosuite-war-room-navbar"
         style={{
           borderRight: '1px solid var(--mantine-color-default-border)',
           background: 'var(--mantine-color-body)',

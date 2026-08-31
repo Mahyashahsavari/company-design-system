@@ -1,148 +1,175 @@
 import {
-  Avatar,
   Badge,
+  Box,
   Button,
   Group,
-  Indicator,
   Menu,
-  Stack,
   Text,
-  Title,
+  UnstyledButton,
 } from '@mantine/core';
 import {
-  IconClock,
+  IconChevronRight,
   IconDotsVertical,
   IconDownload,
   IconDoorExit,
   IconPaperclip,
   IconSettings,
   IconUserPlus,
-  IconUsers,
 } from '@tabler/icons-react';
-import { INCIDENT, PARTICIPANTS } from '../data';
+import {
+  ROOM_PAGE_HEADER_CARD_HEIGHT,
+  ROOM_PAGE_HEADER_GUTTER,
+} from '../../../shared/constants';
+import { INCIDENT } from '../data';
 
 interface RoomCommandHeaderProps {
-  durationShort: string;
   onRoomAction: (action: string) => void;
   onCloseRoom: () => void;
 }
 
-export function RoomCommandHeader({
-  durationShort,
-  onRoomAction,
-  onCloseRoom,
-}: RoomCommandHeaderProps) {
+const titleSize = 'clamp(1.05rem, 1.6vw, 1.35rem)';
+
+/** Room page header card — breadcrumb + room title + actions. */
+export function RoomCommandHeader({ onRoomAction, onCloseRoom }: RoomCommandHeaderProps) {
   return (
-    <Stack
-      gap={0}
+    <Box
+      pt={ROOM_PAGE_HEADER_GUTTER}
+      px={ROOM_PAGE_HEADER_GUTTER}
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        borderRadius: 6,
-        overflow: 'hidden',
-        borderLeft: '4px solid var(--mantine-color-teal-filled)',
-        background: 'var(--mantine-color-body)',
+        flexShrink: 0,
+        position: 'sticky',
+        top: 0,
+        zIndex: 5,
+        background: 'var(--monosuite-color-background)',
       }}
     >
-      <Group
-        justify="space-between"
+      <Box
+        component="header"
         px="md"
-        py="xs"
-        wrap="wrap"
-        style={{ background: 'var(--mantine-color-success-light)' }}
+        style={{
+          minHeight: ROOM_PAGE_HEADER_CARD_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
+          borderRadius: 'var(--mantine-radius-md)',
+          border: '1px solid var(--monosuite-color-border)',
+          background: 'var(--monosuite-color-surface)',
+          boxShadow: 'var(--mantine-shadow-sm)',
+        }}
       >
-        <Group gap="md" wrap="wrap">
-          <Group gap={8}>
-            <Indicator processing color="success" size={8} offset={4}>
-              <Badge color="success" variant="filled" size="sm" tt="uppercase" style={{ letterSpacing: '0.14em' }}>
+        <Group justify="space-between" align="center" wrap="nowrap" gap="md" w="100%">
+          <Group gap={8} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
+            <UnstyledButton
+              onClick={() => onRoomAction('rooms')}
+              aria-label="Back to rooms list"
+              style={{ flexShrink: 0 }}
+            >
+              <Text
+                component="span"
+                fw={600}
+                c="dimmed"
+                style={{ fontSize: titleSize, letterSpacing: '-0.02em' }}
+              >
+                Rooms
+              </Text>
+            </UnstyledButton>
+
+            <IconChevronRight
+              size={18}
+              aria-hidden
+              style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)' }}
+            />
+
+            <Group gap={6} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
+              <Badge color="success" variant="light" size="sm" style={{ flexShrink: 0 }}>
                 LIVE
               </Badge>
-            </Indicator>
-            <Text size="sm" fw={600}>
-              Room
-            </Text>
-          </Group>
-          <Group gap={6} c="dimmed">
-            <IconClock size={14} />
-            <Text size="xs">Started {durationShort} ago</Text>
-            <Text size="xs">·</Text>
-            <IconUsers size={14} />
-            <Text size="xs">4 participants</Text>
-          </Group>
-        </Group>
-        <Avatar.Group spacing="sm">
-          {PARTICIPANTS.map((p) => (
-            <Avatar key={p.id} size="sm" radius="xl" color={p.color} title={p.name}>
-              {p.initials}
-            </Avatar>
-          ))}
-        </Avatar.Group>
-      </Group>
 
-      <Group justify="space-between" align="flex-start" px="md" py="md" wrap="wrap">
-        <Stack gap={6} style={{ flex: 1, minWidth: 240 }}>
-          <Title order={2} style={{ fontSize: 28, letterSpacing: '-0.025em', lineHeight: 1.2 }}>
-            {INCIDENT.title}
-          </Title>
-          <Group gap="xs">
-            <Text size="xs" c="dimmed" ff="monospace" fw={600}>
+              <UnstyledButton
+                onClick={() => onRoomAction('view-incident')}
+                aria-label="View full incident"
+                style={{ minWidth: 0, flex: 1, textAlign: 'left' }}
+              >
+                <Text
+                  component="span"
+                  fw={700}
+                  lineClamp={1}
+                  style={{
+                    fontSize: titleSize,
+                    letterSpacing: '-0.02em',
+                    color: 'var(--mantine-color-text)',
+                  }}
+                >
+                  {INCIDENT.title}
+                </Text>
+              </UnstyledButton>
+            </Group>
+          </Group>
+
+          <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+            <Text size="sm" c="dimmed" fw={600} visibleFrom="lg">
               {INCIDENT.id}
             </Text>
-            <Badge color="danger" size="sm">
+            <Badge color="danger" size="xs" variant="light">
               {INCIDENT.severity}
             </Badge>
-            <Text size="sm" c="dimmed">
-              · Commander · {INCIDENT.owner}
-            </Text>
+            <Badge color="success" size="xs" variant="light">
+              {INCIDENT.status}
+            </Badge>
+
+            <Menu shadow="md" width={220} position="bottom-end">
+              <Menu.Target>
+                <Button
+                  variant="subtle"
+                  color="neutral"
+                  size="compact-xs"
+                  leftSection={<IconDotsVertical size={14} />}
+                  aria-label="Room Actions"
+                >
+                  Actions
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconUserPlus size={16} />}
+                  onClick={() => onRoomAction('invite')}
+                >
+                  Invite Participants
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconPaperclip size={16} />}
+                  onClick={() => onRoomAction('add-evidence')}
+                >
+                  Add Evidence
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconDownload size={16} />}
+                  onClick={() => onRoomAction('export')}
+                >
+                  Export Room Summary
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconSettings size={16} />}
+                  onClick={() => onRoomAction('room-settings')}
+                >
+                  Room Settings
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                  color="danger"
+                  leftSection={<IconDoorExit size={16} />}
+                  onClick={() => onRoomAction('close-room')}
+                >
+                  Close Room
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+
+            <Button color="danger" variant="light" size="compact-xs" onClick={onCloseRoom}>
+              Close Room
+            </Button>
           </Group>
-        </Stack>
-        <Group gap="xs">
-          <Menu shadow="md" width={240} position="bottom-end">
-            <Menu.Target>
-              <Button variant="default" size="sm" leftSection={<IconDotsVertical size={16} />}>
-                Room Actions
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Label>Room Actions</Menu.Label>
-              <Menu.Item
-                leftSection={<IconUserPlus size={16} />}
-                onClick={() => onRoomAction('invite')}
-              >
-                Invite Participants
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconPaperclip size={16} />}
-                onClick={() => onRoomAction('add-evidence')}
-              >
-                Add Evidence
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconDownload size={16} />}
-                onClick={() => onRoomAction('export')}
-              >
-                Export Room Summary
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconSettings size={16} />}
-                onClick={() => onRoomAction('room-settings')}
-              >
-                Room Settings
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item
-                color="danger"
-                leftSection={<IconDoorExit size={16} />}
-                onClick={() => onRoomAction('close-room')}
-              >
-                Close Room
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-          <Button color="danger" size="sm" onClick={onCloseRoom}>
-            Close Room
-          </Button>
         </Group>
-      </Group>
-    </Stack>
+      </Box>
+    </Box>
   );
 }

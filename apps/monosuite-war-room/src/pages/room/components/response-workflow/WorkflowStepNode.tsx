@@ -1,5 +1,4 @@
-import { Badge, Group, Indicator, Stack, Text, ThemeIcon } from '@mantine/core';
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { Badge, Group, Indicator, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core';
 import {
   IconBellRinging,
   IconCheck,
@@ -8,7 +7,7 @@ import {
   IconSearch,
   IconShieldLock,
 } from '@tabler/icons-react';
-import type { WorkflowNodeData } from './types';
+import type { WorkflowStep } from '../../data';
 
 const ICONS = {
   bell: IconBellRinging,
@@ -18,137 +17,92 @@ const ICONS = {
   heartbeat: IconHeartbeat,
 } as const;
 
-const STATUS_LABEL: Record<WorkflowNodeData['status'], string> = {
+const STATUS_LABEL: Record<WorkflowStep['status'], string> = {
   completed: 'DONE',
   current: 'ACTIVE',
   pending: 'QUEUED',
 };
 
-export function WorkflowStepNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
-  const Icon = ICONS[data.icon];
-  const isCurrent = data.status === 'current';
-  const isDone = data.status === 'completed';
-  const isPending = data.status === 'pending';
+interface WorkflowStepNodeProps {
+  step: WorkflowStep;
+  stepNumber: number;
+  selected?: boolean;
+  onSelect?: () => void;
+}
 
-  const borderColor = isCurrent
-    ? 'var(--mantine-color-teal-filled)'
-    : isDone
-      ? 'var(--mantine-color-teal-light-color)'
-      : 'var(--mantine-color-default-border)';
-
-  const background = isCurrent
-    ? 'linear-gradient(135deg, var(--mantine-color-teal-light) 0%, var(--mantine-color-body) 70%)'
-    : isDone
-      ? 'var(--mantine-color-body)'
-      : 'var(--monosuite-color-surface-sunken)';
+export function WorkflowStepNode({
+  step,
+  stepNumber,
+  selected = false,
+  onSelect,
+}: WorkflowStepNodeProps) {
+  const Icon = ICONS[step.icon];
+  const isCurrent = step.status === 'current';
+  const isDone = step.status === 'completed';
 
   return (
-    <>
-      <Handle
-        type="target"
-        position={Position.Left}
-        style={{
-          width: 8,
-          height: 8,
-          background: isPending
-            ? 'var(--mantine-color-default-border)'
-            : 'var(--mantine-color-teal-filled)',
-          border: '2px solid var(--mantine-color-body)',
-        }}
-      />
-
-      <Stack
-        gap={8}
-        p="sm"
-        style={{
-          width: 196,
-          borderRadius: 8,
-          border: `1px solid ${borderColor}`,
-          borderLeft: `3px solid ${
-            isCurrent
-              ? 'var(--mantine-color-teal-filled)'
-              : isDone
-                ? 'var(--mantine-color-teal-light-color)'
-                : 'var(--mantine-color-default-border)'
-          }`,
-          background,
-          boxShadow: isCurrent
-            ? '0 0 0 1px color-mix(in srgb, var(--mantine-color-teal-filled) 20%, transparent), 0 8px 20px color-mix(in srgb, var(--mantine-color-teal-filled) 12%, transparent)'
-            : 'var(--mantine-shadow-xs)',
-          opacity: isPending ? 0.78 : 1,
-        }}
-      >
-        <Group justify="space-between" wrap="nowrap" gap={6}>
-          <Text
-            size="xs"
-            ff="monospace"
-            c="dimmed"
-            fw={700}
-            style={{ letterSpacing: '0.08em' }}
-          >
-            STEP {String(data.stepNumber).padStart(2, '0')}
-          </Text>
-          {isCurrent ? (
-            <Indicator processing color="teal" size={7} offset={2}>
-              <Badge size="xs" color="teal" variant="filled" radius="sm">
+    <UnstyledButton
+      onClick={onSelect}
+      aria-current={isCurrent ? 'step' : undefined}
+      aria-label={`${step.label}, ${STATUS_LABEL[step.status]}`}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        height: '100%',
+        borderRadius: 'var(--mantine-radius-sm)',
+        background: isCurrent
+          ? 'var(--mantine-color-teal-light)'
+          : selected
+            ? 'var(--monosuite-color-surface)'
+            : 'transparent',
+        opacity: step.status === 'pending' ? 0.55 : 1,
+      }}
+    >
+      {isCurrent ? (
+        <Stack gap={4} px={10} py={6} justify="center" h="100%">
+          <Group gap={8} wrap="nowrap">
+            <Text size="xs" c="dimmed" ff="monospace" fw={700}>
+              {String(stepNumber).padStart(2, '0')}
+            </Text>
+            <ThemeIcon size={28} radius="md" variant="filled" color="teal">
+              <Icon size={16} />
+            </ThemeIcon>
+            <Text size="sm" fw={700} lh={1.2} lineClamp={1} style={{ minWidth: 0 }}>
+              {step.label}
+            </Text>
+          </Group>
+          <Group gap={8} wrap="nowrap">
+            <Indicator processing color="teal" size={6} offset={2}>
+              <Badge size="xs" color="teal" variant="filled">
                 {STATUS_LABEL.current}
               </Badge>
             </Indicator>
-          ) : (
-            <Badge
-              size="xs"
-              color={isDone ? 'teal' : 'neutral'}
-              variant={isDone ? 'light' : 'outline'}
-              radius="sm"
-            >
-              {STATUS_LABEL[data.status]}
-            </Badge>
-          )}
-        </Group>
-
-        <Group gap={10} wrap="nowrap" align="flex-start">
-          <ThemeIcon
-            size={34}
-            radius="md"
-            variant={isDone ? 'filled' : isCurrent ? 'light' : 'default'}
-            color={isDone || isCurrent ? 'teal' : 'neutral'}
-            style={{
-              flexShrink: 0,
-              boxShadow: isCurrent
-                ? '0 0 12px color-mix(in srgb, var(--mantine-color-teal-filled) 35%, transparent)'
-                : undefined,
-            }}
-          >
-            {isDone ? <IconCheck size={18} stroke={2.5} /> : <Icon size={18} />}
-          </ThemeIcon>
-
-          <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-            <Text size="sm" fw={700} lh={1.25} lineClamp={2}>
-              {data.label}
-            </Text>
             <Text size="xs" c="dimmed" truncate>
-              {data.owner}
+              {step.owner}
             </Text>
             <Text size="xs" c="dimmed" ff="monospace">
-              {data.time}
+              {step.time}
             </Text>
-          </Stack>
-        </Group>
-      </Stack>
-
-      <Handle
-        type="source"
-        position={Position.Right}
-        style={{
-          width: 8,
-          height: 8,
-          background:
-            isDone || isCurrent
-              ? 'var(--mantine-color-teal-filled)'
-              : 'var(--mantine-color-default-border)',
-          border: '2px solid var(--mantine-color-body)',
-        }}
-      />
-    </>
+          </Group>
+        </Stack>
+      ) : (
+        <Stack gap={4} px={6} py={6} align="center" justify="center" h="100%">
+          <ThemeIcon
+            size={26}
+            radius="md"
+            variant={isDone ? 'filled' : 'light'}
+            color={isDone ? 'teal' : 'neutral'}
+          >
+            {isDone ? <IconCheck size={14} stroke={2.5} /> : <Icon size={14} />}
+          </ThemeIcon>
+          <Text size="xs" fw={600} ta="center" lineClamp={1} lh={1.2}>
+            {step.label}
+          </Text>
+          <Badge size="xs" color={isDone ? 'teal' : 'neutral'} variant={isDone ? 'light' : 'outline'}>
+            {STATUS_LABEL[step.status]}
+          </Badge>
+        </Stack>
+      )}
+    </UnstyledButton>
   );
 }

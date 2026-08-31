@@ -1,157 +1,160 @@
-import { Badge, Box, Group, Stack, Text } from '@mantine/core';
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  MiniMap,
-  ReactFlow,
-  ReactFlowProvider,
-  useEdgesState,
-  useNodesState,
-  useReactFlow,
-  type NodeTypes,
-} from '@xyflow/react';
-import { useEffect, useMemo } from 'react';
-import '@xyflow/react/dist/style.css';
-import { buildWorkflowFlow } from './buildWorkflowFlow';
-import type { ResponseWorkflowProps } from './types';
-import { WorkflowStepNode } from './WorkflowStepNode';
+import { Box, Group, Text, Tooltip } from '@mantine/core';
+import { Fragment } from 'react';
+import { IconCheck, IconChevronRight } from '@tabler/icons-react';
+import { TruncatedTooltipText } from '../../../../shared/components/TruncatedTooltipText';
+import type { WorkflowStep } from '../../data';
 
-const nodeTypes: NodeTypes = {
-  workflowStep: WorkflowStepNode,
+interface ResponseWorkflowProps {
+  steps: WorkflowStep[];
+  protocol?: string;
+  title?: string;
+  height?: number;
+}
+
+const STATUS_LABEL: Record<WorkflowStep['status'], string> = {
+  completed: 'Done',
+  current: 'Active',
+  pending: 'Queued',
 };
 
-function ResponseWorkflowCanvas({
+/** Full-width compact workflow cards — responsive track with tooltip labels. */
+export function ResponseWorkflow({
   steps,
   protocol = 'NIC800',
-  height = 168,
   title = 'Response Workflow',
 }: ResponseWorkflowProps) {
-  const { fitView } = useReactFlow();
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildWorkflowFlow(steps),
-    [steps],
-  );
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-  useEffect(() => {
-    const next = buildWorkflowFlow(steps);
-    setNodes(next.nodes);
-    setEdges(next.edges);
-    const id = window.requestAnimationFrame(() => {
-      void fitView({ padding: 0.18, duration: 200, maxZoom: 1 });
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [steps, setNodes, setEdges, fitView]);
-
-  const currentCount = steps.filter((s) => s.status === 'current').length;
-  const doneCount = steps.filter((s) => s.status === 'completed').length;
+  const completedCount = steps.filter((s) => s.status === 'completed').length;
+  const progress =
+    ((completedCount + (steps.some((s) => s.status === 'current') ? 0.5 : 0)) / steps.length) * 100;
 
   return (
-    <Stack
-      gap={0}
-      style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        borderRadius: 8,
-        background: 'var(--mantine-color-body)',
-        overflow: 'hidden',
-      }}
-    >
-      <Group
-        justify="space-between"
-        px="md"
-        py="xs"
-        style={{
-          borderBottom: '1px solid var(--mantine-color-default-border)',
-          background:
-            'linear-gradient(90deg, var(--mantine-color-teal-light) 0%, var(--mantine-color-body) 42%)',
-        }}
-      >
-        <Group gap="sm">
-          <Text size="sm" fw={700}>
-            {title}
-          </Text>
-          <Text size="xs" c="dimmed" ff="monospace">
-            {doneCount}/{steps.length} cleared
-            {currentCount > 0 ? ` · ${currentCount} active` : ''}
-          </Text>
-        </Group>
-        <Badge variant="outline" color="teal" size="sm" radius="sm">
+    <Box className="monosuite-workflow" aria-label={title}>
+      <Group justify="space-between" mb={6} wrap="nowrap" gap="xs">
+        <TruncatedTooltipText size="xs" fw={600} style={{ minWidth: 0, flex: 1 }}>
+          {title}
+        </TruncatedTooltipText>
+        <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
           {protocol}
-        </Badge>
+        </Text>
       </Group>
 
-      <Box style={{ height, width: '100%' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable
-          panOnScroll={false}
-          zoomOnScroll={false}
-          zoomOnDoubleClick={false}
-          preventScrolling={false}
-          fitView
-          fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
-          proOptions={{ hideAttribution: true }}
-          minZoom={0.6}
-          maxZoom={1.25}
-          defaultEdgeOptions={{ type: 'smoothstep' }}
-          style={{ background: 'var(--monosuite-color-surface-sunken)' }}
-        >
-          <Background
-            id="wf-grid"
-            variant={BackgroundVariant.Dots}
-            gap={18}
-            size={1.2}
-            color="var(--mantine-color-default-border)"
+      <Box className="monosuite-workflow-shell" style={{ position: 'relative', width: '100%' }}>
+        <Box className="monosuite-workflow-progress" aria-hidden>
+          <Box
+            className="monosuite-workflow-progress-fill"
+            style={{ width: `${progress}%` }}
           />
-          <Controls
-            showInteractive={false}
-            position="bottom-right"
-            style={{
-              borderRadius: 6,
-              overflow: 'hidden',
-              border: '1px solid var(--mantine-color-default-border)',
-              boxShadow: 'none',
-            }}
-          />
-          <MiniMap
-            pannable
-            zoomable
-            position="bottom-left"
-            nodeStrokeWidth={2}
-            style={{
-              width: 96,
-              height: 56,
-              borderRadius: 6,
-              border: '1px solid var(--mantine-color-default-border)',
-              background: 'var(--mantine-color-body)',
-            }}
-            maskColor="color-mix(in srgb, var(--mantine-color-teal-filled) 8%, transparent)"
-            nodeColor={(node) => {
-              const status = (node.data as { status?: string } | undefined)?.status;
-              if (status === 'current') return 'var(--mantine-color-teal-filled)';
-              if (status === 'completed') return 'var(--mantine-color-teal-light-color)';
-              return 'var(--mantine-color-default-border)';
-            }}
-          />
-        </ReactFlow>
+        </Box>
+
+        <Box className="monosuite-workflow-track">
+          {steps.map((step, index) => (
+            <Fragment key={step.id}>
+              <WorkflowStepCard step={step} index={index} />
+              {index < steps.length - 1 && (
+                <WorkflowConnector filled={step.status === 'completed'} />
+              )}
+            </Fragment>
+          ))}
+        </Box>
       </Box>
-    </Stack>
+    </Box>
   );
 }
 
-/** Dynamic response-workflow canvas. Steps are owned by the parent. */
-export function ResponseWorkflow(props: ResponseWorkflowProps) {
+function WorkflowStepCard({ step, index }: { step: WorkflowStep; index: number }) {
+  const active = step.status === 'current';
+  const done = step.status === 'completed';
+  const pending = step.status === 'pending';
+  const stepNo = String(index + 1).padStart(2, '0');
+
   return (
-    <ReactFlowProvider>
-      <ResponseWorkflowCanvas {...props} />
-    </ReactFlowProvider>
+    <Box
+      className={`monosuite-workflow-card workflow-card workflow-card--${step.status}`}
+      data-status={step.status}
+      style={{
+        animationDelay: `${index * 55}ms`,
+      }}
+    >
+      <Group justify="space-between" wrap="nowrap" gap={4} mb={4}>
+        <StatusChip status={step.status} index={index} />
+        <Text size="10px" c="dimmed" fw={700} lh={1} className="monosuite-workflow-step-no">
+          {stepNo}
+        </Text>
+      </Group>
+
+      <TruncatedTooltipText
+        size="xs"
+        fw={active ? 700 : done ? 600 : 500}
+        c={pending ? 'dimmed' : undefined}
+        lh={1.25}
+        lineClamp={2}
+        tooltip={step.label}
+        className="monosuite-workflow-step-label"
+      >
+        {step.label}
+      </TruncatedTooltipText>
+    </Box>
   );
 }
+
+function StatusChip({
+  status,
+  index,
+}: {
+  status: WorkflowStep['status'];
+  index: number;
+}) {
+  const active = status === 'current';
+  const done = status === 'completed';
+  const label = STATUS_LABEL[status];
+
+  const chip = (
+    <Group
+      gap={4}
+      wrap="nowrap"
+      px={6}
+      py={2}
+      className={`monosuite-workflow-status workflow-status--${status}`}
+      style={{
+        animationDelay: active ? undefined : `${index * 55 + 80}ms`,
+      }}
+    >
+      {done ? (
+        <IconCheck size={11} color="var(--mantine-color-teal-filled)" aria-hidden />
+      ) : (
+        <Box
+          aria-hidden
+          className="monosuite-workflow-status-dot"
+          data-active={active ? 'true' : 'false'}
+        />
+      )}
+      <Text
+        size="10px"
+        fw={700}
+        tt="uppercase"
+        lh={1}
+        c={active ? 'var(--monosuite-color-surface)' : done ? 'teal' : 'dimmed'}
+        className="monosuite-workflow-status-text"
+        style={{ letterSpacing: '0.03em' }}
+      >
+        {label}
+      </Text>
+    </Group>
+  );
+
+  return (
+    <Tooltip label={label} withArrow openDelay={200} position="top">
+      {chip}
+    </Tooltip>
+  );
+}
+
+function WorkflowConnector({ filled }: { filled: boolean }) {
+  return (
+    <Box className="monosuite-workflow-connector workflow-connector" aria-hidden data-filled={filled ? 'true' : 'false'}>
+      <IconChevronRight size={11} />
+    </Box>
+  );
+}
+
+export type { ResponseWorkflowProps };

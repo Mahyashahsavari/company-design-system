@@ -10,6 +10,7 @@ import {
   Modal,
   Pagination,
   Paper,
+  ScrollArea,
   Select,
   Switch,
   Table,
@@ -40,6 +41,14 @@ export const components = {
 
   Paper: Paper.extend({
     defaultProps: { withBorder: true, shadow: 'none', radius: 'md' },
+  }),
+
+  ScrollArea: ScrollArea.extend({
+    defaultProps: {
+      scrollbarSize: 4,
+      type: 'hover',
+      offsetScrollbars: true,
+    },
   }),
 
   TextInput: TextInput.extend({

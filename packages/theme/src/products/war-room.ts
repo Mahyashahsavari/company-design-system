@@ -8,6 +8,8 @@ export const warRoomTheme = createMonosuiteTheme({
   primaryColor: 'teal',
   fontFamily:
     '"Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  fontFamilyMonospace:
+    '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
   headings: {
     fontFamily:
       '"Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',

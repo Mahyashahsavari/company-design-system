@@ -1,29 +1,35 @@
 import { Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
 import { useEffect, useState } from 'react';
+import type { MediaPermission } from '../data';
 import type { MediaDevices } from '../hooks/useRoomState';
 
 interface MediaSettingsModalProps {
   opened: boolean;
   onClose: () => void;
   devices: MediaDevices;
-  onApply: (devices: MediaDevices) => void;
+  permission: MediaPermission;
+  onApply: (devices: MediaDevices, permission: MediaPermission) => void;
 }
 
 export function MediaSettingsModal({
   opened,
   onClose,
   devices,
+  permission,
   onApply,
 }: MediaSettingsModalProps) {
   const [draft, setDraft] = useState(devices);
+  const [perm, setPerm] = useState<MediaPermission>(permission);
 
   useEffect(() => {
-    if (opened) setDraft(devices);
-  }, [opened, devices]);
+    if (opened) {
+      setDraft(devices);
+      setPerm(permission);
+    }
+  }, [opened, devices, permission]);
 
   return (
     <Modal opened={opened} onClose={onClose} title="Media Settings" centered>
-
       <Stack gap="md">
         <Select
           label="Microphone"
@@ -46,7 +52,7 @@ export function MediaSettingsModal({
           onChange={(v) => v && setDraft((d) => ({ ...d, speaker: v }))}
         />
         <Select
-          label="Camera"
+          label="Your camera device"
           data={[
             { value: 'integrated', label: 'Integrated Camera' },
             { value: 'studio', label: 'Studio Camera' },
@@ -54,6 +60,17 @@ export function MediaSettingsModal({
           ]}
           value={draft.camera}
           onChange={(v) => v && setDraft((d) => ({ ...d, camera: v }))}
+        />
+        <Select
+          label="Camera permission (local)"
+          description="Does not affect remote participant cameras."
+          data={[
+            { value: 'granted', label: 'Granted' },
+            { value: 'denied', label: 'Denied' },
+            { value: 'unavailable', label: 'Unavailable' },
+          ]}
+          value={perm}
+          onChange={(v) => v && setPerm(v as MediaPermission)}
         />
         <div>
           <Select
@@ -74,7 +91,7 @@ export function MediaSettingsModal({
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => onApply(draft)}>Apply</Button>
+          <Button onClick={() => onApply(draft, perm)}>Apply</Button>
         </Group>
       </Stack>
     </Modal>

@@ -9,16 +9,55 @@ export type ContextTab = 'participants' | 'chat' | 'assets' | 'evidence' | 'hist
 export interface ContextEntityField {
   label: string;
   value: string;
+  /** Secondary fields render behind progressive disclosure. */
+  priority?: 'critical' | 'secondary';
+  /** Force monospace even when the label is not a known technical key. */
+  technical?: boolean;
 }
 
-export interface HostContext {
-  label: string;
-  multi: boolean;
-  multiLabel: string;
-  primary: string;
-  hostname?: string;
+export type ThreatEntityKind = 'attacker' | 'victim';
+export type ThreatIdentifierType = 'ip' | 'fqdn' | 'host' | 'account' | 'other';
+
+export interface ThreatEntity {
+  id: string;
+  identifier: string;
+  identifierType: ThreatIdentifierType;
+  /** Extra identity line (hostname, account) — omitted when empty. */
+  secondaryIdentifier?: string;
   fields: ContextEntityField[];
   sourceId: string;
+}
+
+export const IDENTIFIER_TYPE_LABEL: Record<ThreatIdentifierType, string> = {
+  ip: 'IP',
+  fqdn: 'FQDN',
+  host: 'Host',
+  account: 'Account',
+  other: 'ID',
+};
+
+export function isTechnicalField(field: ContextEntityField): boolean {
+  if (field.technical != null) return field.technical;
+  return /ip|ioc|host|fqdn|hash|account|workstation|\bid\b/i.test(field.label);
+}
+
+export function entityFields(entity: ThreatEntity): ContextEntityField[] {
+  return entity.fields.filter((field) => field.value.trim().length > 0);
+}
+
+export function splitEntityFields(entity: ThreatEntity): {
+  critical: ContextEntityField[];
+  secondary: ContextEntityField[];
+} {
+  const fields = entityFields(entity);
+  return {
+    critical: fields.filter((field) => field.priority !== 'secondary'),
+    secondary: fields.filter((field) => field.priority === 'secondary'),
+  };
+}
+
+export function getThreatEntity(entities: ThreatEntity[], id: string): ThreatEntity {
+  return entities.find((entity) => entity.id === id) ?? entities[0];
 }
 
 export interface ChatMessage {
@@ -40,11 +79,30 @@ export interface LivePerson {
   id: string;
   name: string;
   initials: string;
+  /** Remote participant camera — independent of the local user's Camera control. */
   camera: boolean;
   color: string;
+  /** Local self tile; local camera is driven by MediaState.camera instead. */
+  isLocal?: boolean;
 }
 export type ConnectionState = 'idle' | 'connected' | 'poor' | 'reconnecting' | 'lost';
 export type ShareLayout = 'split' | 'room' | 'full' | 'minimized';
+
+export type PinTarget = { kind: 'participant'; id: string } | { kind: 'share' };
+export type MediaPermission = 'granted' | 'denied' | 'unavailable';
+export type LocalMicState =
+  | 'on'
+  | 'off'
+  | 'muted-by-moderator'
+  | 'permission-denied'
+  | 'connecting';
+export type LocalCameraState = 'on' | 'off' | 'permission-denied' | 'connecting';
+export type LocalSpeakerState = 'on' | 'off' | 'unavailable';
+export type LocalShareState =
+  | 'available'
+  | 'sharing'
+  | 'remote-sharing'
+  | 'permission-denied';
 
 export interface WorkflowStep {
   id: string;
@@ -93,6 +151,13 @@ export interface Participant {
   status: PresenceStatus;
   color: string;
   typing?: boolean;
+  /** Remote mic — independent of local MediaState.mic */
+  mic: boolean;
+  /** Remote camera — independent of local MediaState.camera */
+  camera: boolean;
+  speaking?: boolean;
+  /** Soft-removed from the live roster (mock). */
+  removed?: boolean;
 }
 
 export interface SourceField {
@@ -135,6 +200,10 @@ export const INCIDENT = {
   status: 'Active' as const,
   scenario: 'Lateral Movement',
   mitre: 'Credential Access → Valid Accounts',
+  mitreId: 'T1078',
+  mitreTactic: 'Credential Access',
+  mitreTechnique: 'Valid Accounts',
+  threatActor: 'FIN7',
   owner: 'Sarah Johnson',
   occurred: '21:42',
   detected: '21:47',
@@ -217,6 +286,38 @@ export const INITIAL_QUESTIONS: Question[] = [
     ],
   },
   {
+    id: 4,
+    text: 'Which hosts show lateral movement after the auth burst?',
+    status: 'open',
+    answerCount: 1,
+    participantCount: 3,
+    answers: [
+      {
+        author: 'Alex Smith',
+        text: 'srv-prod-01 shows PowerShell spawn 4 minutes after workstation-114 auth.',
+      },
+    ],
+    discussion: [
+      {
+        author: 'Mike Chen',
+        text: 'Need EDR process tree before we contain.',
+      },
+    ],
+  },
+  {
+    id: 5,
+    text: 'Is outbound C2 still active from the victim segment?',
+    status: 'open',
+    answerCount: 0,
+    participantCount: 2,
+    discussion: [
+      {
+        author: 'David Lee',
+        text: 'Firewall slice still loading — hold containment until confirmed.',
+      },
+    ],
+  },
+  {
     id: 2,
     text: 'Should the affected account be disabled?',
     status: 'decision',
@@ -224,6 +325,25 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 3,
     decision: null,
     options: ['Disable account', 'Keep account active', 'Investigate further'],
+  },
+  {
+    id: 6,
+    text: 'Isolate workstation-114 from the finance VLAN?',
+    status: 'decision',
+    answerCount: 1,
+    participantCount: 2,
+    answers: [
+      {
+        author: 'Sarah Johnson',
+        text: 'Prefer staged isolation after confirming no backup jobs mid-run.',
+      },
+    ],
+    decision: {
+      choice: 'Isolate after backup window',
+      by: 'Sarah Johnson',
+      at: '12:51',
+    },
+    options: ['Isolate now', 'Isolate after backup window', 'Monitor only'],
   },
   {
     id: 3,
@@ -246,10 +366,12 @@ export const INITIAL_QUESTIONS: Question[] = [
 
 export const INITIAL_HISTORY: HistoryEntry[] = [
   { time: '12:42', actor: 'Sarah Johnson', action: 'joined the room', highlight: false },
-  { time: '12:44', actor: 'System', action: 'Incident synced from CoreLog', highlight: false },
+  { time: '12:44', actor: 'System', action: 'Incident synchronized from CoreLog', highlight: false },
   { time: '12:46', actor: 'Mike Chen', action: 'MITRE mapping updated', highlight: false },
-  { time: '12:49', actor: 'Mike Chen', action: 'added an answer', highlight: false },
-  { time: '12:52', actor: 'Sarah Johnson', action: 'Decision recorded', highlight: true },
+  { time: '12:48', actor: 'Alex Smith', action: 'Evidence added', highlight: false },
+  { time: '12:49', actor: 'Mike Chen', action: 'Finding created', highlight: true },
+  { time: '12:51', actor: 'Sarah Johnson', action: 'Decision recorded', highlight: true },
+  { time: '12:52', actor: 'System', action: 'Workflow step changed → Investigate', highlight: false },
   { time: '12:54', actor: 'David Lee', action: 'joined the room', highlight: false },
 ];
 
@@ -262,6 +384,9 @@ export const PARTICIPANTS: Participant[] = [
     status: 'online',
     color: 'teal',
     typing: true,
+    mic: true,
+    camera: true,
+    speaking: true,
   },
   {
     id: 'mike',
@@ -270,6 +395,8 @@ export const PARTICIPANTS: Participant[] = [
     role: 'Responder',
     status: 'online',
     color: 'accent',
+    mic: true,
+    camera: true,
   },
   {
     id: 'alex',
@@ -278,6 +405,8 @@ export const PARTICIPANTS: Participant[] = [
     role: 'Responder',
     status: 'away',
     color: 'warning',
+    mic: true,
+    camera: true,
   },
   {
     id: 'david',
@@ -286,6 +415,8 @@ export const PARTICIPANTS: Participant[] = [
     role: 'Viewer',
     status: 'online',
     color: 'neutral',
+    mic: false,
+    camera: false,
   },
 ];
 
@@ -343,35 +474,80 @@ export const CONNECTED_SOURCES: ConnectedSource[] = [
   },
 ];
 
-export const ATTACKER_CONTEXT: HostContext = {
-  label: 'Attacker Host/IP',
-  multi: true,
-  multiLabel: 'Multi Attacker',
-  primary: '185.23.45.10',
-  fields: [
-    { label: 'Threat Actor', value: 'FIN7 (medium confidence)' },
-    { label: 'IOC Match', value: 'IOC-8842' },
-    { label: 'Category', value: 'C2 Infrastructure' },
-    { label: 'Reputation Score', value: '92 / 100' },
-  ],
-  sourceId: 'ti',
-};
+export const ATTACKER_ENTITIES: ThreatEntity[] = [
+  {
+    id: 'att-185',
+    identifier: '185.23.45.10',
+    identifierType: 'ip',
+    fields: [
+      { label: 'Threat Actor', value: 'FIN7' },
+      { label: 'Confidence', value: 'Medium' },
+      { label: 'IOC Match', value: 'IOC-8842', technical: true },
+      { label: 'Category', value: 'C2 Infrastructure' },
+      { label: 'Reputation', value: '92 / 100' },
+      { label: 'First Seen', value: '2026-03-12', priority: 'secondary', technical: true },
+      { label: 'Last Seen', value: '21:42', priority: 'secondary', technical: true },
+    ],
+    sourceId: 'ti',
+  },
+  {
+    id: 'att-fqdn',
+    identifier: 'cdn-east.malicious.net',
+    identifierType: 'fqdn',
+    fields: [
+      { label: 'Threat Actor', value: 'Unknown' },
+      { label: 'Category', value: 'Phishing kit' },
+      { label: 'Last Seen', value: '21:38', technical: true },
+    ],
+    sourceId: 'ti',
+  },
+  {
+    id: 'att-91',
+    identifier: '91.109.18.44',
+    identifierType: 'ip',
+    fields: [
+      { label: 'IOC Match', value: 'IOC-9102', technical: true },
+      { label: 'Category', value: 'Scanner' },
+      { label: 'Reputation', value: '71 / 100' },
+      { label: 'First Seen', value: '21:11', priority: 'secondary', technical: true },
+    ],
+    sourceId: 'ti',
+  },
+];
 
-export const VICTIM_CONTEXT: HostContext = {
-  label: 'Victim Host/IP',
-  multi: true,
-  multiLabel: 'Multi Victim',
-  primary: '10.20.4.114',
-  hostname: 'workstation-114',
-  fields: [
-    { label: 'Account', value: 'jsmith@corp.local' },
-    { label: 'Display Name', value: 'John Smith' },
-    { label: 'Department', value: 'Finance' },
-    { label: 'Workstation', value: 'workstation-114' },
-    { label: 'Account Status', value: 'Enabled' },
-  ],
-  sourceId: 'ad',
-};
+export const VICTIM_ENTITIES: ThreatEntity[] = [
+  {
+    id: 'vic-114',
+    identifier: '10.20.4.114',
+    identifierType: 'ip',
+    secondaryIdentifier: 'workstation-114',
+    fields: [
+      { label: 'Account', value: 'jsmith@corp.local' },
+      { label: 'Display Name', value: 'John Smith' },
+      { label: 'Account Status', value: 'Enabled' },
+      { label: 'Department', value: 'Finance', priority: 'secondary' },
+      { label: 'Workstation', value: 'workstation-114', priority: 'secondary', technical: true },
+      { label: 'Last Seen', value: '21:38', priority: 'secondary', technical: true },
+    ],
+    sourceId: 'ad',
+  },
+  {
+    id: 'vic-srv',
+    identifier: 'srv-prod-01',
+    identifierType: 'host',
+    secondaryIdentifier: '10.20.1.15',
+    fields: [
+      { label: 'Account', value: 'svc-sql@corp.local' },
+      { label: 'Account Status', value: 'Enabled' },
+      { label: 'Department', value: 'Engineering', priority: 'secondary' },
+      { label: 'Last Seen', value: '21:40', priority: 'secondary', technical: true },
+    ],
+    sourceId: 'ad',
+  },
+];
+
+export const ATTACKER_CONTEXT = ATTACKER_ENTITIES[0];
+export const VICTIM_CONTEXT = VICTIM_ENTITIES[0];
 
 export const CHAT_MESSAGES: ChatMessage[] = [
   {
@@ -419,11 +595,21 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
 ];
 
 export const LIVE_PEOPLE: LivePerson[] = [
-  { id: 'sarah', name: 'Sarah Johnson', initials: 'SJ', camera: true, color: 'teal' },
-  { id: 'mike', name: 'Mike Chen', initials: 'MC', camera: true, color: 'accent' },
+  { id: 'sarah', name: 'Sarah Johnson', initials: 'SJ', camera: false, color: 'teal' },
+  { id: 'mike', name: 'Mike Chen', initials: 'MC', camera: false, color: 'accent' },
   { id: 'alex', name: 'Alex Smith', initials: 'AS', camera: false, color: 'warning' },
-  { id: 'you', name: 'You', initials: 'HS', camera: true, color: 'brand' },
+  { id: 'david', name: 'David Lee', initials: 'DL', camera: false, color: 'neutral' },
+  { id: 'you', name: 'You', initials: 'HS', camera: false, color: 'brand', isLocal: true },
 ];
+
+/** Remote participants only — camera flags are independent of local MediaState.camera. */
+export function getRemotePeople(people: LivePerson[] = LIVE_PEOPLE): LivePerson[] {
+  return people.filter((p) => !p.isLocal);
+}
+
+export function getRemoteCamerasOn(people: LivePerson[] = LIVE_PEOPLE): LivePerson[] {
+  return getRemotePeople(people).filter((p) => p.camera);
+}
 
 export const ASSETS: Asset[] = [
   {
