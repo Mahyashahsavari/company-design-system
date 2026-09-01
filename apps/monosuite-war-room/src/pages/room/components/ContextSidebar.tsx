@@ -304,6 +304,8 @@ function ContextRailFooter({
   collapsed: boolean;
   onToggle?: () => void;
 }) {
+  if (!onToggle) return null;
+
   return (
     <Box className="monosuite-context-rail-footer" px={collapsed ? 4 : 'sm'} py={6}>
       <Tooltip

@@ -656,7 +656,6 @@ export function useRoomState() {
           setManualIncidentOpen(true);
           break;
         case 'rooms':
-          showToast('Opening rooms list…');
           break;
         default:
           showToast(action);

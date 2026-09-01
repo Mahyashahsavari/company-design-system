@@ -259,6 +259,7 @@ export function CollaborationLayer({
           onRetry={onRetry}
           onMore={onMore}
           onShareLayoutChange={onShareLayoutChange}
+          onExitFullscreen={onExitFullscreen}
           canManageParticipants={canManageParticipants}
           onPinParticipant={onPinParticipant}
           onUnpin={onUnpin}

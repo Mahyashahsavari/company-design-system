@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Badge,
   Box,
   Button,
@@ -8,32 +9,30 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import {
+  IconArrowLeft,
   IconChevronRight,
   IconDotsVertical,
   IconDownload,
   IconDoorExit,
+  IconList,
   IconPaperclip,
   IconSettings,
   IconUserPlus,
 } from '@tabler/icons-react';
+import { useNavigate } from 'react-router';
 import {
   ROOM_PAGE_HEADER_CARD_HEIGHT,
   ROOM_PAGE_HEADER_GUTTER,
 } from '../../../shared/constants';
-import { INCIDENT, type RoomSeverity } from '../data';
-
-const SEVERITY_BADGE_COLOR: Record<RoomSeverity, 'danger' | 'warning' | 'success'> = {
-  Critical: 'danger',
-  High: 'danger',
-  Medium: 'warning',
-  Low: 'success',
-};
+import { routes } from '../../../shared/routes';
+import { INCIDENT, ROOM_SEVERITY_COLOR, type RoomSeverity } from '../data';
 
 interface RoomCommandHeaderProps {
   roomTitle: string;
   roomSeverity: RoomSeverity;
   onRoomAction: (action: string) => void;
   onCloseRoom: () => void;
+  compact?: boolean;
 }
 
 const titleSize = 'clamp(1.05rem, 1.6vw, 1.35rem)';
@@ -44,11 +43,17 @@ export function RoomCommandHeader({
   roomSeverity,
   onRoomAction,
   onCloseRoom,
+  compact = false,
 }: RoomCommandHeaderProps) {
+  const navigate = useNavigate();
+  const headingSize = compact ? '1rem' : titleSize;
+
+  const backToRooms = () => navigate(routes.rooms);
   return (
     <Box
       pt={ROOM_PAGE_HEADER_GUTTER}
       px={ROOM_PAGE_HEADER_GUTTER}
+      pb={compact ? 4 : 0}
       style={{
         flexShrink: 0,
         position: 'sticky',
@@ -72,16 +77,30 @@ export function RoomCommandHeader({
       >
         <Group justify="space-between" align="center" wrap="nowrap" gap="md" w="100%">
           <Group gap={8} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
+            {compact ? (
+              <ActionIcon
+                variant="subtle"
+                color="neutral"
+                size="sm"
+                aria-label="Back to rooms list"
+                data-testid="back-to-rooms"
+                onClick={backToRooms}
+              >
+                <IconArrowLeft size={16} />
+              </ActionIcon>
+            ) : (
+              <>
             <UnstyledButton
-              onClick={() => onRoomAction('rooms')}
+              onClick={backToRooms}
               aria-label="Back to rooms list"
+              data-testid="back-to-rooms"
               style={{ flexShrink: 0 }}
             >
               <Text
                 component="span"
                 fw={600}
                 c="dimmed"
-                style={{ fontSize: titleSize, letterSpacing: '-0.02em' }}
+                style={{ fontSize: headingSize, letterSpacing: '-0.02em' }}
               >
                 Rooms
               </Text>
@@ -92,6 +111,8 @@ export function RoomCommandHeader({
               aria-hidden
               style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)' }}
             />
+              </>
+            )}
 
             <Group gap={6} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
               <Badge color="success" variant="light" size="sm" style={{ flexShrink: 0 }}>
@@ -108,7 +129,7 @@ export function RoomCommandHeader({
                   fw={700}
                   lineClamp={1}
                   style={{
-                    fontSize: titleSize,
+                    fontSize: headingSize,
                     letterSpacing: '-0.02em',
                     color: 'var(--mantine-color-text)',
                   }}
@@ -123,7 +144,7 @@ export function RoomCommandHeader({
             <Text size="sm" c="dimmed" fw={600} visibleFrom="lg">
               {INCIDENT.id}
             </Text>
-            <Badge color={SEVERITY_BADGE_COLOR[roomSeverity]} size="xs" variant="light">
+            <Badge color={ROOM_SEVERITY_COLOR[roomSeverity]} size="xs" variant="light">
               {roomSeverity}
             </Badge>
             <Badge color="success" size="xs" variant="light">
@@ -139,10 +160,16 @@ export function RoomCommandHeader({
                   leftSection={<IconDotsVertical size={14} />}
                   aria-label="Room Actions"
                 >
-                  Actions
+                  {compact ? null : 'Actions'}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconList size={16} />}
+                  onClick={backToRooms}
+                >
+                  Back to rooms
+                </Menu.Item>
                 <Menu.Item
                   leftSection={<IconUserPlus size={16} />}
                   onClick={() => onRoomAction('invite')}
@@ -178,7 +205,13 @@ export function RoomCommandHeader({
               </Menu.Dropdown>
             </Menu>
 
-            <Button color="danger" variant="light" size="compact-xs" onClick={onCloseRoom}>
+            <Button
+              color="danger"
+              variant="light"
+              size="compact-xs"
+              onClick={onCloseRoom}
+              visibleFrom="sm"
+            >
               Close Room
             </Button>
           </Group>

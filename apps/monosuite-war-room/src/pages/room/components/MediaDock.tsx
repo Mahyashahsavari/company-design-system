@@ -63,6 +63,8 @@ interface MediaDockProps {
   centerMediaControls?: boolean;
   /** Force the compact control layout (1366-class desktops). */
   compactLayout?: boolean;
+  /** Extra controls after the primary set (e.g. mobile fullscreen). */
+  trailingSlot?: ReactNode;
 }
 
 type ControlVisual = 'on' | 'off' | 'muted' | 'sharing' | 'warn' | 'danger';
@@ -88,11 +90,13 @@ export function MediaDock({
   leadingSlot,
   centerMediaControls = false,
   compactLayout = false,
+  trailingSlot,
 }: MediaDockProps) {
   const compactQuery = useMediaQuery('(max-width: 64em)', false, {
     getInitialValueInEffect: false,
   });
   const compact = compactLayout || compactQuery;
+  const soloControls = compact && hideStatusMeta && !leadingSlot;
 
   const { joined, connection } = media;
   const conn = (joined ? connection : 'idle') as ConnectionState;
@@ -123,9 +127,15 @@ export function MediaDock({
       gap={compact ? 'md' : 'lg'}
       wrap="nowrap"
       align="center"
-      justify="space-between"
+      justify={soloControls ? 'center' : 'space-between'}
       w="100%"
-      className={centerMediaControls ? 'monosuite-media-dock-bar--centered' : undefined}
+      className={
+        centerMediaControls
+          ? 'monosuite-media-dock-bar--centered'
+          : soloControls
+            ? 'monosuite-media-dock-bar--solo'
+            : undefined
+      }
     >
         {(!hideStatusMeta || (joined && leadingSlot)) ? (
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: hideStatusMeta ? 0 : 1, minWidth: 0 }}>
@@ -144,9 +154,6 @@ export function MediaDock({
                   <MetaItem
                     label={joined ? `${durationLabel} active` : 'Communication not started'}
                   />
-                )}
-                {compact && !joined && (
-                  <MetaItem label="Not started" />
                 )}
               </>
             ) : (
@@ -187,7 +194,7 @@ export function MediaDock({
           timingFunction="ease"
         >
           {(styles) => (
-            <Group gap="sm" wrap="nowrap" data-testid="dock-live-controls" style={{ ...styles, minWidth: 0 }}>
+            <Group gap={compact ? 4 : 'sm'} wrap="nowrap" data-testid="dock-live-controls" style={{ ...styles, minWidth: 0 }}>
               <DockControl
                 testId="dock-mic"
                 label="Microphone"
@@ -219,33 +226,31 @@ export function MediaDock({
                 icon={speaker.icon}
               />
 
-              <DockDivider />
+              {compact ? null : <DockDivider />}
 
-              <Group gap={6} wrap="nowrap">
-                <DockControl
-                  testId="dock-share"
-                  label="Screen Share"
-                  stateLabel={share.stateLabel}
-                  visual={share.visual}
-                  disabled={share.disabled}
-                  pressed={share.pressed}
-                  onClick={share.pressed ? onStopShare : onShare}
-                  icon={share.icon}
-                />
-                {media.share && !centerMediaControls && (
-                  <Button
-                    size="xs"
-                    color="danger"
-                    variant="light"
-                    leftSection={<IconScreenShareOff size={14} />}
-                    onClick={onStopShare}
-                    data-testid="dock-stop-sharing"
-                    aria-label="Stop sharing your screen"
-                  >
-                    Stop Sharing
-                  </Button>
-                )}
-              </Group>
+              <DockControl
+                testId="dock-share"
+                label="Screen Share"
+                stateLabel={share.stateLabel}
+                visual={share.visual}
+                disabled={share.disabled}
+                pressed={share.pressed}
+                onClick={share.pressed ? onStopShare : onShare}
+                icon={share.icon}
+              />
+              {media.share && !centerMediaControls && !compact && (
+                <Button
+                  size="xs"
+                  color="danger"
+                  variant="light"
+                  leftSection={<IconScreenShareOff size={14} />}
+                  onClick={onStopShare}
+                  data-testid="dock-stop-sharing"
+                  aria-label="Stop sharing your screen"
+                >
+                  Stop Sharing
+                </Button>
+              )}
 
               {media.share && !compact && !centerMediaControls && (
                 <Group gap={6} wrap="nowrap" data-testid="dock-share-viewers">
@@ -270,7 +275,7 @@ export function MediaDock({
                 </Group>
               )}
 
-              <DockDivider />
+              {!compact && <DockDivider />}
 
               <DockControl
                 testId="dock-settings"
@@ -281,7 +286,9 @@ export function MediaDock({
                 onClick={onSettings}
                 icon={<IconSettings size={18} stroke={1.75} />}
               />
+              {trailingSlot}
 
+              {!compact && (
               <Menu shadow="md" width={220} position="top" withinPortal>
                 <Menu.Target>
                   <Tooltip label="More" withArrow position="top">
@@ -330,8 +337,9 @@ export function MediaDock({
                 </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
+              )}
 
-              {!centerMediaControls && connUi && (
+              {!compact && !centerMediaControls && connUi && (
                 <>
                   <DockDivider />
                   <DockConnectionStatus conn={conn} connUi={connUi} onRetry={onRetry} />
@@ -341,7 +349,7 @@ export function MediaDock({
           )}
         </Transition>
         </Box>
-        {centerMediaControls && connUi ? (
+        {centerMediaControls && connUi && !compact ? (
           <DockConnectionStatus
             conn={conn}
             connUi={connUi}

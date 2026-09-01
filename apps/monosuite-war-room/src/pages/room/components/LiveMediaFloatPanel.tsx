@@ -55,6 +55,8 @@ interface LiveMediaFloatPanelProps {
   onViewParticipantDetails: (id: string) => void;
   /** Single-row chrome for 1366×768-class desktops. */
   dense?: boolean;
+  /** Phone layout — hide split, keep a single control row, and expose fullscreen in the dock. */
+  mobile?: boolean;
 }
 
 /** Unified floating live presence + media controls — replaces inline collaboration + separate dock. */
@@ -85,6 +87,7 @@ export function LiveMediaFloatPanel({
   onSetParticipantRole,
   onViewParticipantDetails,
   dense = false,
+  mobile = false,
 }: LiveMediaFloatPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const joined = media.joined;
@@ -118,6 +121,7 @@ export function LiveMediaFloatPanel({
             justify="space-between"
             wrap="nowrap"
             w="100%"
+            className={mobile ? 'monosuite-live-float-mobile-header' : undefined}
             style={{
               borderBottom: '1px solid var(--monosuite-color-chrome-border)',
               background: 'var(--monosuite-color-chrome-raised)',
@@ -157,7 +161,7 @@ export function LiveMediaFloatPanel({
                   {expanded ? <IconChevronDown size={15} /> : <IconChevronUp size={15} />}
                 </ActionIcon>
               </Tooltip>
-              {!fullscreenActive && (
+              {!mobile && !fullscreenActive && (
                 <Tooltip label="Split page — live collaboration on the right">
                   <ActionIcon
                     size="sm"
@@ -171,6 +175,7 @@ export function LiveMediaFloatPanel({
                   </ActionIcon>
                 </Tooltip>
               )}
+              {!mobile && (
               <Tooltip
                 label={fullscreenActive ? 'Exit fullscreen collaboration' : 'Fullscreen collaboration'}
               >
@@ -189,6 +194,7 @@ export function LiveMediaFloatPanel({
                   {fullscreenActive ? <IconMaximizeOff size={15} /> : <IconMaximize size={15} />}
                 </ActionIcon>
               </Tooltip>
+              )}
             </Group>
           </Group>
 
@@ -257,16 +263,48 @@ export function LiveMediaFloatPanel({
 
       <MediaDock
         embedded
-        hideStatusMeta={joined}
-        centerMediaControls={joined}
-        compactLayout={dense}
+        hideStatusMeta={mobile || joined}
+        centerMediaControls={joined && !mobile}
+        compactLayout={dense || mobile}
         leadingSlot={
-          joined ? (
+          joined && !mobile ? (
             <CompactParticipantAvatars
               people={livePeople}
               localCamera={media.camera}
               speakingId={media.speakingId}
             />
+          ) : undefined
+        }
+        trailingSlot={
+          mobile && joined ? (
+            <Tooltip
+              label={fullscreenActive ? 'Exit fullscreen collaboration' : 'Fullscreen collaboration'}
+              withArrow
+              position="top"
+            >
+              <ActionIcon
+                variant={fullscreenActive ? 'light' : 'subtle'}
+                color="teal"
+                size={36}
+                radius="md"
+                aria-label={
+                  fullscreenActive ? 'Exit fullscreen collaboration' : 'Fullscreen collaboration'
+                }
+                aria-pressed={fullscreenActive}
+                data-testid="dock-fullscreen"
+                onClick={() =>
+                  fullscreenActive ? onExitFullscreen?.() : onFullscreenChange(true)
+                }
+                styles={{
+                  root: {
+                    color: 'var(--monosuite-color-chrome-text-muted)',
+                    border: '1px solid transparent',
+                  },
+                }}
+              >
+                {fullscreenActive ? <IconMaximizeOff size={18} stroke={1.75} /> : <IconMaximize size={18} stroke={1.75} />}
+              </ActionIcon>
+            </Tooltip>
           ) : undefined
         }
         media={media}

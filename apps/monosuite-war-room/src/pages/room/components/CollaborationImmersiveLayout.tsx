@@ -1,7 +1,9 @@
-import { Badge, Box, Button, Group, Stack, Text } from '@mantine/core';
-import { IconScreenShareOff } from '@tabler/icons-react';
+import { ActionIcon, Badge, Box, Button, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+import { IconMaximizeOff, IconScreenShareOff } from '@tabler/icons-react';
 import type { LivePerson, Participant, PinTarget, ShareLayout } from '../data';
 import type { MediaState } from '../hooks/useRoomState';
+import { ROOM_MOBILE_QUERY } from '../../../shared/constants';
 import { MediaDock } from './MediaDock';
 import { buildMediaRoster, ParticipantTile } from './ParticipantMediaGrid';
 import { ScreenShareStage } from './ScreenShareStage';
@@ -28,6 +30,7 @@ interface CollaborationImmersiveLayoutProps extends CollaborationMediaControlsPr
   /** Fullscreen: stage + rail. Split: single participant column. */
   variant: 'fullscreen' | 'split';
   onShareLayoutChange: (layout: ShareLayout) => void;
+  onExitFullscreen?: () => void;
   canManageParticipants: boolean;
   onPinParticipant: (id: string) => void;
   onUnpin: () => void;
@@ -56,6 +59,7 @@ export function CollaborationImmersiveLayout({
   onRetry,
   onMore,
   onShareLayoutChange,
+  onExitFullscreen,
   canManageParticipants,
   onPinParticipant,
   onUnpin,
@@ -70,6 +74,7 @@ export function CollaborationImmersiveLayout({
   const sharerName = media.share ? 'You' : (media.remoteShareBy ?? 'Participant');
   const roster = buildMediaRoster(livePeople, participants, media);
   const isSplit = variant === 'split';
+  const isMobile = useMediaQuery(ROOM_MOBILE_QUERY, false, { getInitialValueInEffect: false });
 
   const pinnedParticipant =
     pinnedTarget?.kind === 'participant'
@@ -136,16 +141,29 @@ export function CollaborationImmersiveLayout({
   );
 
   const participantColumn = (
-    <Stack gap={6} className="monosuite-collab-participant-stack">
-      {railParticipants.map((person) => (
-        <ParticipantTile
-          key={person.id}
-          person={person}
-          size="rail"
-          {...tileProps(person)}
-        />
-      ))}
-    </Stack>
+    isMobile && !isSplit ? (
+      <Group gap={6} wrap="nowrap" className="monosuite-collab-participant-stack">
+        {railParticipants.map((person) => (
+          <ParticipantTile
+            key={person.id}
+            person={person}
+            size="thumb"
+            {...tileProps(person)}
+          />
+        ))}
+      </Group>
+    ) : (
+      <Stack gap={6} className="monosuite-collab-participant-stack">
+        {railParticipants.map((person) => (
+          <ParticipantTile
+            key={person.id}
+            person={person}
+            size="rail"
+            {...tileProps(person)}
+          />
+        ))}
+      </Stack>
+    )
   );
 
   const splitParticipantLayout = (
@@ -181,7 +199,10 @@ export function CollaborationImmersiveLayout({
       data-variant={variant}
       style={{ flex: 1, minHeight: 0 }}
     >
-      <Box style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+      <Box
+        className="monosuite-collab-immersive-body"
+        style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}
+      >
         {isSplit ? (
           <Box
             className="monosuite-collab-split-body"
@@ -285,14 +306,17 @@ export function CollaborationImmersiveLayout({
 
             <Box
               className="monosuite-collab-participant-rail"
+              data-orientation={isMobile ? 'horizontal' : 'vertical'}
               style={{
-                width: 212,
+                width: isMobile ? '100%' : 212,
                 flexShrink: 0,
-                borderLeft: '1px solid var(--monosuite-color-chrome-border)',
+                borderLeft: isMobile ? undefined : '1px solid var(--monosuite-color-chrome-border)',
+                borderTop: isMobile ? '1px solid var(--monosuite-color-chrome-border)' : undefined,
                 background: 'var(--monosuite-color-chrome-raised)',
                 display: 'flex',
                 flexDirection: 'column',
                 minHeight: 0,
+                minWidth: 0,
               }}
             >
               <Text
@@ -308,7 +332,17 @@ export function CollaborationImmersiveLayout({
               >
                 Participants · {roster.length}
               </Text>
-              <Box px="sm" pb="sm" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <Box
+                px="sm"
+                pb="sm"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  minWidth: 0,
+                  overflowX: isMobile ? 'auto' : 'hidden',
+                  overflowY: isMobile ? 'hidden' : 'auto',
+                }}
+              >
                 {participantColumn}
               </Box>
             </Box>
@@ -327,8 +361,32 @@ export function CollaborationImmersiveLayout({
         <MediaDock
           embedded
           density={isSplit ? 'sidebar' : 'default'}
-          hideStatusMeta={isSplit}
-          centerMediaControls={!isSplit && media.joined}
+          hideStatusMeta={isSplit || isMobile}
+          centerMediaControls={!isSplit && media.joined && !isMobile}
+          compactLayout={isMobile}
+          trailingSlot={
+            isMobile && !isSplit && onExitFullscreen ? (
+              <Tooltip label="Exit fullscreen collaboration" withArrow position="top">
+                <ActionIcon
+                  variant="light"
+                  color="teal"
+                  size={36}
+                  radius="md"
+                  aria-label="Exit fullscreen collaboration"
+                  data-testid="dock-fullscreen"
+                  onClick={onExitFullscreen}
+                  styles={{
+                    root: {
+                      color: 'var(--monosuite-color-chrome-text-muted)',
+                      border: '1px solid transparent',
+                    },
+                  }}
+                >
+                  <IconMaximizeOff size={18} stroke={1.75} />
+                </ActionIcon>
+              </Tooltip>
+            ) : undefined
+          }
           media={media}
           durationLabel={durationLabel}
           participantCount={participantCount}

@@ -16,9 +16,16 @@ import {
   IconSun,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../shared/constants';
+import { routes } from '../routes';
 import warRoomLogoDark from '../../assets/war-room-logo-dark.png';
+import type { ReactNode } from 'react';
+import { NavLink } from 'react-router';
 
-export function GlobalHeader() {
+interface GlobalHeaderProps {
+  navBurger?: ReactNode;
+}
+
+export function GlobalHeader({ navBurger }: GlobalHeaderProps) {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const dark = colorScheme === 'dark';
 
@@ -33,20 +40,27 @@ export function GlobalHeader() {
         color: 'var(--monosuite-color-chrome-text)',
       }}
     >
-      <Group gap="sm" wrap="nowrap">
+      <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+        {navBurger}
         <Box
-          component="img"
-          src={warRoomLogoDark}
-          alt="War Room"
-          w={36}
-          h={36}
-          style={{
-            display: 'block',
-            objectFit: 'contain',
-            mixBlendMode: 'screen',
-            flexShrink: 0,
-          }}
-        />
+          component={NavLink}
+          to={routes.rooms}
+          aria-label="Back to rooms list"
+          style={{ display: 'flex', flexShrink: 0, lineHeight: 0 }}
+        >
+          <Box
+            component="img"
+            src={warRoomLogoDark}
+            alt=""
+            w={36}
+            h={36}
+            style={{
+              display: 'block',
+              objectFit: 'contain',
+              mixBlendMode: 'screen',
+            }}
+          />
+        </Box>
         <Text
           fw={700}
           size="sm"
@@ -99,6 +113,7 @@ export function GlobalHeader() {
           color="teal"
           leftSection={<IconSparkles size={14} />}
           aria-label="MonoAI"
+          visibleFrom="sm"
         >
           <Text span visibleFrom="lg" inherit>
             MonoAI

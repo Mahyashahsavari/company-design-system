@@ -1,13 +1,16 @@
 /**
- * Global UI scale for the War Room app (1 = 100%).
  * Laptop widths stay at 90% so 1366 stays usable with dense chrome.
- * 1920px and above (including 2560×1440) use 100% so type is not tiny.
+ * Phones and 1920px+ (including 2560×1440) use 100% so type stays readable.
  */
 export const APP_UI_SCALE_COMPACT = 0.9;
 export const APP_UI_SCALE_DEFAULT = 1;
 export const APP_UI_SCALE_WIDE_MIN_WIDTH = 1920;
+/** Matches Mantine `sm` — phone / small tablet. */
+export const ROOM_MOBILE_QUERY = '(max-width: 47.99em)';
+export const ROOM_MOBILE_MAX_WIDTH = 768;
 
 export function getAppUiScale(viewportWidth: number): number {
+  if (viewportWidth < ROOM_MOBILE_MAX_WIDTH) return APP_UI_SCALE_DEFAULT;
   return viewportWidth >= APP_UI_SCALE_WIDE_MIN_WIDTH
     ? APP_UI_SCALE_DEFAULT
     : APP_UI_SCALE_COMPACT;
@@ -22,8 +25,9 @@ export function applyAppUiScale(root: HTMLElement | null = document.getElementBy
 
 export function initAppUiScale() {
   applyAppUiScale();
-  const media = window.matchMedia(`(min-width: ${APP_UI_SCALE_WIDE_MIN_WIDTH}px)`);
-  media.addEventListener('change', () => applyAppUiScale());
+  const onChange = () => applyAppUiScale();
+  window.matchMedia(`(min-width: ${APP_UI_SCALE_WIDE_MIN_WIDTH}px)`).addEventListener('change', onChange);
+  window.matchMedia(ROOM_MOBILE_QUERY).addEventListener('change', onChange);
 }
 
 /** App chrome heights — keep sticky panels aligned with the room page header. */

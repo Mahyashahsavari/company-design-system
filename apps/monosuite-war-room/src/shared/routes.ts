@@ -1,4 +1,5 @@
 export const routes = {
+  rooms: '/rooms',
   room: '/',
   createRoom: '/create-room',
   resources: '/resources',

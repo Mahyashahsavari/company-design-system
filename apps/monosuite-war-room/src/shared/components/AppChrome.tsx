@@ -1,5 +1,7 @@
-import { AppShell } from '@mantine/core';
+import { AppShell, Burger } from '@mantine/core';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import type { ReactNode } from 'react';
+import { ROOM_MOBILE_QUERY } from '../constants';
 import { GlobalHeader } from './GlobalHeader';
 import { LeftNav } from './LeftNav';
 
@@ -12,6 +14,8 @@ interface AppChromeProps {
   showAsideToggle?: boolean;
   footerHeight?: number;
   asideWidth?: number;
+  /** Hide product chrome so collaboration can use the full viewport (mobile fullscreen). */
+  hideHeader?: boolean;
 }
 
 export function AppChrome({
@@ -23,12 +27,24 @@ export function AppChrome({
   showAsideToggle = false,
   footerHeight,
   asideWidth = 340,
+  hideHeader = false,
 }: AppChromeProps) {
+  const isMobile = useMediaQuery(ROOM_MOBILE_QUERY, false, { getInitialValueInEffect: false });
+  const [navOpened, { toggle: toggleNav, close: closeNav }] = useDisclosure(false);
+
   return (
     <AppShell
       className="monosuite-war-room-shell"
-      header={{ height: 52 }}
-      navbar={{ width: 52, breakpoint: 'sm' }}
+      disabled={hideHeader}
+      header={{
+        height: 52,
+        collapsed: hideHeader,
+      }}
+      navbar={{
+        width: isMobile ? 220 : 52,
+        breakpoint: 'sm',
+        collapsed: { mobile: !navOpened, desktop: false },
+      }}
       aside={
         aside
           ? {
@@ -47,7 +63,18 @@ export function AppChrome({
           borderBottom: '1px solid var(--monosuite-color-chrome-border)',
         }}
       >
-        <GlobalHeader />
+        <GlobalHeader
+          navBurger={
+            <Burger
+              opened={navOpened}
+              onClick={toggleNav}
+              hiddenFrom="sm"
+              size="sm"
+              color="var(--monosuite-color-chrome-text)"
+              aria-label={navOpened ? 'Close navigation' : 'Open navigation'}
+            />
+          }
+        />
       </AppShell.Header>
 
       <AppShell.Navbar
@@ -61,6 +88,8 @@ export function AppChrome({
           showAsideToggle={showAsideToggle}
           asideCollapsed={asideCollapsed}
           onToggleAside={onToggleAside}
+          showLabels={Boolean(isMobile)}
+          onNavigate={closeNav}
         />
       </AppShell.Navbar>
 

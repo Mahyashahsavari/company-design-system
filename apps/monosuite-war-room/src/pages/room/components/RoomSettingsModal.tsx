@@ -18,6 +18,7 @@ import { DiscardChangesModal } from '../../../shared/components/DiscardChangesMo
 import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
 import {
   CONNECTED_SOURCES,
+  ROOM_SEVERITY_COLOR,
   ROOM_SEVERITY_OPTIONS,
   ROOM_TAG_SUGGESTIONS,
   ROOM_WORKFLOW_OPTIONS,
@@ -31,13 +32,6 @@ interface RoomSettingsModalProps {
   onClose: () => void;
   onSave: (next: RoomSettingsDraft) => void;
 }
-
-const SEVERITY_COLOR: Record<RoomSeverity, 'danger' | 'warning' | 'success'> = {
-  Critical: 'danger',
-  High: 'danger',
-  Medium: 'warning',
-  Low: 'success',
-};
 
 const ADAPTER_OPTIONS = CONNECTED_SOURCES.map((source) => ({
   value: source.id,
@@ -53,7 +47,7 @@ function SeverityDot({ severity }: { severity: RoomSeverity }) {
         height: 8,
         borderRadius: '50%',
         flexShrink: 0,
-        background: `var(--mantine-color-${SEVERITY_COLOR[severity]}-filled)`,
+        background: `var(--mantine-color-${ROOM_SEVERITY_COLOR[severity]}-filled)`,
       }}
     />
   );

@@ -11,6 +11,7 @@ import {
   ROOM_MEDIA_DOCK_GUTTER,
   ROOM_MEDIA_DOCK_SAFE_ZONE,
   ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE,
+  ROOM_MOBILE_QUERY,
   ROOM_PAGE_HEADER_GUTTER,
   ROOM_UTILITY_COMPACT_MAX,
 } from '../../shared/constants';
@@ -19,6 +20,7 @@ import { ContextSidebar } from './components/ContextSidebar';
 import { IncidentContextColumn } from './components/IncidentContextColumn';
 import { InvestigationWorkspace } from './components/InvestigationWorkspace';
 import { LiveMediaFloatPanel } from './components/LiveMediaFloatPanel';
+import { MobileRoomView } from './components/MobileRoomView';
 import { InviteParticipantsModal } from './components/InviteParticipantsModal';
 import { AddEvidenceModal } from './components/AddEvidenceModal';
 import { EditIncidentDrawer } from './components/EditIncidentDrawer';
@@ -69,6 +71,9 @@ export function RoomPage() {
     getInitialValueInEffect: false,
   });
   const denseRoom = denseWidth || denseHeight;
+  const isMobile = useMediaQuery(ROOM_MOBILE_QUERY, false, {
+    getInitialValueInEffect: false,
+  });
   const utilityExpandedWidth = getRoomUtilityWidth({ compact: compactDesktop, collapsed: false });
   const utilityWidth = getRoomUtilityWidth({
     compact: compactDesktop,
@@ -210,7 +215,8 @@ export function RoomPage() {
       pinnedTarget={room.pinnedTarget}
       durationLabel={room.durationLabel}
       participantCount={room.participants.length}
-      dense={denseRoom}
+      dense={denseRoom || isMobile}
+      mobile={isMobile}
       onJoin={room.joinLive}
       onToggleMedia={room.toggleMedia}
       onShare={room.startShare}
@@ -263,6 +269,7 @@ export function RoomPage() {
         showAsideToggle={false}
         asideCollapsed={room.asideCollapsed}
         onToggleAside={room.toggleAside}
+        hideHeader={collabFullscreen && isMobile}
       >
         <AppShell.Main
           className="monosuite-room-main"
@@ -273,6 +280,19 @@ export function RoomPage() {
         >
           {collabFullscreen ? (
             <Box className="monosuite-room-body">{collaboration}</Box>
+          ) : isMobile ? (
+            <Box className="monosuite-room-body">
+              <MobileRoomView
+                room={room}
+                attackerId={attackerId}
+                victimId={victimId}
+                onAttackerChange={setAttackerId}
+                onVictimChange={setVictimId}
+                onEditIncident={() => room.roomAction('view-incident')}
+                linkedAlerts={linkedAlerts}
+                livePanel={liveMediaFloatPanel}
+              />
+            </Box>
           ) : (
             <Box className="monosuite-room-body">
               <RoomCommandHeader
@@ -300,7 +320,7 @@ export function RoomPage() {
             </Box>
           )}
 
-          {showDockedFloat && floatFixed}
+          {showDockedFloat && !isMobile && floatFixed}
         </AppShell.Main>
       </AppChrome>
 

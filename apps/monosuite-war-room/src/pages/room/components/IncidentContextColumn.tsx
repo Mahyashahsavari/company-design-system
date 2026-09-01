@@ -30,6 +30,8 @@ interface IncidentContextColumnProps {
   linkedAlerts?: LinkedIncidentAlert[];
   /** Matches expanded Room Utility unless the user resizes the rail. */
   defaultWidth?: number;
+  /** Full-width stacked rail for the mobile room view. */
+  fullWidth?: boolean;
 }
 
 /** Left SOC threat chain rail — scrolls naturally; preview rows adapt to viewport height. */
@@ -41,6 +43,7 @@ export function IncidentContextColumn({
   onEditIncident,
   linkedAlerts = [],
   defaultWidth = ROOM_UTILITY_WIDTH,
+  fullWidth = false,
 }: IncidentContextColumnProps) {
   const { ref: scrollRef, height: scrollHeight } = useElementSize();
   const [width, setWidth] = useState(() =>
@@ -131,10 +134,10 @@ export function IncidentContextColumn({
       }}
     >
       <Box
-        w={width}
+        w={fullWidth ? '100%' : width}
         h="100%"
         style={{
-          flexShrink: 0,
+          flexShrink: fullWidth ? 1 : 0,
           minWidth: 0,
           minHeight: 0,
           display: 'flex',
@@ -237,6 +240,7 @@ export function IncidentContextColumn({
         </Stack>
       </Box>
 
+      {!fullWidth && (
       <Box
         className="monosuite-threat-rail-resize"
         role="separator"
@@ -249,6 +253,7 @@ export function IncidentContextColumn({
         data-testid="attack-chain-resize"
         onPointerDown={onPointerDown}
       />
+      )}
     </Box>
   );
 }

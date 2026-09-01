@@ -2,6 +2,7 @@ import { ActionIcon, Badge, Box, Button, Collapse, Group, Stack, Text, Tooltip }
 import { IconArrowDown, IconChevronDown, IconPencil, IconRadar2, IconShield } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { INCIDENT, type LinkedIncidentAlert } from '../data';
+import { SeverityIcon, severityColor } from '../severity';
 import { LinkedIncidentAlertList } from './LinkedIncidentAlertEditor';
 import { MetadataLabelValueRow } from './MetadataLabelValueRow';
 
@@ -77,9 +78,6 @@ export function IncidentAttackCard({
   const summary = (
     <Stack gap={6} style={{ minWidth: 0 }}>
       <Group gap={6} wrap="wrap">
-        <Badge size="xs" variant="light" color="danger" radius="sm">
-          {INCIDENT.severity}
-        </Badge>
         <Badge size="xs" variant="outline" color="neutral" radius="sm">
           {INCIDENT.id}
         </Badge>
@@ -129,29 +127,41 @@ export function IncidentAttackCard({
           minWidth: 0,
         }}
       >
-          <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-            <Box
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 'var(--mantine-radius-sm)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'color-mix(in srgb, var(--mantine-color-accent-filled) 18%, transparent)',
-                flexShrink: 0,
-              }}
+          <Group gap={6} wrap="nowrap" justify="space-between" align="flex-start" style={{ minWidth: 0 }}>
+            <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+              <Box
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 'var(--mantine-radius-sm)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'color-mix(in srgb, var(--mantine-color-accent-filled) 18%, transparent)',
+                  flexShrink: 0,
+                }}
+              >
+                <IconShield size={13} color="var(--mantine-color-accent-filled)" aria-hidden />
+              </Box>
+              <Stack gap={0} style={{ minWidth: 0 }}>
+                <Text size="10px" fw={700} tt="uppercase" c="accent" style={{ letterSpacing: '0.1em' }}>
+                  Incident
+                </Text>
+                <Text size="xs" fw={700}>
+                  Attack vector
+                </Text>
+              </Stack>
+            </Group>
+            <Badge
+              size="xs"
+              variant="light"
+              color={severityColor(INCIDENT.severity)}
+              radius="sm"
+              leftSection={<SeverityIcon severity={INCIDENT.severity} size={11} />}
+              style={{ flexShrink: 0 }}
             >
-              <IconShield size={13} color="var(--mantine-color-accent-filled)" aria-hidden />
-            </Box>
-            <Stack gap={0} style={{ minWidth: 0 }}>
-              <Text size="10px" fw={700} tt="uppercase" c="accent" style={{ letterSpacing: '0.1em' }}>
-                Incident
-              </Text>
-              <Text size="xs" fw={700}>
-                Attack vector
-              </Text>
-            </Stack>
+              {INCIDENT.severity}
+            </Badge>
           </Group>
 
         {compact ? (

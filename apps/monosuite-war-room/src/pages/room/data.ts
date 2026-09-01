@@ -368,6 +368,14 @@ export const LINK_SOURCE_OPTIONS = [
 export const ROOM_SEVERITY_OPTIONS = ['Critical', 'High', 'Medium', 'Low'] as const;
 export type RoomSeverity = (typeof ROOM_SEVERITY_OPTIONS)[number];
 
+/** Incident severity → Mantine semantic colour. High is warning so it does not collide with Critical. */
+export const ROOM_SEVERITY_COLOR: Record<RoomSeverity, 'danger' | 'warning' | 'accent' | 'neutral'> = {
+  Critical: 'danger',
+  High: 'warning',
+  Medium: 'accent',
+  Low: 'neutral',
+};
+
 export const ROOM_WORKFLOW_OPTIONS = [
   { value: 'nist-800-61', label: 'NIST SP 800-61' },
   { value: 'nic800', label: 'NIC800' },

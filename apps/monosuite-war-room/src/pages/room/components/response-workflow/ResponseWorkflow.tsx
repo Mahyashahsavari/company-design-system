@@ -1,5 +1,5 @@
-import { Box, Group, Text, Tooltip } from '@mantine/core';
-import { Fragment } from 'react';
+import { Box, Group, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { Fragment, useState } from 'react';
 import { IconCheck, IconChevronRight } from '@tabler/icons-react';
 import { TruncatedTooltipText } from '../../../../shared/components/TruncatedTooltipText';
 import type { WorkflowPhaseColor, WorkflowStep } from '../../data';
@@ -9,8 +9,8 @@ interface ResponseWorkflowProps {
   protocol?: string;
   title?: string;
   height?: number;
-  /** Strip is a single-row stepper for short / 1366-class desktops. */
-  density?: 'cards' | 'strip';
+  /** Strip is a single-row stepper for short desktops. Focus peeks prev/current/next on phones. */
+  density?: 'cards' | 'strip' | 'focus';
 }
 
 const STATUS_LABEL: Record<WorkflowStep['status'], string> = {
@@ -34,6 +34,76 @@ export function ResponseWorkflow({
   const progress =
     ((completedCount + (steps.some((s) => s.status === 'current') ? 0.5 : 0)) / steps.length) * 100;
   const strip = density === 'strip';
+  const focus = density === 'focus';
+  const currentIndex = Math.max(
+    0,
+    steps.findIndex((step) => step.status === 'current'),
+  );
+  const current = steps[currentIndex] ?? steps[0];
+  const [focusedIndex, setFocusedIndex] = useState(currentIndex);
+  const safeFocus = Math.min(Math.max(focusedIndex, 0), steps.length - 1);
+  const prevStep = safeFocus > 0 ? steps[safeFocus - 1] : null;
+  const nextStep = safeFocus < steps.length - 1 ? steps[safeFocus + 1] : null;
+  const focused = steps[safeFocus] ?? current;
+
+  if (focus) {
+    return (
+      <Box className="monosuite-workflow monosuite-workflow--focus" aria-label={title}>
+        <Group justify="space-between" mb={8} wrap="nowrap" gap="xs">
+          <Text size="xs" fw={600}>
+            {title}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {protocol}
+          </Text>
+        </Group>
+        <Box className="monosuite-workflow-focus-track" aria-label="Previous, current, and next workflow steps">
+          {prevStep ? (
+            <FocusStepCard
+              step={prevStep}
+              index={safeFocus - 1}
+              role="prev"
+              onSelect={() => setFocusedIndex(safeFocus - 1)}
+            />
+          ) : (
+            <Box className="monosuite-workflow-focus-slot" aria-hidden />
+          )}
+          <FocusStepCard step={focused} index={safeFocus} role="current" />
+          {nextStep ? (
+            <FocusStepCard
+              step={nextStep}
+              index={safeFocus + 1}
+              role="next"
+              onSelect={() => setFocusedIndex(safeFocus + 1)}
+            />
+          ) : (
+            <Box className="monosuite-workflow-focus-slot" aria-hidden />
+          )}
+        </Box>
+        <Group gap={6} justify="center" wrap="nowrap" mt={10} aria-label="Workflow progress">
+          {steps.map((step, index) => (
+            <Tooltip
+              key={step.id}
+              label={`${step.label} · ${STATUS_LABEL[step.status]}`}
+              withArrow
+              events={{ hover: true, focus: true, touch: true }}
+            >
+              <UnstyledButton
+                type="button"
+                aria-label={`${step.label}, ${STATUS_LABEL[step.status]}`}
+                aria-current={index === currentIndex ? 'step' : undefined}
+                className="monosuite-workflow-focus-pip"
+                data-status={step.status}
+                data-focused={index === safeFocus ? 'true' : 'false'}
+                onClick={() => setFocusedIndex(index)}
+                style={{ ['--workflow-phase-color' as string]: phaseFill(step.phase.color) }}
+              />
+            </Tooltip>
+          ))}
+        </Group>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -71,6 +141,82 @@ export function ResponseWorkflow({
           ))}
         </Box>
       </Box>
+    </Box>
+  );
+}
+
+function FocusStepCard({
+  step,
+  index,
+  role,
+  onSelect,
+}: {
+  step: WorkflowStep;
+  index: number;
+  role: 'prev' | 'current' | 'next';
+  onSelect?: () => void;
+}) {
+  const stepNo = String(index + 1).padStart(2, '0');
+  const phaseColor = phaseFill(step.phase.color);
+  const isCurrent = role === 'current';
+  const pending = step.status === 'pending';
+  const done = step.status === 'completed';
+
+  const body = (
+    <>
+      <Group gap={4} wrap="nowrap" justify="space-between" mb={isCurrent ? 4 : 2}>
+        <Text size="10px" c="dimmed" fw={700} lh={1} style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {stepNo}
+        </Text>
+        {isCurrent ? (
+          <StatusChip status={step.status} index={index} />
+        ) : done ? (
+          <IconCheck size={12} color="var(--mantine-color-teal-filled)" aria-hidden />
+        ) : null}
+      </Group>
+      <TruncatedTooltipText
+        size={isCurrent ? 'sm' : 'xs'}
+        fw={isCurrent ? 700 : 600}
+        c={pending ? 'dimmed' : undefined}
+        lh={1.2}
+        lineClamp={1}
+        tooltip={`${step.label} · ${step.phase.label} · ${STATUS_LABEL[step.status]}`}
+        style={{ minWidth: 0 }}
+      >
+        {step.label}
+      </TruncatedTooltipText>
+    </>
+  );
+
+  const cardStyle = {
+    ['--workflow-phase-color' as string]: phaseColor,
+  };
+
+  if (onSelect) {
+    return (
+      <UnstyledButton
+        type="button"
+        className="monosuite-workflow-focus-card"
+        data-role={role}
+        data-status={step.status}
+        aria-label={`${role === 'prev' ? 'Previous step' : 'Next step'}: ${step.label}, ${STATUS_LABEL[step.status]}`}
+        onClick={onSelect}
+        style={cardStyle}
+      >
+        {body}
+      </UnstyledButton>
+    );
+  }
+
+  return (
+    <Box
+      className="monosuite-workflow-focus-card"
+      data-role={role}
+      data-status={step.status}
+      aria-label={`${step.label}, ${STATUS_LABEL[step.status]}, ${step.phase.label}`}
+      style={cardStyle}
+    >
+      {body}
     </Box>
   );
 }

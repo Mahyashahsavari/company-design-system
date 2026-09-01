@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { CreateRoomPage } from './pages/create-room';
 import { ResourcesPage } from './pages/resources';
 import { RoomPage } from './pages/room';
+import { RoomsPage } from './pages/rooms';
 import { SettingsPage } from './pages/settings';
 import { routes } from './shared/routes';
 
@@ -28,6 +29,7 @@ export function App() {
     <BrowserRouter basename={basename || undefined}>
       <RedirectRecovery />
       <Routes>
+        <Route path={routes.rooms} element={<RoomsPage />} />
         <Route path={routes.room} element={<RoomPage />} />
         <Route path={routes.createRoom} element={<CreateRoomPage />} />
         <Route path={routes.resources} element={<ResourcesPage />} />
