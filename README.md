@@ -16,7 +16,7 @@ Reference apps are deployed to GitHub Pages on every push to `main`:
 | Assets Management | https://mahyashahsavari.github.io/company-design-system/assets/ |
 | War Room | https://mahyashahsavari.github.io/company-design-system/war-room/ |
 
-**First-time setup:** in the GitHub repo, go to **Settings → Pages → Build and deployment** and set **Source** to **GitHub Actions**.
+**First-time setup (required):** in the GitHub repo, go to **Settings → Pages → Build and deployment** and set **Source** to **GitHub Actions**. Without this step, the deploy job fails with `Failed to create deployment (status: 404)`. After enabling Pages, re-run the failed workflow from the Actions tab.
 
 Local preview of the Pages bundle:
 
