@@ -5,10 +5,10 @@ import { warRoomTheme } from '@monosuite/theme';
 import { MonosuiteProvider } from '@monosuite/ui';
 import '@monosuite/theme/styles.css';
 import { App } from './App';
-import { APP_UI_SCALE } from './shared/constants';
+import { initAppUiScale } from './shared/constants';
 import './app.css';
 
-document.getElementById('root')!.style.setProperty('--war-room-ui-scale', String(APP_UI_SCALE));
+initAppUiScale();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

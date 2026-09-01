@@ -9,7 +9,7 @@ body {
 }
 
 #root {
-  --war-room-ui-scale: 1;
+  --war-room-ui-scale: 0.9;
   zoom: var(--war-room-ui-scale);
   min-height: calc(100dvh / var(--war-room-ui-scale));
   height: calc(100dvh / var(--war-room-ui-scale));
