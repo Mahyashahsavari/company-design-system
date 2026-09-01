@@ -1,5 +1,30 @@
-/** Global UI scale for the War Room app (1 = 100%). */
-export const APP_UI_SCALE = 0.9;
+/**
+ * Global UI scale for the War Room app (1 = 100%).
+ * Compact (0.9) keeps the room dense on laptop widths; 1920px and above
+ * stay at 100% so QHD / ultrawide monitors do not shrink type.
+ */
+export const APP_UI_SCALE_COMPACT = 0.9;
+export const APP_UI_SCALE_DEFAULT = 1;
+export const APP_UI_SCALE_WIDE_MIN_WIDTH = 1920;
+
+export function getAppUiScale(viewportWidth: number): number {
+  return viewportWidth >= APP_UI_SCALE_WIDE_MIN_WIDTH
+    ? APP_UI_SCALE_DEFAULT
+    : APP_UI_SCALE_COMPACT;
+}
+
+const UI_SCALE_VAR = '--war-room-ui-scale';
+
+export function applyAppUiScale(root: HTMLElement | null = document.getElementById('root')) {
+  if (!root) return;
+  root.style.setProperty(UI_SCALE_VAR, String(getAppUiScale(window.innerWidth)));
+}
+
+export function initAppUiScale() {
+  applyAppUiScale();
+  const media = window.matchMedia(`(min-width: ${APP_UI_SCALE_WIDE_MIN_WIDTH}px)`);
+  media.addEventListener('change', () => applyAppUiScale());
+}
 
 /** App chrome heights — keep sticky panels aligned with the room page header. */
 export const GLOBAL_HEADER_HEIGHT = 52;
