@@ -18,6 +18,7 @@
     "dev:assets": "turbo run dev --filter=monosuite-assets-management",
     "dev:war-room": "turbo run dev --filter=monosuite-war-room",
     "build": "turbo run build",
+    "build:pages": "node scripts/build-pages.mjs",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",

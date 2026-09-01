@@ -4,6 +4,27 @@ Centralized visual language and tooling for Monosuite React products.
 
 Mantine is the UI library. Tabler Icons is the icon library. This repository owns the **theme**, **provider**, and **utils** so every product looks consistent.
 
+## Live demos
+
+[![CI and GitHub Pages](https://github.com/Mahyashahsavari/company-design-system/actions/workflows/ci-pages.yml/badge.svg)](https://github.com/Mahyashahsavari/company-design-system/actions/workflows/ci-pages.yml)
+
+Reference apps are deployed to GitHub Pages on every push to `main`:
+
+| App | URL |
+| --- | --- |
+| Landing | https://mahyashahsavari.github.io/company-design-system/ |
+| Assets Management | https://mahyashahsavari.github.io/company-design-system/assets/ |
+| War Room | https://mahyashahsavari.github.io/company-design-system/war-room/ |
+
+**First-time setup:** in the GitHub repo, go to **Settings → Pages → Build and deployment** and set **Source** to **GitHub Actions**.
+
+Local preview of the Pages bundle:
+
+```bash
+npm run build:pages
+npx serve site
+```
+
 ## Architecture
 
 ```
@@ -42,6 +63,7 @@ npm run dev             # both via Turborepo
 
 ```bash
 npm run build
+npm run build:pages   # GitHub Pages bundle → site/
 npm run lint
 npm run test
 npm run typecheck

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   Box,
   Button,
-  Grid,
   Group,
   Modal,
   MultiSelect,
@@ -19,7 +18,6 @@ import { DiscardChangesModal } from '../../../shared/components/DiscardChangesMo
 import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
 import {
   CONNECTED_SOURCES,
-  DEFAULT_ROOM_SETTINGS,
   ROOM_SEVERITY_OPTIONS,
   ROOM_TAG_SUGGESTIONS,
   ROOM_WORKFLOW_OPTIONS,
@@ -112,45 +110,39 @@ export function RoomSettingsModal({ opened, initial, onClose, onSave }: RoomSett
           }
         />
 
-        <Grid gutter="md">
-          <Grid.Col span={{ base: 12, sm: 3 }}>
-            <Select
-              label="Room Severity"
-              required
-              data={[...ROOM_SEVERITY_OPTIONS]}
-              value={draft.severity}
-              onChange={(value) =>
-                value && setDraft((current) => ({ ...current, severity: value as RoomSeverity }))
-              }
-              leftSection={<SeverityDot severity={draft.severity} />}
-              renderOption={({ option }) => (
-                <Group gap="xs" wrap="nowrap">
-                  <SeverityDot severity={option.value as RoomSeverity} />
-                  <Text size="sm">{option.label}</Text>
-                </Group>
-              )}
-            />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, sm: 4 }}>
-            <Select
-              label="Response workflow"
-              required
-              data={[...ROOM_WORKFLOW_OPTIONS]}
-              value={draft.workflow}
-              onChange={(value) => value && setDraft((current) => ({ ...current, workflow: value }))}
-            />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, sm: 5 }}>
-            <TagsInput
-              label="Tag"
-              placeholder="Enter tags"
-              data={ROOM_TAG_SUGGESTIONS}
-              value={draft.tags}
-              onChange={(tags) => setDraft((current) => ({ ...current, tags }))}
-              clearable
-            />
-          </Grid.Col>
-        </Grid>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+          <Select
+            label="Room Severity"
+            required
+            data={[...ROOM_SEVERITY_OPTIONS]}
+            value={draft.severity}
+            onChange={(value) =>
+              value && setDraft((current) => ({ ...current, severity: value as RoomSeverity }))
+            }
+            leftSection={<SeverityDot severity={draft.severity} />}
+            renderOption={({ option }) => (
+              <Group gap="xs" wrap="nowrap">
+                <SeverityDot severity={option.value as RoomSeverity} />
+                <Text size="sm">{option.label}</Text>
+              </Group>
+            )}
+          />
+          <Select
+            label="Response workflow"
+            required
+            data={[...ROOM_WORKFLOW_OPTIONS]}
+            value={draft.workflow}
+            onChange={(value) => value && setDraft((current) => ({ ...current, workflow: value }))}
+          />
+          <TagsInput
+            label="Tag"
+            placeholder="Enter tags"
+            data={ROOM_TAG_SUGGESTIONS}
+            value={draft.tags}
+            onChange={(tags) => setDraft((current) => ({ ...current, tags }))}
+            clearable
+          />
+        </SimpleGrid>
 
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <AdapterReferenceField
