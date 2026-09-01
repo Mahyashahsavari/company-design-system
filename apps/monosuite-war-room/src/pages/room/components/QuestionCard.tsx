@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Group,
+  Modal,
   Paper,
   Radio,
   Stack,
@@ -16,8 +17,15 @@ import {
   IconMessages,
   IconUsers,
 } from '@tabler/icons-react';
+import { useClickOutside } from '@mantine/hooks';
 import { useState } from 'react';
+import { DiscardChangesModal } from '../../../shared/components/DiscardChangesModal';
+import { isOwnContribution } from '../../../shared/constants';
+import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
 import type { Question, WorkspaceTab } from '../data';
+import { ContributionNote } from './ContributionNote';
+
+type NoteKind = 'answer' | 'discussion';
 
 interface QuestionCardProps {
   question: Question;
@@ -30,7 +38,12 @@ interface QuestionCardProps {
   onStartAnswer: () => void;
   onCancelAnswer: () => void;
   onSubmitAnswer: (text: string) => void;
+  onUpdateAnswer: (answerId: string, text: string) => void;
+  onDeleteAnswer: (answerId: string) => void;
   onToggleDiscussion: () => void;
+  onSubmitComment: (text: string) => void;
+  onUpdateComment: (commentId: string, text: string) => void;
+  onDeleteComment: (commentId: string) => void;
   onSelectDecision: (choice: string) => void;
   onRecordDecision: () => void;
 }
@@ -75,14 +88,78 @@ export function QuestionCard({
   onStartAnswer,
   onCancelAnswer,
   onSubmitAnswer,
+  onUpdateAnswer,
+  onDeleteAnswer,
   onToggleDiscussion,
+  onSubmitComment,
+  onUpdateComment,
+  onDeleteComment,
   onSelectDecision,
   onRecordDecision,
 }: QuestionCardProps) {
   const [draft, setDraft] = useState('');
+  const [commentDraft, setCommentDraft] = useState('');
+  const [editing, setEditing] = useState<{ kind: NoteKind; id: string } | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: NoteKind; id: string } | null>(null);
   const recent = q.answers?.[q.answers.length - 1];
   const hasDiscussion = Boolean(q.discussion && q.discussion.length > 0);
   const effectiveStatus = q.decision ? 'answered' : q.status;
+  const canComment = q.status === 'open' || q.status === 'answered';
+  const answeringDirty = answering && draft.trim().length > 0;
+  const commentDirty = commentDraft.trim().length > 0;
+  const composerDirty = answeringDirty || commentDirty;
+
+  const resetComposers = () => {
+    setDraft('');
+    setCommentDraft('');
+    onCancelAnswer();
+  };
+
+  const { requestClose: requestLeaveComposer, confirming: confirmComposer, discard: discardComposer, keepEditing: keepComposer } =
+    useDiscardGuard(answering || commentDirty, composerDirty, resetComposers);
+
+  const answerFormRef = useClickOutside<HTMLDivElement>(
+    () => {
+      if (answering && !confirmComposer) requestLeaveComposer();
+    },
+    undefined,
+    undefined,
+    answering && !confirmComposer,
+  );
+  const commentFormRef = useClickOutside<HTMLDivElement>(
+    () => {
+      if (commentDirty && !confirmComposer) requestLeaveComposer();
+    },
+    undefined,
+    undefined,
+    commentDirty && !confirmComposer,
+  );
+
+  const startEdit = (kind: NoteKind, id: string, text: string) => {
+    setEditing({ kind, id });
+    setEditDraft(text);
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setEditDraft('');
+  };
+
+  const saveEdit = () => {
+    if (!editing || !editDraft.trim()) return;
+    if (editing.kind === 'answer') onUpdateAnswer(editing.id, editDraft);
+    else onUpdateComment(editing.id, editDraft);
+    cancelEdit();
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.kind === 'answer') onDeleteAnswer(deleteTarget.id);
+    else onDeleteComment(deleteTarget.id);
+    if (editing?.id === deleteTarget.id) cancelEdit();
+    setDeleteTarget(null);
+  };
 
   return (
     <Paper
@@ -105,7 +182,14 @@ export function QuestionCard({
                 : '3px solid color-mix(in srgb, var(--monosuite-color-border) 80%, transparent)',
       }}
     >
-      <UnstyledButton onClick={onToggle} w="100%" style={{ textAlign: 'left' }}>
+      <UnstyledButton
+        onClick={() => {
+          if (composerDirty) requestLeaveComposer();
+          else onToggle();
+        }}
+        w="100%"
+        style={{ textAlign: 'left' }}
+      >
         <Group align="flex-start" wrap="nowrap" gap="sm">
           <Badge
             variant="light"
@@ -218,34 +302,47 @@ export function QuestionCard({
                   <Text size="xs" c="dimmed" fw={700} tt="uppercase">
                     {variant === 'findings' ? 'Evidence trail' : 'Recent answers'}
                   </Text>
-                  {q.answers.map((a, i) => (
+                  {q.answers.map((a) => (
                     <Paper
-                      key={i}
+                      key={a.id}
                       withBorder={false}
                       shadow="none"
                       p="xs"
                       radius="sm"
-                      bg="var(--monosuite-color-surface)"
+                      bg="var(--monosuite-color-surface-sunken)"
                     >
-                      <Text size="xs" fw={600}>
-                        {a.author}
-                      </Text>
-                      <Text size="sm" fs="italic">
-                        &ldquo;{a.text}&rdquo;
-                      </Text>
+                      <ContributionNote
+                        author={a.author}
+                        text={a.text}
+                        edited={a.edited}
+                        own={isOwnContribution(a.author)}
+                        editing={editing?.kind === 'answer' && editing.id === a.id}
+                        draft={editDraft}
+                        onDraftChange={setEditDraft}
+                        onStartEdit={() => startEdit('answer', a.id, a.text)}
+                        onCancelEdit={cancelEdit}
+                        onSaveEdit={saveEdit}
+                        onRequestDelete={() => setDeleteTarget({ kind: 'answer', id: a.id })}
+                      />
                     </Paper>
                   ))}
                 </Stack>
               )}
 
               {q.status === 'open' && answering && (
-                <Stack gap="xs">
+                <Stack gap="xs" ref={answerFormRef}>
                   <Textarea
                     placeholder="Add your answer…"
                     aria-label="Answer text"
                     minRows={2}
                     value={draft}
                     onChange={(e) => setDraft(e.currentTarget.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        requestLeaveComposer();
+                      }
+                    }}
                     size="sm"
                   />
                   <Group gap="xs">
@@ -261,10 +358,7 @@ export function QuestionCard({
                     <Button
                       size="xs"
                       variant="subtle"
-                      onClick={() => {
-                        setDraft('');
-                        onCancelAnswer();
-                      }}
+                      onClick={requestLeaveComposer}
                     >
                       Cancel
                     </Button>
@@ -272,19 +366,70 @@ export function QuestionCard({
                 </Stack>
               )}
 
-              {discussionOpen && q.discussion && (
-                <Stack gap={4}>
+              {discussionOpen && canComment && (
+                <Stack gap={6}>
                   <Text size="xs" c="dimmed" fw={700} tt="uppercase">
                     Discussion
                   </Text>
-                  {q.discussion.map((d, i) => (
-                    <Text key={i} size="xs">
-                      <Text span fw={700}>
-                        {d.author}:
-                      </Text>{' '}
-                      {d.text}
+                  {(q.discussion ?? []).length === 0 ? (
+                    <Text size="xs" c="dimmed">
+                      No comments yet. Add one to keep the thread with this question.
                     </Text>
-                  ))}
+                  ) : (
+                    (q.discussion ?? []).map((d) => (
+                      <Paper
+                        key={d.id}
+                        withBorder={false}
+                        shadow="none"
+                        p="xs"
+                        radius="sm"
+                        bg="var(--monosuite-color-surface-sunken)"
+                      >
+                        <ContributionNote
+                          author={d.author}
+                          text={d.text}
+                          edited={d.edited}
+                          own={isOwnContribution(d.author)}
+                          editing={editing?.kind === 'discussion' && editing.id === d.id}
+                          draft={editDraft}
+                          saveLabel="Save comment"
+                          onDraftChange={setEditDraft}
+                          onStartEdit={() => startEdit('discussion', d.id, d.text)}
+                          onCancelEdit={cancelEdit}
+                          onSaveEdit={saveEdit}
+                          onRequestDelete={() => setDeleteTarget({ kind: 'discussion', id: d.id })}
+                        />
+                      </Paper>
+                    ))
+                  )}
+                  <Stack gap="xs" ref={commentFormRef}>
+                    <Textarea
+                      placeholder="Add a comment…"
+                      aria-label="Comment text"
+                      minRows={2}
+                      value={commentDraft}
+                      onChange={(event) => setCommentDraft(event.currentTarget.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          requestLeaveComposer();
+                        }
+                      }}
+                      size="sm"
+                    />
+                    <Button
+                      size="xs"
+                      w="fit-content"
+                      variant="default"
+                      disabled={!commentDraft.trim()}
+                      onClick={() => {
+                        onSubmitComment(commentDraft);
+                        setCommentDraft('');
+                      }}
+                    >
+                      Post comment
+                    </Button>
+                  </Stack>
                 </Stack>
               )}
 
@@ -293,17 +438,50 @@ export function QuestionCard({
                   <Button size="xs" variant="default" onClick={onStartAnswer}>
                     Add answer
                   </Button>
-                  {hasDiscussion && (
-                    <Button size="xs" variant="subtle" onClick={onToggleDiscussion}>
-                      {discussionOpen ? 'Hide discussion' : 'View discussion'}
-                    </Button>
-                  )}
+                  <Button size="xs" variant="subtle" onClick={onToggleDiscussion}>
+                    {discussionOpen ? 'Hide discussion' : hasDiscussion ? 'View discussion' : 'Add comment'}
+                  </Button>
                 </Group>
+              )}
+              {q.status === 'answered' && canComment && !answering && (
+                <Button size="xs" variant="subtle" w="fit-content" onClick={onToggleDiscussion}>
+                  {discussionOpen ? 'Hide discussion' : hasDiscussion ? 'View discussion' : 'Add comment'}
+                </Button>
               )}
             </>
           )}
         </Stack>
       )}
+
+      <Modal
+        opened={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title={deleteTarget?.kind === 'discussion' ? 'Delete comment?' : 'Delete answer?'}
+        size="sm"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            {deleteTarget?.kind === 'discussion'
+              ? 'This removes your comment from the discussion thread.'
+              : 'This removes your answer from the investigation thread.'}
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button color="danger" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+      <DiscardChangesModal
+        opened={confirmComposer}
+        onKeepEditing={keepComposer}
+        onDiscard={discardComposer}
+        title="Discard draft?"
+        description="Your unpublished answer or comment will be discarded."
+      />
     </Paper>
   );
 }

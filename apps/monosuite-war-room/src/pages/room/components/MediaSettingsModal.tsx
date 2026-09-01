@@ -1,5 +1,7 @@
 import { Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
 import { useEffect, useState } from 'react';
+import { DiscardChangesModal } from '../../../shared/components/DiscardChangesModal';
+import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
 import type { MediaPermission } from '../data';
 import type { MediaDevices } from '../hooks/useRoomState';
 
@@ -28,8 +30,12 @@ export function MediaSettingsModal({
     }
   }, [opened, devices, permission]);
 
+  const dirty = JSON.stringify(draft) !== JSON.stringify(devices) || perm !== permission;
+  const { requestClose, confirming, discard, keepEditing } = useDiscardGuard(opened, dirty, onClose);
+
   return (
-    <Modal opened={opened} onClose={onClose} title="Media Settings" centered>
+    <>
+    <Modal opened={opened} onClose={requestClose} title="Media Settings" centered>
       <Stack gap="md">
         <Select
           label="Microphone"
@@ -88,12 +94,14 @@ export function MediaSettingsModal({
           </Text>
         </div>
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+          <Button variant="default" onClick={requestClose}>
             Cancel
           </Button>
           <Button onClick={() => onApply(draft, perm)}>Apply</Button>
         </Group>
       </Stack>
     </Modal>
+    <DiscardChangesModal opened={confirming} onKeepEditing={keepEditing} onDiscard={discard} />
+    </>
   );
 }

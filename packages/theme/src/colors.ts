@@ -113,6 +113,26 @@ export const teal: MantineColorsTuple = [
 ];
 
 /**
+ * Cool navy scale that replaces Mantine's warm `dark` palette.
+ * Aligned with semantic dark surfaces so inputs, default buttons, menus and
+ * dropdowns sit on the same blue-black as the rest of the product.
+ *
+ * 0 text-on-dark → 6 default control fill → 9 page background.
+ */
+export const dark: MantineColorsTuple = [
+  '#e8eef8',
+  '#c9d4e8',
+  '#9aabc6',
+  '#6d82a6',
+  '#3d5273',
+  '#1e2f4d',
+  '#16223a',
+  '#111c2e',
+  '#0e1728',
+  '#0b1220',
+];
+
+/**
  * Palettes registered on the theme. Consumers reference these by name, for
  * example `<Badge color="success">`, never by hex value.
  */
@@ -124,6 +144,7 @@ export const colors = {
   danger,
   neutral,
   teal,
+  dark,
 };
 
 export type MonosuiteColorName = keyof typeof colors;

@@ -10,11 +10,10 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   ThemeIcon,
   Tooltip,
 } from '@mantine/core';
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -29,7 +28,6 @@ import {
   IconMicrophone,
   IconMicrophoneOff,
   IconPaperclip,
-  IconSend,
   IconServer,
   IconShield,
   IconUser,
@@ -43,22 +41,26 @@ import { CURRENT_USER } from '../../../shared/constants';
 import { TruncatedTooltipText } from '../../../shared/components/TruncatedTooltipText';
 import {
   ASSETS,
-  CHAT_MESSAGES,
-  EVIDENCE_ITEMS,
+  ROOM_ROLES,
   SEVERITY_COLOR,
-  type ChatMessage,
   type ContextTab,
+  type EvidenceItem,
+  type EvidenceKind,
   type HistoryEntry,
   type Participant,
 } from '../data';
 import type { MediaState } from '../hooks/useRoomState';
+import { ChatPanel } from './ChatPanel';
+import { EvidencePanel } from './EvidencePanel';
+import { HistoryPanel } from './HistoryPanel';
 
 interface ContextSidebarProps {
   tab: ContextTab;
   onTabChange: (tab: ContextTab) => void;
   history: HistoryEntry[];
   onInvite: () => void;
-  onAddEvidence: () => void;
+  onAddEvidence: (kind?: EvidenceKind) => void;
+  evidence: EvidenceItem[];
   collapsed?: boolean;
   onExpand?: () => void;
   participants: Participant[];
@@ -93,6 +95,7 @@ export function ContextSidebar({
   history,
   onInvite,
   onAddEvidence,
+  evidence,
   collapsed = false,
   onExpand,
   participants,
@@ -106,8 +109,6 @@ export function ContextSidebar({
   onPinParticipant,
   onToggleCollapse,
 }: ContextSidebarProps) {
-  const [chatDraft, setChatDraft] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>(CHAT_MESSAGES);
   const activeTabMeta = RAIL_TABS.find((item) => item.value === tab);
 
   if (collapsed) {
@@ -169,212 +170,95 @@ export function ContextSidebar({
         </ScrollableTabList>
 
         <Box className="monosuite-room-tabs-body">
-          <ScrollArea h="100%" type="auto">
-            <Box px="md" py="sm">
-          <Tabs.Panel value="participants">
-            <ParticipantsPanel
-              participants={participants}
-              media={media}
-              canManage={canManageParticipants}
-              onInvite={onInvite}
-              onMute={onMuteParticipant}
-              onDisableCamera={onDisableCamera}
-              onRemove={onRemoveParticipant}
-              onSetRole={onSetRole}
-              onViewDetails={onViewDetails}
-              onPin={onPinParticipant}
-            />
-          </Tabs.Panel>
-
-          <Tabs.Panel value="chat">
-            <Stack gap="sm">
-              <Text fw={700} size="sm">
-                Room Chat
-              </Text>
-              <Stack gap={8}>
-                {messages.map((m) => (
-                  <Stack
-                    key={m.id}
-                    gap={2}
-                    p="xs"
-                    className="monosuite-context-chat-bubble"
-                  >
-                    <Group justify="space-between" gap="xs">
-                      <Text size="xs" fw={700}>
-                        {m.author}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {m.time}
-                      </Text>
-                    </Group>
-                    <Text size="sm">{m.text}</Text>
-                  </Stack>
-                ))}
-              </Stack>
-              <Group gap="xs" align="flex-end">
-                <TextInput
-                  placeholder="Message the room…"
-                  aria-label="Chat message"
-                  size="xs"
-                  style={{ flex: 1 }}
-                  value={chatDraft}
-                  onChange={(e) => setChatDraft(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && chatDraft.trim()) {
-                      setMessages((prev) => [
-                        ...prev,
-                        {
-                          id: `c-${Date.now()}`,
-                          author: 'You',
-                          time: new Date().toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          }),
-                          text: chatDraft.trim(),
-                        },
-                      ]);
-                      setChatDraft('');
-                    }
-                  }}
+          <Tabs.Panel value="participants" className="monosuite-context-tab-panel">
+            <ScrollArea h="100%" type="auto">
+              <Box px="md" py="sm">
+                <ParticipantsPanel
+                  participants={participants}
+                  media={media}
+                  canManage={canManageParticipants}
+                  onInvite={onInvite}
+                  onMute={onMuteParticipant}
+                  onDisableCamera={onDisableCamera}
+                  onRemove={onRemoveParticipant}
+                  onSetRole={onSetRole}
+                  onViewDetails={onViewDetails}
+                  onPin={onPinParticipant}
                 />
-                <Button
-                  size="xs"
-                  leftSection={<IconSend size={14} />}
-                  disabled={!chatDraft.trim()}
-                  onClick={() => {
-                    if (!chatDraft.trim()) return;
-                    setMessages((prev) => [
-                      ...prev,
-                      {
-                        id: `c-${Date.now()}`,
-                        author: 'You',
-                        time: new Date().toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }),
-                        text: chatDraft.trim(),
-                      },
-                    ]);
-                    setChatDraft('');
-                  }}
-                >
-                  Send
-                </Button>
-              </Group>
-            </Stack>
+              </Box>
+            </ScrollArea>
           </Tabs.Panel>
 
-          <Tabs.Panel value="assets">
-            <Stack gap="sm">
-              <Text fw={700} size="sm">
-                Affected Assets{' '}
-                <Text span c="dimmed" fw={400}>
-                  · {ASSETS.length}
-                </Text>
-              </Text>
-              {ASSETS.map((a) => {
-                const Icon = ASSET_ICONS[a.icon];
-                return (
-                  <Group
-                    key={a.id}
-                    gap="sm"
-                    p="sm"
-                    wrap="nowrap"
-                    style={{
-                      borderRadius: 'var(--mantine-radius-sm)',
-                      background: 'var(--monosuite-color-surface-sunken)',
-                    }}
-                  >
-                    <ThemeIcon variant="light" color="neutral" size="lg">
-                      <Icon size={16} />
-                    </ThemeIcon>
-                    <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-                      <TruncatedTooltipText size="sm" fw={600} tooltip={a.name}>
-                        {a.name}
-                      </TruncatedTooltipText>
-                      <TruncatedTooltipText size="xs" c="dimmed" tooltip={a.type}>
-                        {a.type}
-                      </TruncatedTooltipText>
-                      <TruncatedTooltipText size="xs" c="dimmed" tooltip={a.ip}>
-                        {a.ip}
-                      </TruncatedTooltipText>
-                    </Stack>
-                    <Badge size="sm" color={SEVERITY_COLOR[a.severity]}>
-                      {a.severity}
-                    </Badge>
-                  </Group>
-                );
-              })}
-              <Button size="xs" variant="subtle" leftSection={<IconList size={14} />}>
-                View all assets
-              </Button>
-            </Stack>
+          <Tabs.Panel value="chat" className="monosuite-context-tab-panel">
+            <ChatPanel />
           </Tabs.Panel>
 
-          <Tabs.Panel value="evidence">
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Text fw={700} size="sm">
-                  Evidence
-                </Text>
-                <Button
-                  size="compact-xs"
-                  variant="light"
-                  leftSection={<IconPaperclip size={12} />}
-                  onClick={onAddEvidence}
-                >
-                  Add
-                </Button>
-              </Group>
-              {EVIDENCE_ITEMS.map((item) => (
-                <Stack
-                  key={item.id}
-                  gap={2}
-                  p="sm"
-                  style={{
-                    borderRadius: 'var(--mantine-radius-sm)',
-                    background: 'var(--monosuite-color-surface-sunken)',
-                  }}
-                >
-                  <TruncatedTooltipText size="sm" fw={600} tooltip={item.name}>
-                    {item.name}
-                  </TruncatedTooltipText>
-                  <TruncatedTooltipText
-                    size="xs"
-                    c="dimmed"
-                    tooltip={`${item.type} · ${item.by} · ${item.time}`}
-                  >
-                    {item.type} · {item.by} · {item.time}
-                  </TruncatedTooltipText>
-                </Stack>
-              ))}
-            </Stack>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="history">
-            <Stack gap="sm">
-              <Text fw={700} size="sm">
-                Room History
-              </Text>
-              {history.map((h, i) => (
-                <Group key={`${h.time}-${i}`} gap="sm" align="flex-start" wrap="nowrap">
-                  <Text size="xs" c="dimmed" w={40}>
-                    {h.time}
+          <Tabs.Panel value="assets" className="monosuite-context-tab-panel">
+            <ScrollArea h="100%" type="auto">
+              <Box px="md" py="sm">
+                <Stack gap="sm">
+                  <Text fw={700} size="sm">
+                    Affected Assets{' '}
+                    <Text span c="dimmed" fw={400}>
+                      · {ASSETS.length}
+                    </Text>
                   </Text>
-                  <TruncatedTooltipText
-                    size="xs"
-                    fw={h.highlight ? 700 : 400}
-                    style={{ flex: 1, minWidth: 0 }}
-                    tooltip={`${h.actor} ${h.action}`}
-                  >
-                    <strong>{h.actor}</strong> {h.action}
-                  </TruncatedTooltipText>
-                </Group>
-              ))}
-            </Stack>
+                  {ASSETS.map((a) => {
+                    const Icon = ASSET_ICONS[a.icon];
+                    return (
+                      <Group
+                        key={a.id}
+                        gap="sm"
+                        p="sm"
+                        wrap="nowrap"
+                        style={{
+                          borderRadius: 'var(--mantine-radius-sm)',
+                          background: 'var(--monosuite-color-surface-sunken)',
+                        }}
+                      >
+                        <ThemeIcon variant="light" color="neutral" size="lg">
+                          <Icon size={16} />
+                        </ThemeIcon>
+                        <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                          <TruncatedTooltipText size="sm" fw={600} tooltip={a.name}>
+                            {a.name}
+                          </TruncatedTooltipText>
+                          <TruncatedTooltipText size="xs" c="dimmed" tooltip={a.type}>
+                            {a.type}
+                          </TruncatedTooltipText>
+                          <TruncatedTooltipText size="xs" c="dimmed" tooltip={a.ip}>
+                            {a.ip}
+                          </TruncatedTooltipText>
+                        </Stack>
+                        <Badge size="sm" color={SEVERITY_COLOR[a.severity]}>
+                          {a.severity}
+                        </Badge>
+                      </Group>
+                    );
+                  })}
+                  <Button size="xs" variant="subtle" leftSection={<IconList size={14} />}>
+                    View all assets
+                  </Button>
+                </Stack>
+              </Box>
+            </ScrollArea>
           </Tabs.Panel>
-            </Box>
-          </ScrollArea>
+
+          <Tabs.Panel value="evidence" className="monosuite-context-tab-panel">
+            <ScrollArea h="100%" type="auto">
+              <Box px="md" py="sm">
+                <EvidencePanel items={evidence} onAdd={onAddEvidence} />
+              </Box>
+            </ScrollArea>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="history" className="monosuite-context-tab-panel">
+            <ScrollArea h="100%" type="auto">
+              <Box px="md" py="sm">
+                <HistoryPanel items={history} />
+              </Box>
+            </ScrollArea>
+          </Tabs.Panel>
         </Box>
       </Tabs>
 
@@ -409,9 +293,6 @@ function ContextRailHeader({ label }: { label: string }) {
           {label}
         </TruncatedTooltipText>
       </Stack>
-      <Badge size="xs" variant="light" color="brand">
-        SOC
-      </Badge>
     </Group>
   );
 }
@@ -659,9 +540,10 @@ function ParticipantRow({
         <TruncatedTooltipText
           size="xs"
           c="dimmed"
-          tooltip={`${role}${typing && !speaking ? ' · typing…' : ''}`}
+          tooltip={`${role}${role === 'Guest' ? ' · view only' : ''}${typing && !speaking ? ' · typing…' : ''}`}
         >
           {role}
+          {role === 'Guest' ? ' · view only' : ''}
           {typing && !speaking ? ' · typing…' : ''}
         </TruncatedTooltipText>
       </Stack>
@@ -710,9 +592,13 @@ function ParticipantRow({
                 )}
                 <Menu.Divider />
                 <Menu.Label>Role</Menu.Label>
-                {['Commander', 'Responder', 'Viewer'].map((r) => (
-                  <Menu.Item key={r} onClick={() => onSetRole?.(r)} disabled={role === r}>
-                    {r}
+                {ROOM_ROLES.map((r) => (
+                  <Menu.Item
+                    key={r.value}
+                    onClick={() => onSetRole?.(r.value)}
+                    disabled={role === r.value}
+                  >
+                    {r.label}
                   </Menu.Item>
                 ))}
                 <Menu.Divider />

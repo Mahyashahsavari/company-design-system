@@ -1,5 +1,5 @@
 import type { CSSVariablesResolver } from '@mantine/core';
-import { neutral } from './colors';
+import { brand, dark, danger, neutral, teal } from './colors';
 import { layout } from './spacing';
 
 /**
@@ -83,6 +83,23 @@ const chromeVariables = {
 } as const;
 
 /**
+ * Mantine dark `variant="light"` uses `darken(shade 9, 0.5)`. For teal that
+ * turns `#035555` into forest green, which fights the cool navy surfaces.
+ * Mix the filled brand shade into the dark surface instead.
+ */
+const darkAccentWash = (accent: string, amount: number): string =>
+  `color-mix(in srgb, ${accent} ${amount}%, ${semanticColors.dark.surface})`;
+
+const darkPrimaryLightVars = {
+  '--mantine-color-teal-light': darkAccentWash(teal[4], 20),
+  '--mantine-color-teal-light-hover': darkAccentWash(teal[4], 28),
+  '--mantine-color-teal-light-color': teal[3],
+  '--mantine-color-brand-light': darkAccentWash(brand[4], 20),
+  '--mantine-color-brand-light-hover': darkAccentWash(brand[4], 28),
+  '--mantine-color-brand-light-color': brand[3],
+} as const;
+
+/**
  * Publishes the semantic tokens as CSS variables and re-points the handful of
  * Mantine variables that drive global surfaces and text, so every Mantine
  * component inherits the Monosuite palette without per-component overrides.
@@ -99,13 +116,27 @@ export const monosuiteCssVariablesResolver: CSSVariablesResolver = () => ({
     '--mantine-color-body': semanticColors.light.surface,
     '--mantine-color-text': semanticColors.light.text,
     '--mantine-color-dimmed': semanticColors.light.textMuted,
+    '--mantine-color-placeholder': semanticColors.light.textSubtle,
+    '--mantine-color-default': semanticColors.light.surface,
+    '--mantine-color-default-hover': semanticColors.light.surfaceSunken,
+    '--mantine-color-default-color': semanticColors.light.text,
     '--mantine-color-default-border': semanticColors.light.border,
+    '--mantine-color-disabled': semanticColors.light.surfaceSunken,
+    '--mantine-color-disabled-color': semanticColors.light.textSubtle,
   },
   dark: {
     ...toColorVariables(semanticColors.dark),
     '--mantine-color-body': semanticColors.dark.surface,
     '--mantine-color-text': semanticColors.dark.text,
     '--mantine-color-dimmed': semanticColors.dark.textMuted,
+    '--mantine-color-placeholder': semanticColors.dark.textSubtle,
+    '--mantine-color-default': semanticColors.dark.surfaceRaised,
+    '--mantine-color-default-hover': dark[5],
+    '--mantine-color-default-color': semanticColors.dark.text,
     '--mantine-color-default-border': semanticColors.dark.border,
+    '--mantine-color-disabled': semanticColors.dark.surfaceSunken,
+    '--mantine-color-disabled-color': semanticColors.dark.textSubtle,
+    '--mantine-color-error': danger[5],
+    ...darkPrimaryLightVars,
   },
 });

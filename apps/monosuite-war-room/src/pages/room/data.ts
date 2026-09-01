@@ -65,14 +65,49 @@ export interface ChatMessage {
   author: string;
   time: string;
   text: string;
+  edited?: boolean;
 }
+
+export type EvidenceKind = 'file' | 'link' | 'note';
 
 export interface EvidenceItem {
   id: string;
+  kind: EvidenceKind;
   name: string;
   type: string;
   by: string;
   time: string;
+  sizeBytes?: number;
+  url?: string;
+  note?: string;
+}
+
+export type EvidenceDraft =
+  | { kind: 'file'; name: string; type: string; sizeBytes: number }
+  | { kind: 'link'; name: string; url: string }
+  | { kind: 'note'; name: string; note: string };
+
+export function evidenceFileType(fileName: string): string {
+  const extension = fileName.split('.').pop()?.trim().toUpperCase();
+  if (!extension || extension === fileName.trim().toUpperCase()) return 'FILE';
+  return extension;
+}
+
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function hostnameFromUrl(value: string): string {
+  try {
+    return new URL(value.trim()).hostname.replace(/^www\./, '');
+  } catch {
+    return value.trim();
+  }
 }
 
 export interface LivePerson {
@@ -111,11 +146,27 @@ export interface WorkflowStep {
   owner: string;
   time: string;
   icon: 'bell' | 'filter' | 'search' | 'shield' | 'heartbeat';
+  /** NIST / playbook phase — color encodes lifecycle, not progress. */
+  phase: WorkflowPhase;
+}
+
+/** Product mapping of NIST SP 800-61 r2 lifecycle phases onto the theme palette. */
+export type WorkflowPhaseColor = 'accent' | 'warning' | 'brand' | 'danger' | 'success';
+
+export interface WorkflowPhase {
+  id: string;
+  /** Official lifecycle grouping (e.g. Detection & Analysis). */
+  label: string;
+  /** Stage name inside that grouping. */
+  stage: string;
+  color: WorkflowPhaseColor;
 }
 
 export interface Answer {
+  id: string;
   author: string;
   text: string;
+  edited?: boolean;
 }
 
 export interface DecisionRecord {
@@ -158,7 +209,70 @@ export interface Participant {
   speaking?: boolean;
   /** Soft-removed from the live roster (mock). */
   removed?: boolean;
+  email?: string;
+  guest?: boolean;
 }
+
+export type RoomRole = 'Commander' | 'Responder' | 'Viewer' | 'Guest';
+
+export const ROOM_ROLES: { value: RoomRole; label: string; description: string }[] = [
+  {
+    value: 'Commander',
+    label: 'Commander',
+    description: 'Leads the response and can manage the room.',
+  },
+  {
+    value: 'Responder',
+    label: 'Responder',
+    description: 'Investigates, answers, and records decisions.',
+  },
+  {
+    value: 'Viewer',
+    label: 'Viewer',
+    description: 'Follows the incident with limited actions.',
+  },
+  {
+    value: 'Guest',
+    label: 'Guest',
+    description: 'View only. Cannot take response actions.',
+  },
+];
+
+export const INVITE_ROLE_OPTIONS = ROOM_ROLES.map((role) => ({
+  value: role.value,
+  label: role.label,
+}));
+
+export interface MemberInvite {
+  userId: string;
+  role: RoomRole;
+}
+
+export interface ExternalGuestInvite {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export function initialsFromParts(firstName: string, lastName: string): string {
+  const first = firstName.trim().charAt(0);
+  const last = lastName.trim().charAt(0);
+  return `${first}${last}`.toUpperCase() || 'G';
+}
+
+export function isValidInviteEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+export interface DirectoryUser {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+  department: string;
+}
+
+export const PARTICIPANT_COLOR_CYCLE = ['teal', 'accent', 'warning', 'brand', 'danger', 'neutral'] as const;
 
 export interface SourceField {
   label: string;
@@ -199,6 +313,7 @@ export const INCIDENT = {
   severity: 'Critical' as const,
   status: 'Active' as const,
   scenario: 'Lateral Movement',
+  killChain: 'Cyber Attack Kill Chain',
   mitre: 'Credential Access → Valid Accounts',
   mitreId: 'T1078',
   mitreTactic: 'Credential Access',
@@ -208,6 +323,85 @@ export const INCIDENT = {
   occurred: '21:42',
   detected: '21:47',
   source: 'CoreLog',
+  /** Adapter-sourced incidents lock mapped fields; addresses and attacker fields stay additive. */
+  fromAdapter: true,
+};
+
+export interface LinkedAlertEntry {
+  id: string;
+  value: string;
+  fromAdapter: boolean;
+}
+
+export interface LinkedIncidentAlert {
+  id: string;
+  source: string;
+  alerts: LinkedAlertEntry[];
+}
+
+export const MANUAL_LINK_SOURCE = 'Manually';
+
+export const LINKED_INCIDENT_ALERTS: LinkedIncidentAlert[] = [
+  {
+    id: 'link-splunk',
+    source: 'Splunk',
+    alerts: [
+      { id: 'splunk-auto-1', value: 'Alert ID-1120', fromAdapter: true },
+      { id: 'splunk-auto-2', value: 'Alert ID-1184', fromAdapter: true },
+    ],
+  },
+  {
+    id: 'link-monosuite',
+    source: 'MonoSuite',
+    alerts: [{ id: 'ms-auto-1', value: 'AssetID-1020', fromAdapter: true }],
+  },
+];
+
+export const LINK_SOURCE_OPTIONS = [
+  'Splunk',
+  'MonoSuite',
+  'CoreLog',
+  'Threat Intelligence',
+  MANUAL_LINK_SOURCE,
+];
+
+export const ROOM_SEVERITY_OPTIONS = ['Critical', 'High', 'Medium', 'Low'] as const;
+export type RoomSeverity = (typeof ROOM_SEVERITY_OPTIONS)[number];
+
+export const ROOM_WORKFLOW_OPTIONS = [
+  { value: 'nist-800-61', label: 'NIST SP 800-61' },
+  { value: 'nic800', label: 'NIC800' },
+] as const;
+
+export const ROOM_TAG_SUGGESTIONS = [
+  'Lateral Movement',
+  'FIN7',
+  'Credential Access',
+  'C2',
+  'Containment',
+];
+
+export interface RoomSettingsDraft {
+  title: string;
+  description: string;
+  severity: RoomSeverity;
+  workflow: string;
+  tags: string[];
+  incidentReferences: string[];
+  attackerReferences: string[];
+  victimReferences: string[];
+}
+
+export const DEFAULT_ROOM_SETTINGS: RoomSettingsDraft = {
+  title: INCIDENT.title,
+  description:
+    'Suspicious authentication burst from 185.23.45.10 against workstation-114. Room opened to coordinate investigation and containment.',
+  severity: INCIDENT.severity,
+  workflow: 'nist-800-61',
+  tags: ['Lateral Movement', 'FIN7'],
+  incidentReferences: [],
+  attackerReferences: [],
+  victimReferences: [],
 };
 
 export { CURRENT_USER } from '../../shared/constants';
@@ -222,6 +416,12 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     owner: 'CoreLog',
     time: '21:47',
     icon: 'bell',
+    phase: {
+      id: 'detection-analysis',
+      label: 'Detection & Analysis',
+      stage: 'Detection',
+      color: 'warning',
+    },
   },
   {
     id: 'triage',
@@ -230,6 +430,12 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     owner: 'Sarah Johnson',
     time: '21:50',
     icon: 'filter',
+    phase: {
+      id: 'detection-analysis',
+      label: 'Detection & Analysis',
+      stage: 'Triage',
+      color: 'accent',
+    },
   },
   {
     id: 'investigation',
@@ -238,6 +444,12 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     owner: 'Mike Chen',
     time: '21:55',
     icon: 'search',
+    phase: {
+      id: 'detection-analysis',
+      label: 'Detection & Analysis',
+      stage: 'Analysis',
+      color: 'brand',
+    },
   },
   {
     id: 'containment',
@@ -246,6 +458,12 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     owner: '—',
     time: '—',
     icon: 'shield',
+    phase: {
+      id: 'containment-recovery',
+      label: 'Containment, Eradication & Recovery',
+      stage: 'Containment',
+      color: 'danger',
+    },
   },
   {
     id: 'recovery',
@@ -254,6 +472,12 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     owner: '—',
     time: '—',
     icon: 'heartbeat',
+    phase: {
+      id: 'containment-recovery',
+      label: 'Containment, Eradication & Recovery',
+      stage: 'Recovery',
+      color: 'success',
+    },
   },
 ];
 
@@ -266,22 +490,36 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 2,
     answers: [
       {
+        id: 'a1-sarah',
         author: 'Sarah Johnson',
         text: 'The first suspicious authentication was detected from 185.23.45.10.',
       },
       {
+        id: 'a1-mike',
         author: 'Mike Chen',
         text: 'This IP has been associated with attacker infrastructure in previous incidents.',
+      },
+      {
+        id: 'a1-hs',
+        author: 'Harriette Spoonlicker',
+        text: 'Need a containment decision after we confirm C2 on the finance VLAN.',
       },
     ],
     discussion: [
       {
+        id: 'd1-sarah',
         author: 'Sarah Johnson',
         text: 'Need to correlate with firewall logs from the DMZ segment.',
       },
       {
+        id: 'd1-alex',
         author: 'Alex Smith',
         text: 'Checking Threat Intelligence feed for 185.23.45.10 now.',
+      },
+      {
+        id: 'd1-hs',
+        author: 'Harriette Spoonlicker',
+        text: 'Keep the DMZ slice attached to this thread when it lands.',
       },
     ],
   },
@@ -293,12 +531,14 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 3,
     answers: [
       {
+        id: 'a4-alex',
         author: 'Alex Smith',
         text: 'srv-prod-01 shows PowerShell spawn 4 minutes after workstation-114 auth.',
       },
     ],
     discussion: [
       {
+        id: 'd4-mike',
         author: 'Mike Chen',
         text: 'Need EDR process tree before we contain.',
       },
@@ -312,6 +552,7 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 2,
     discussion: [
       {
+        id: 'd5-david',
         author: 'David Lee',
         text: 'Firewall slice still loading — hold containment until confirmed.',
       },
@@ -334,6 +575,7 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 2,
     answers: [
       {
+        id: 'a6-sarah',
         author: 'Sarah Johnson',
         text: 'Prefer staged isolation after confirming no backup jobs mid-run.',
       },
@@ -353,10 +595,12 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 2,
     answers: [
       {
+        id: 'a3-mike',
         author: 'Mike Chen',
         text: '185.23.45.10 matches IOC-8842 in Threat Intelligence — linked to FIN7 activity.',
       },
       {
+        id: 'a3-david',
         author: 'David Lee',
         text: 'Confirmed via VirusTotal and internal TI platform. High confidence match.',
       },
@@ -365,14 +609,14 @@ export const INITIAL_QUESTIONS: Question[] = [
 ];
 
 export const INITIAL_HISTORY: HistoryEntry[] = [
-  { time: '12:42', actor: 'Sarah Johnson', action: 'joined the room', highlight: false },
-  { time: '12:44', actor: 'System', action: 'Incident synchronized from CoreLog', highlight: false },
-  { time: '12:46', actor: 'Mike Chen', action: 'MITRE mapping updated', highlight: false },
-  { time: '12:48', actor: 'Alex Smith', action: 'Evidence added', highlight: false },
-  { time: '12:49', actor: 'Mike Chen', action: 'Finding created', highlight: true },
-  { time: '12:51', actor: 'Sarah Johnson', action: 'Decision recorded', highlight: true },
-  { time: '12:52', actor: 'System', action: 'Workflow step changed → Investigate', highlight: false },
   { time: '12:54', actor: 'David Lee', action: 'joined the room', highlight: false },
+  { time: '12:52', actor: 'System', action: 'Workflow step changed → Investigate', highlight: false },
+  { time: '12:51', actor: 'Sarah Johnson', action: 'Decision recorded', highlight: true },
+  { time: '12:49', actor: 'Mike Chen', action: 'Finding created', highlight: true },
+  { time: '12:48', actor: 'Alex Smith', action: 'Evidence added', highlight: false },
+  { time: '12:46', actor: 'Mike Chen', action: 'MITRE mapping updated', highlight: false },
+  { time: '12:44', actor: 'System', action: 'Incident synchronized from CoreLog', highlight: false },
+  { time: '12:42', actor: 'Sarah Johnson', action: 'joined the room', highlight: false },
 ];
 
 export const PARTICIPANTS: Participant[] = [
@@ -387,6 +631,7 @@ export const PARTICIPANTS: Participant[] = [
     mic: true,
     camera: true,
     speaking: true,
+    email: 'sarah.johnson@corp.local',
   },
   {
     id: 'mike',
@@ -397,6 +642,7 @@ export const PARTICIPANTS: Participant[] = [
     color: 'accent',
     mic: true,
     camera: true,
+    email: 'mike.chen@corp.local',
   },
   {
     id: 'alex',
@@ -407,6 +653,7 @@ export const PARTICIPANTS: Participant[] = [
     color: 'warning',
     mic: true,
     camera: true,
+    email: 'alex.smith@corp.local',
   },
   {
     id: 'david',
@@ -417,6 +664,74 @@ export const PARTICIPANTS: Participant[] = [
     color: 'neutral',
     mic: false,
     camera: false,
+    email: 'david.lee@corp.local',
+  },
+];
+
+/** Organization directory used when inviting people who are not yet in the room. */
+export const DIRECTORY_USERS: DirectoryUser[] = [
+  {
+    id: 'sarah',
+    name: 'Sarah Johnson',
+    email: 'sarah.johnson@corp.local',
+    initials: 'SJ',
+    department: 'SOC',
+  },
+  {
+    id: 'mike',
+    name: 'Mike Chen',
+    email: 'mike.chen@corp.local',
+    initials: 'MC',
+    department: 'Threat Intel',
+  },
+  {
+    id: 'alex',
+    name: 'Alex Smith',
+    email: 'alex.smith@corp.local',
+    initials: 'AS',
+    department: 'Incident Response',
+  },
+  {
+    id: 'david',
+    name: 'David Lee',
+    email: 'david.lee@corp.local',
+    initials: 'DL',
+    department: 'SOC',
+  },
+  {
+    id: 'priya',
+    name: 'Priya Nair',
+    email: 'priya.nair@corp.local',
+    initials: 'PN',
+    department: 'SOC',
+  },
+  {
+    id: 'james',
+    name: 'James Okonkwo',
+    email: 'james.okonkwo@corp.local',
+    initials: 'JO',
+    department: 'Incident Response',
+  },
+  {
+    id: 'lena',
+    name: 'Lena Hofmann',
+    email: 'lena.hofmann@corp.local',
+    initials: 'LH',
+    department: 'Legal',
+  },
+  {
+    id: 'omar',
+    name: 'Omar Haddad',
+    email: 'omar.haddad@corp.local',
+    initials: 'OH',
+    department: 'CISO office',
+  },
+  {
+    id: 'nina',
+    name: 'Nina Petrova',
+    email: 'nina.petrova@corp.local',
+    initials: 'NP',
+    department: 'Forensics',
   },
 ];
 
@@ -568,29 +883,59 @@ export const CHAT_MESSAGES: ChatMessage[] = [
     time: '12:50',
     text: 'Pulling DMZ firewall slice now.',
   },
+  {
+    id: 'c4',
+    author: 'You',
+    time: '12:52',
+    text: 'I will post the containment window after the backup check.',
+  },
 ];
 
 export const EVIDENCE_ITEMS: EvidenceItem[] = [
   {
     id: 'e1',
+    kind: 'file',
     name: 'auth-burst-export.json',
     type: 'JSON',
+    sizeBytes: 184_320,
     by: 'Mike Chen',
     time: '12:48',
   },
   {
     id: 'e2',
+    kind: 'file',
     name: 'corelog-alert-CL-8847291.png',
     type: 'PNG',
+    sizeBytes: 1_048_576,
     by: 'Sarah Johnson',
     time: '12:49',
   },
   {
     id: 'e3',
+    kind: 'link',
+    name: 'VirusTotal · 185.23.45.10',
+    type: 'LINK',
+    url: 'https://www.virustotal.com/gui/ip-address/185.23.45.10',
+    by: 'Mike Chen',
+    time: '12:50',
+  },
+  {
+    id: 'e4',
+    kind: 'file',
     name: 'firewall-dmz-slice.log',
     type: 'LOG',
+    sizeBytes: 2_621_440,
     by: 'Alex Smith',
     time: '12:51',
+  },
+  {
+    id: 'e5',
+    kind: 'note',
+    name: 'Auth burst window',
+    type: 'NOTE',
+    note: 'Failed logons clustered 21:42–21:47 UTC against svc-backup. Correlate with CoreLog CL-8847291 before containment.',
+    by: 'Harriette Spoonlicker',
+    time: '12:53',
   },
 ];
 
@@ -679,6 +1024,31 @@ export const MITRE_MAP: Record<string, MitreTactic> = {
 };
 
 export const PRESSURE_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
+
+export const KILL_CHAIN_OPTIONS = [
+  'Cyber Attack Kill Chain',
+  'Lateral Movement',
+  'Data Exfiltration',
+];
+
+export const CUSTOM_FIELD_KEYS = [
+  { value: 'threat_actor', label: 'Threat Actor' },
+  { value: 'confidence', label: 'Confidence' },
+  { value: 'ioc_match', label: 'IOC Match' },
+  { value: 'category', label: 'Category' },
+  { value: 'reputation', label: 'Reputation' },
+  { value: 'first_seen', label: 'First Seen' },
+  { value: 'last_seen', label: 'Last Seen' },
+  { value: 'account', label: 'Account' },
+  { value: 'display_name', label: 'Display Name' },
+  { value: 'account_status', label: 'Account Status' },
+  { value: 'department', label: 'Department' },
+  { value: 'workstation', label: 'Workstation' },
+  { value: 'hostname', label: 'Hostname' },
+  { value: 'notes', label: 'Notes' },
+];
+
+export const CUSTOM_FIELD_VALUE_TYPES = ['String', 'IP', 'Number'];
 
 export const CONNECTION_CYCLE: ConnectionState[] = [
   'connected',

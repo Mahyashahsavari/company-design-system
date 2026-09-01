@@ -156,19 +156,34 @@ body {
   border-radius: var(--mantine-radius-sm);
   border: 1px solid var(--monosuite-color-border);
   background: var(--monosuite-color-surface-sunken);
-  box-shadow: inset 3px 0 0 var(--monosuite-color-border);
+  box-shadow: inset 3px 0 0 var(--workflow-phase-color, var(--monosuite-color-border));
   transition: background 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .monosuite-workflow-card.workflow-card--completed {
   background: var(--monosuite-color-surface);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--mantine-color-teal-filled) 55%, transparent);
 }
 
 .monosuite-workflow-card.workflow-card--current {
   background: color-mix(in srgb, var(--mantine-color-teal-filled) 12%, var(--monosuite-color-surface));
   border-color: var(--mantine-color-teal-filled);
-  box-shadow: inset 3px 0 0 var(--mantine-color-teal-filled);
+}
+
+.monosuite-workflow-card.workflow-card--pending {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--workflow-phase-color) 42%, transparent);
+}
+
+.monosuite-workflow-phase-pip,
+.monosuite-workflow-phase-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.monosuite-workflow-phase-pip {
+  width: 7px;
+  height: 7px;
 }
 
 .monosuite-workflow-status {
@@ -322,10 +337,43 @@ body {
 }
 
 .monosuite-context-chat-bubble {
+  flex: 1;
+  min-width: 0;
   border-radius: var(--mantine-radius-sm);
   background: var(--monosuite-color-surface-sunken);
   border: 1px solid var(--monosuite-color-border);
-  border-left: 2px solid color-mix(in srgb, var(--mantine-color-teal-filled) 55%, transparent);
+}
+
+.monosuite-context-chat-bubble[data-own='true'] {
+  background: color-mix(in srgb, var(--mantine-color-brand-filled) 8%, var(--monosuite-color-surface-sunken));
+  border-color: color-mix(in srgb, var(--mantine-color-brand-filled) 28%, var(--monosuite-color-border));
+}
+
+.monosuite-context-tab-panel {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.monosuite-context-chat-thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.monosuite-context-chat-composer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--monosuite-color-border);
+  background: var(--monosuite-color-surface);
+}
+
+.monosuite-context-chat-composer-field {
+  border: 1px solid var(--monosuite-color-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--monosuite-color-surface-sunken);
+  padding: 8px 10px 8px;
 }
 
 .monosuite-room-tabs-fill {
@@ -351,11 +399,74 @@ body {
   overflow: auto;
 }
 
+.monosuite-threat-rail-resize {
+  width: 6px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  touch-action: none;
+  align-self: stretch;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--monosuite-color-border);
+}
+
+.monosuite-threat-rail-resize:hover,
+.monosuite-threat-rail-resize[data-dragging='true'] {
+  background: color-mix(in srgb, var(--mantine-color-teal-filled) 45%, var(--monosuite-color-border));
+}
+
 .monosuite-threat-rail-chain {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-height: 100%;
+}
+
+.monosuite-threat-rail-card {
+  flex-shrink: 0;
+}
+
+.monosuite-threat-rail-chain--fill {
+  height: 100%;
+  justify-content: flex-start;
+}
+
+.monosuite-threat-rail-chain--fill > .monosuite-threat-rail-card:not(.monosuite-threat-rail-card--incident) {
+  flex: 1 0 auto;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.monosuite-threat-rail-chain--fill > .monosuite-threat-rail-card--incident {
+  flex: 0 0 auto;
+}
+
+.monosuite-threat-rail-chain--fill .monosuite-threat-rail-card-body {
+  flex: 1 0 auto;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.monosuite-threat-rail-card-main,
+.monosuite-threat-rail-card-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+}
+
+.monosuite-threat-rail-chain--fill .monosuite-threat-rail-fields {
+  flex: 1 1 auto;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.monosuite-threat-rail-chain--fill .monosuite-threat-rail-field-table {
+  flex: 1 1 auto;
+  min-height: auto;
 }
 
 .monosuite-thin-scroll-x {
@@ -497,8 +608,8 @@ body {
 }
 
 .monosuite-collab-media-dock [data-testid='media-control-dock'] {
-  padding-inline: 12px;
-  padding-block: 8px;
+  padding-inline: 20px;
+  padding-block: 10px;
 }
 
 .monosuite-collab-split-participants {
@@ -554,4 +665,45 @@ body {
   .monosuite-media-dock-sidebar-divider {
     display: none;
   }
+}
+
+/* Floating live collaboration bar — scales with viewport, capped on large screens. */
+.monosuite-live-float-anchor {
+  width: min(56rem, 52vw, calc(100vw - 40px));
+  min-width: min(36rem, calc(100vw - 40px));
+}
+
+.monosuite-live-float-panel {
+  width: 100%;
+}
+
+/* Fullscreen / float dock — media controls stay visually centered without overlapping sides. */
+.monosuite-media-dock-bar--centered {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+}
+
+.monosuite-media-dock-bar--centered > :first-child {
+  grid-column: 1;
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.monosuite-media-dock-bar--centered > .monosuite-media-dock-primary {
+  grid-column: 2;
+  justify-self: center;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.monosuite-media-dock-bar--centered > .monosuite-media-dock-trailing {
+  grid-column: 3;
+  justify-self: end;
+  min-width: 0;
 }

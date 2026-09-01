@@ -2,7 +2,7 @@ import { Box, Group, Text, Tooltip } from '@mantine/core';
 import { Fragment } from 'react';
 import { IconCheck, IconChevronRight } from '@tabler/icons-react';
 import { TruncatedTooltipText } from '../../../../shared/components/TruncatedTooltipText';
-import type { WorkflowStep } from '../../data';
+import type { WorkflowPhaseColor, WorkflowStep } from '../../data';
 
 interface ResponseWorkflowProps {
   steps: WorkflowStep[];
@@ -17,10 +17,14 @@ const STATUS_LABEL: Record<WorkflowStep['status'], string> = {
   pending: 'Queued',
 };
 
-/** Full-width compact workflow cards — responsive track with tooltip labels. */
+function phaseFill(color: WorkflowPhaseColor) {
+  return `var(--mantine-color-${color}-filled)`;
+}
+
+/** Full-width compact workflow cards — phase color is independent of progress status. */
 export function ResponseWorkflow({
   steps,
-  protocol = 'NIC800',
+  protocol = 'NIST SP 800-61',
   title = 'Response Workflow',
 }: ResponseWorkflowProps) {
   const completedCount = steps.filter((s) => s.status === 'completed').length;
@@ -33,9 +37,12 @@ export function ResponseWorkflow({
         <TruncatedTooltipText size="xs" fw={600} style={{ minWidth: 0, flex: 1 }}>
           {title}
         </TruncatedTooltipText>
-        <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-          {protocol}
-        </Text>
+        <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
+          <PhaseKey steps={steps} />
+          <Text size="xs" c="dimmed">
+            {protocol}
+          </Text>
+        </Group>
       </Group>
 
       <Box className="monosuite-workflow-shell" style={{ position: 'relative', width: '100%' }}>
@@ -61,25 +68,58 @@ export function ResponseWorkflow({
   );
 }
 
+function PhaseKey({ steps }: { steps: WorkflowStep[] }) {
+  return (
+    <Group gap={4} wrap="nowrap" aria-label="NIST phase colors">
+      {steps.map((step) => (
+        <Tooltip
+          key={step.id}
+          label={`${step.phase.stage} · ${step.phase.label}`}
+          withArrow
+          openDelay={200}
+        >
+          <Box
+            aria-hidden
+            className="monosuite-workflow-phase-pip"
+            style={{ background: phaseFill(step.phase.color) }}
+          />
+        </Tooltip>
+      ))}
+    </Group>
+  );
+}
+
 function WorkflowStepCard({ step, index }: { step: WorkflowStep; index: number }) {
   const active = step.status === 'current';
   const done = step.status === 'completed';
   const pending = step.status === 'pending';
   const stepNo = String(index + 1).padStart(2, '0');
+  const phaseColor = phaseFill(step.phase.color);
 
   return (
     <Box
       className={`monosuite-workflow-card workflow-card workflow-card--${step.status}`}
       data-status={step.status}
+      aria-label={`${step.label}, ${STATUS_LABEL[step.status]}, ${step.phase.label}`}
       style={{
         animationDelay: `${index * 55}ms`,
+        ['--workflow-phase-color' as string]: phaseColor,
       }}
     >
       <Group justify="space-between" wrap="nowrap" gap={4} mb={4}>
         <StatusChip status={step.status} index={index} />
-        <Text size="10px" c="dimmed" fw={700} lh={1} className="monosuite-workflow-step-no">
-          {stepNo}
-        </Text>
+        <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+          <Tooltip label={`${step.phase.stage} · ${step.phase.label}`} withArrow openDelay={200}>
+            <Box
+              aria-hidden
+              className="monosuite-workflow-phase-mark"
+              style={{ background: phaseColor }}
+            />
+          </Tooltip>
+          <Text size="10px" c="dimmed" fw={700} lh={1} className="monosuite-workflow-step-no">
+            {stepNo}
+          </Text>
+        </Group>
       </Group>
 
       <TruncatedTooltipText
@@ -88,7 +128,7 @@ function WorkflowStepCard({ step, index }: { step: WorkflowStep; index: number }
         c={pending ? 'dimmed' : undefined}
         lh={1.25}
         lineClamp={2}
-        tooltip={step.label}
+        tooltip={`${step.label} · ${step.phase.label} · ${STATUS_LABEL[step.status]}`}
         className="monosuite-workflow-step-label"
       >
         {step.label}

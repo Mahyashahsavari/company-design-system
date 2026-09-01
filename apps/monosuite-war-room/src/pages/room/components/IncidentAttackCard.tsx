@@ -1,13 +1,14 @@
-import { Badge, Box, Button, Collapse, Group, Stack, Text } from '@mantine/core';
-import { IconArrowDown, IconChevronDown, IconRadar2, IconShield } from '@tabler/icons-react';
+import { ActionIcon, Badge, Box, Button, Collapse, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { IconArrowDown, IconChevronDown, IconPencil, IconRadar2, IconShield } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import { INCIDENT } from '../data';
+import { INCIDENT, type LinkedIncidentAlert } from '../data';
+import { LinkedIncidentAlertList } from './LinkedIncidentAlertEditor';
 import { MetadataLabelValueRow } from './MetadataLabelValueRow';
 
 interface IncidentAttackCardProps {
-  onViewDetails?: () => void;
   compact?: boolean;
   previewCount?: number;
+  linkedAlerts?: LinkedIncidentAlert[];
 }
 
 const INCIDENT_FIELDS = [
@@ -31,6 +32,7 @@ function FieldTable({
   return (
     <Stack
       gap={0}
+      className="monosuite-threat-rail-fields monosuite-threat-rail-field-table"
       style={{
         borderRadius: 'var(--mantine-radius-sm)',
         background: 'var(--monosuite-color-surface-sunken)',
@@ -57,9 +59,9 @@ function FieldTable({
 
 /** Incident / attack hub — focal node in the threat chain rail. */
 export function IncidentAttackCard({
-  onViewDetails,
   compact = false,
   previewCount: previewCountProp,
+  linkedAlerts = [],
 }: IncidentAttackCardProps) {
   const [expanded, setExpanded] = useState(false);
   const staticPreviewCount = compact ? 2 : INCIDENT_FIELDS.length;
@@ -77,9 +79,6 @@ export function IncidentAttackCard({
       <Group gap={6} wrap="wrap">
         <Badge size="xs" variant="light" color="danger" radius="sm">
           {INCIDENT.severity}
-        </Badge>
-        <Badge size="xs" variant="light" color="success" radius="sm">
-          {INCIDENT.status}
         </Badge>
         <Badge size="xs" variant="outline" color="neutral" radius="sm">
           {INCIDENT.id}
@@ -104,32 +103,20 @@ export function IncidentAttackCard({
   const moreDetails = (
     <Stack gap={0}>
       <FieldTable fields={compact ? moreFields : INCIDENT_FIELDS} />
-      {compact && onViewDetails ? (
-        <Box
-          px="xs"
-          py={6}
-          style={{
-            borderRadius: 'var(--mantine-radius-sm)',
-            border: '1px solid var(--monosuite-color-border)',
-            borderTop: 'none',
-            background: 'var(--monosuite-color-surface-sunken)',
-          }}
-        >
-          <Button size="compact-xs" variant="light" color="accent" fullWidth onClick={onViewDetails}>
-            View full incident
-          </Button>
-        </Box>
-      ) : null}
     </Stack>
   );
 
   return (
-    <Box style={{ position: 'relative', flexShrink: 0, paddingLeft: 28, paddingRight: 2 }}>
+    <Box
+      className="monosuite-threat-rail-card monosuite-threat-rail-card--incident"
+      style={{ position: 'relative', paddingLeft: 28, paddingRight: 2 }}
+    >
       <ThreatRailNodeDot tone="accent" pulse />
 
       <Stack
         gap={6}
         p="xs"
+        className="monosuite-threat-rail-card-body"
         style={{
           borderRadius: 'var(--mantine-radius-md)',
           background: `linear-gradient(
@@ -142,7 +129,6 @@ export function IncidentAttackCard({
           minWidth: 0,
         }}
       >
-        <Group gap={6} wrap="nowrap" justify="space-between">
           <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
             <Box
               style={{
@@ -167,44 +153,45 @@ export function IncidentAttackCard({
               </Text>
             </Stack>
           </Group>
-          <Badge size="xs" variant="dot" color="success">
-            Active
-          </Badge>
-        </Group>
 
         {compact ? (
           <>
-            {summary}
-            {previewFields.length > 0 ? <FieldTable fields={previewFields} /> : null}
-            {hasMore ? (
-              <>
-                <Collapse expanded={expanded}>{moreDetails}</Collapse>
-                <Button
-                  size="compact-xs"
-                  variant="subtle"
-                  color="accent"
-                  onClick={() => setExpanded((open) => !open)}
-                  rightSection={
-                    <IconChevronDown
-                      size={12}
-                      style={{ transform: expanded ? 'rotate(180deg)' : undefined }}
-                    />
-                  }
-                >
-                  {expanded ? 'Less' : `More (${moreFields.length})`}
-                </Button>
-              </>
-            ) : null}
+            <div className="monosuite-threat-rail-card-main">
+              {summary}
+              {previewFields.length > 0 ? <FieldTable fields={previewFields} /> : null}
+              {hasMore ? (
+                <>
+                  <Collapse expanded={expanded}>{moreDetails}</Collapse>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="accent"
+                    onClick={() => setExpanded((open) => !open)}
+                    rightSection={
+                      <IconChevronDown
+                        size={12}
+                        style={{ transform: expanded ? 'rotate(180deg)' : undefined }}
+                      />
+                    }
+                  >
+                    {expanded ? 'Less' : `More (${moreFields.length})`}
+                  </Button>
+                </>
+              ) : null}
+            </div>
+            <div className="monosuite-threat-rail-card-footer">
+              <LinkedIncidentAlertList rows={linkedAlerts} />
+            </div>
           </>
         ) : (
           <>
-            {summary}
-            {moreDetails}
-            {onViewDetails && (
-              <Button size="compact-xs" variant="light" color="accent" onClick={onViewDetails}>
-                View full incident
-              </Button>
-            )}
+            <div className="monosuite-threat-rail-card-main">
+              {summary}
+              {moreDetails}
+            </div>
+            <div className="monosuite-threat-rail-card-footer">
+              <LinkedIncidentAlertList rows={linkedAlerts} />
+            </div>
           </>
         )}
       </Stack>
@@ -212,35 +199,43 @@ export function IncidentAttackCard({
   );
 }
 
-export function ThreatRailHeader() {
+export function ThreatRailHeader({ onEdit }: { onEdit?: () => void }) {
   return (
-    <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
-      <Box
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 'var(--mantine-radius-sm)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'color-mix(in srgb, var(--mantine-color-brand-filled) 12%, var(--monosuite-color-surface-sunken))',
-          border: '1px solid var(--monosuite-color-border)',
-          flexShrink: 0,
-        }}
-      >
-        <IconRadar2 size={14} color="var(--mantine-color-brand-filled)" aria-hidden />
-      </Box>
-      <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-        <Text size="10px" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.1em' }}>
+    <Group gap={8} wrap="nowrap" justify="space-between" style={{ flexShrink: 0 }}>
+      <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+        <Box
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 'var(--mantine-radius-sm)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'color-mix(in srgb, var(--mantine-color-brand-filled) 12%, var(--monosuite-color-surface-sunken))',
+            border: '1px solid var(--monosuite-color-border)',
+            flexShrink: 0,
+          }}
+        >
+          <IconRadar2 size={14} color="var(--mantine-color-brand-filled)" aria-hidden />
+        </Box>
+        <Text size="sm" fw={700}>
           Attack chain
         </Text>
-        <Text size="xs" fw={700}>
-          Threat intelligence
-        </Text>
-      </Stack>
-      <Badge size="xs" variant="light" color="brand">
-        SOC
-      </Badge>
+      </Group>
+      {onEdit ? (
+        <Tooltip label="Edit incident, attacker, and victim" withArrow>
+          <ActionIcon
+            variant="transparent"
+            color="accent"
+            size="sm"
+            aria-label="Edit attack chain"
+            data-testid="edit-incident-button"
+            onClick={onEdit}
+          >
+            <IconPencil size={16} />
+          </ActionIcon>
+        </Tooltip>
+      ) : null}
     </Group>
   );
 }

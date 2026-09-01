@@ -103,8 +103,8 @@ export function ThreatEntityPanel({
 
   const fieldsSection =
     orderedFields.length > 0 ? (
-      <Stack gap={6}>
-        <Stack gap={0} style={fieldBoxStyle}>
+      <Stack gap={6} className="monosuite-threat-rail-fields">
+        <Stack gap={0} className="monosuite-threat-rail-field-table" style={fieldBoxStyle}>
           {previewFields.map((field, index) => (
             <Box
               key={field.label}
@@ -163,6 +163,7 @@ export function ThreatEntityPanel({
       ref={ref}
       gap={railCompact ? 6 : 10}
       p={railCompact ? 'xs' : 'sm'}
+      className="monosuite-threat-rail-card-body"
       style={{
         borderRadius: 'var(--mantine-radius-md)',
         background: ui.gradient,
@@ -213,7 +214,7 @@ export function ThreatEntityPanel({
   if (!railNode) return panel;
 
   return (
-    <Box style={{ position: 'relative', paddingLeft: 28, paddingRight: 2 }}>
+    <Box className="monosuite-threat-rail-card" style={{ position: 'relative', paddingLeft: 28, paddingRight: 2 }}>
       <ThreatRailNodeDot tone={ui.nodeTone} />
       {panel}
     </Box>

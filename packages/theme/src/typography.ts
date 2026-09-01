@@ -7,7 +7,7 @@
  */
 
 export const fontFamily =
-  '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 export const fontFamilyMonospace =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';

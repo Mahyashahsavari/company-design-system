@@ -10,7 +10,7 @@ export { monosuiteTheme, createMonosuiteTheme } from './theme';
 export { monosuiteCssVariablesResolver, semanticColors } from './semantic';
 export type { MonosuiteSemanticColors } from './semantic';
 
-export { colors, brand, accent, success, warning, danger, neutral, teal } from './colors';
+export { colors, brand, accent, success, warning, danger, neutral, teal, dark } from './colors';
 export type { MonosuiteColorName } from './colors';
 
 export { warRoomTheme } from './products/war-room';

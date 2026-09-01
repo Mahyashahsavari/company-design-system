@@ -328,6 +328,7 @@ export function CollaborationImmersiveLayout({
           embedded
           density={isSplit ? 'sidebar' : 'default'}
           hideStatusMeta={isSplit}
+          centerMediaControls={!isSplit && media.joined}
           media={media}
           durationLabel={durationLabel}
           participantCount={participantCount}

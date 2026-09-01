@@ -10,7 +10,7 @@ const MIN_PREVIEW = 1;
 /** Fixed chrome per card (header, switcher/summary, padding) — excludes field rows. */
 const SECTION_CHROME = {
   entity: 88,
-  incident: 148,
+  incident: 228,
 } as const;
 
 function moreButtonsHeight(counts: number[], totals: number[]) {
@@ -35,7 +35,7 @@ function chainHeight(counts: number[], totals: number[]) {
 
 /**
  * Distribute visible field rows across the three threat-rail cards for a viewport height.
- * Cards keep natural height; extra rows show when space allows, overflow stays in More.
+ * Extra rows show when space allows; leftover height stretches cards when every field is visible.
  */
 export function useThreatRailFieldBudget(
   viewportHeight: number,

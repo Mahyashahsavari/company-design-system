@@ -2,13 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CURRENT_USER } from '../../../shared/constants';
 import {
   CONNECTION_CYCLE,
+  DEFAULT_ROOM_SETTINGS,
+  DIRECTORY_USERS,
+  EVIDENCE_ITEMS,
   INITIAL_HISTORY,
   INITIAL_QUESTIONS,
   LIVE_PEOPLE,
   PARTICIPANTS,
+  PARTICIPANT_COLOR_CYCLE,
   ROOM_START_MINUTES,
+  initialsFromParts,
   type ConnectionState,
   type ContextTab,
+  type EvidenceDraft,
+  type EvidenceItem,
+  type EvidenceKind,
+  type ExternalGuestInvite,
   type HistoryEntry,
   type LivePerson,
   type LocalCameraState,
@@ -16,11 +25,13 @@ import {
   type LocalShareState,
   type LocalSpeakerState,
   type MediaPermission,
+  type MemberInvite,
   type Participant,
   type Question,
   type ShareLayout,
   type WorkspaceTab,
   type PinTarget,
+  type RoomSettingsDraft,
   formatRoomDuration,
   formatRoomDurationShort,
   getQuestionsForTab,
@@ -135,6 +146,12 @@ export function useRoomState() {
   const [toast, setToast] = useState<string | null>(null);
   const [manualIncidentOpen, setManualIncidentOpen] = useState(false);
   const [mediaSettingsOpen, setMediaSettingsOpen] = useState(false);
+  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [evidence, setEvidence] = useState<EvidenceItem[]>(() => structuredClone(EVIDENCE_ITEMS));
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [evidenceKind, setEvidenceKind] = useState<EvidenceKind>('file');
+  const [roomSettings, setRoomSettings] = useState<RoomSettingsDraft>(DEFAULT_ROOM_SETTINGS);
   const [typingVisible] = useState(true);
   const [pinnedTarget, setPinnedTarget] = useState<PinTarget | null>(null);
   const [collaborationFullscreen, setCollaborationFullscreen] = useState(false);
@@ -238,7 +255,10 @@ export function useRoomState() {
       setQuestions((prev) =>
         prev.map((q) => {
           if (q.id !== id) return q;
-          const answers = [...(q.answers ?? []), { author: CURRENT_USER.name, text: trimmed }];
+          const answers = [
+            ...(q.answers ?? []),
+            { id: `a-${id}-${Date.now().toString(36)}`, author: CURRENT_USER.name, text: trimmed },
+          ];
           return {
             ...q,
             answers,
@@ -252,6 +272,110 @@ export function useRoomState() {
       ]);
       setAnsweringQuestion(null);
       showToast('Answer submitted');
+    },
+    [showToast],
+  );
+
+  const updateAnswer = useCallback(
+    (questionId: number, answerId: string, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === questionId
+            ? {
+                ...q,
+                answers: (q.answers ?? []).map((answer) =>
+                  answer.id === answerId ? { ...answer, text: trimmed, edited: true } : answer,
+                ),
+              }
+            : q,
+        ),
+      );
+      showToast('Answer updated');
+    },
+    [showToast],
+  );
+
+  const deleteAnswer = useCallback(
+    (questionId: number, answerId: string) => {
+      setQuestions((prev) =>
+        prev.map((q) => {
+          if (q.id !== questionId) return q;
+          const answers = (q.answers ?? []).filter((answer) => answer.id !== answerId);
+          return {
+            ...q,
+            answers,
+            answerCount: Math.max(0, answers.length),
+          };
+        }),
+      );
+      setHistory((h) => [
+        { time: nowTime(), actor: CURRENT_USER.name, action: 'removed an answer', highlight: false },
+        ...h,
+      ]);
+      showToast('Answer deleted');
+    },
+    [showToast],
+  );
+
+  const submitDiscussion = useCallback(
+    (id: number, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setQuestions((prev) =>
+        prev.map((q) => {
+          if (q.id !== id) return q;
+          return {
+            ...q,
+            discussion: [
+              ...(q.discussion ?? []),
+              { id: `d-${id}-${Date.now().toString(36)}`, author: CURRENT_USER.name, text: trimmed },
+            ],
+          };
+        }),
+      );
+      setDiscussionOpen(id);
+      setExpandedQuestion(id);
+      showToast('Comment posted');
+    },
+    [showToast],
+  );
+
+  const updateDiscussion = useCallback(
+    (questionId: number, commentId: string, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === questionId
+            ? {
+                ...q,
+                discussion: (q.discussion ?? []).map((item) =>
+                  item.id === commentId ? { ...item, text: trimmed, edited: true } : item,
+                ),
+              }
+            : q,
+        ),
+      );
+      showToast('Comment updated');
+    },
+    [showToast],
+  );
+
+  const deleteDiscussion = useCallback(
+    (questionId: number, commentId: string) => {
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === questionId
+            ? {
+                ...q,
+                discussion: (q.discussion ?? []).filter((item) => item.id !== commentId),
+              }
+            : q,
+        ),
+      );
+      showToast('Comment deleted');
     },
     [showToast],
   );
@@ -474,6 +598,14 @@ export function useRoomState() {
     }));
   }, []);
 
+  const saveRoomSettings = useCallback(
+    (next: RoomSettingsDraft) => {
+      setRoomSettings(next);
+      showToast('Room settings saved');
+    },
+    [showToast],
+  );
+
   const retryConnection = useCallback(() => {
     setMedia((m) => ({ ...m, connection: 'connected' }));
     showToast('Connection restored');
@@ -487,16 +619,18 @@ export function useRoomState() {
     (action: string) => {
       switch (action) {
         case 'invite':
-          showToast('Invite participants');
+          setInviteOpen(true);
           break;
         case 'add-evidence':
-          showToast('Add evidence');
+          setSidebarTab('evidence');
+          setEvidenceKind('file');
+          setEvidenceOpen(true);
           break;
         case 'export':
           showToast('Exporting room summary…');
           break;
         case 'room-settings':
-          showToast('Room settings');
+          setRoomSettingsOpen(true);
           break;
         case 'close-room':
           closeRoom();
@@ -512,6 +646,148 @@ export function useRoomState() {
       }
     },
     [closeRoom, showToast],
+  );
+
+  const openAddEvidence = useCallback((kind: EvidenceKind = 'file') => {
+    setSidebarTab('evidence');
+    setEvidenceKind(kind);
+    setEvidenceOpen(true);
+  }, []);
+
+  const addEvidence = useCallback(
+    (drafts: EvidenceDraft[]) => {
+      if (drafts.length === 0) return;
+      const items: EvidenceItem[] = drafts.map((draft) => {
+        const base = {
+          id: `e-${crypto.randomUUID()}`,
+          by: CURRENT_USER.name,
+          time: nowTime(),
+        };
+        if (draft.kind === 'file') {
+          return {
+            ...base,
+            kind: 'file' as const,
+            name: draft.name,
+            type: draft.type,
+            sizeBytes: draft.sizeBytes,
+          };
+        }
+        if (draft.kind === 'link') {
+          return {
+            ...base,
+            kind: 'link' as const,
+            name: draft.name,
+            type: 'LINK',
+            url: draft.url,
+          };
+        }
+        return {
+          ...base,
+          kind: 'note' as const,
+          name: draft.name,
+          type: 'NOTE',
+          note: draft.note,
+        };
+      });
+
+      setEvidence((current) => [...items, ...current]);
+      const summary =
+        items.length === 1 ? items[0].name : `${items.length} items`;
+      showToast(`Evidence added · ${summary}`);
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `added evidence · ${items.map((item) => item.name).join(', ')}`,
+          highlight: true,
+        },
+        ...entries,
+      ]);
+      setEvidenceOpen(false);
+    },
+    [showToast],
+  );
+
+  const invitePeople = useCallback(
+    (members: MemberInvite[], guests: ExternalGuestInvite[]) => {
+      const memberPeople = members
+        .map((member) => {
+          const user = DIRECTORY_USERS.find((item) => item.id === member.userId);
+          return user ? { user, role: member.role } : null;
+        })
+        .filter((item): item is { user: (typeof DIRECTORY_USERS)[number]; role: MemberInvite['role'] } =>
+          Boolean(item),
+        );
+      const invitedNames = [
+        ...memberPeople.map(({ user }) => user.name),
+        ...guests.map((guest) => `${guest.firstName.trim()} ${guest.lastName.trim()}`),
+      ];
+
+      setParticipants((prev) => {
+        const next = [...prev];
+        const nextColor = () =>
+          PARTICIPANT_COLOR_CYCLE[next.length % PARTICIPANT_COLOR_CYCLE.length];
+
+        for (const { user, role } of memberPeople) {
+          const existing = next.findIndex((person) => person.id === user.id);
+          const asGuest = role === 'Guest';
+          if (existing >= 0) {
+            next[existing] = {
+              ...next[existing],
+              role,
+              removed: false,
+              guest: asGuest,
+              email: user.email,
+            };
+            continue;
+          }
+          next.push({
+            id: user.id,
+            name: user.name,
+            initials: user.initials,
+            role,
+            status: 'away',
+            color: nextColor(),
+            mic: false,
+            camera: false,
+            email: user.email,
+            guest: asGuest,
+          });
+        }
+
+        for (const guest of guests) {
+          next.push({
+            id: `guest-${crypto.randomUUID()}`,
+            name: `${guest.firstName.trim()} ${guest.lastName.trim()}`,
+            initials: initialsFromParts(guest.firstName, guest.lastName),
+            role: 'Guest',
+            status: 'away',
+            color: nextColor(),
+            mic: false,
+            camera: false,
+            email: guest.email.trim(),
+            guest: true,
+          });
+        }
+
+        return next;
+      });
+
+      const summary =
+        invitedNames.length === 1 ? invitedNames[0] : `${invitedNames.length} people`;
+      showToast(`Invitation sent to ${summary}`);
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `invited ${invitedNames.join(', ')}`,
+          highlight: true,
+        },
+        ...entries,
+      ]);
+      setInviteOpen(false);
+    },
+    [showToast],
   );
 
   const syncAllSources = useCallback(() => {
@@ -675,6 +951,11 @@ export function useRoomState() {
     startAddAnswer,
     cancelAddAnswer,
     submitAnswer,
+    updateAnswer,
+    deleteAnswer,
+    submitDiscussion,
+    updateDiscussion,
+    deleteDiscussion,
     discussionOpen,
     toggleDiscussion,
     questions,
@@ -711,6 +992,19 @@ export function useRoomState() {
     setManualIncidentOpen,
     mediaSettingsOpen,
     setMediaSettingsOpen,
+    roomSettingsOpen,
+    setRoomSettingsOpen,
+    inviteOpen,
+    setInviteOpen,
+    invitePeople,
+    evidence,
+    evidenceOpen,
+    evidenceKind,
+    setEvidenceOpen,
+    openAddEvidence,
+    addEvidence,
+    roomSettings,
+    saveRoomSettings,
     typingVisible,
     durationLabel,
     durationShort,

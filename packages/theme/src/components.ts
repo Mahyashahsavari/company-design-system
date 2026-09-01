@@ -6,17 +6,28 @@ import {
   Button,
   Card,
   Checkbox,
+  Drawer,
+  Input,
   Loader,
   Modal,
   Pagination,
   Paper,
+  PillsInputField,
   ScrollArea,
   Select,
   Switch,
   Table,
+  Textarea,
   TextInput,
   Tooltip,
 } from '@mantine/core';
+
+const bidiFieldStyles = {
+  input: {
+    unicodeBidi: 'plaintext',
+    textAlign: 'start',
+  },
+} as const;
 
 /**
  * Repository-wide component defaults.
@@ -51,8 +62,28 @@ export const components = {
     },
   }),
 
+  Input: Input.extend({
+    styles: bidiFieldStyles,
+  }),
+
   TextInput: TextInput.extend({
     defaultProps: { size: 'sm' },
+    styles: bidiFieldStyles,
+  }),
+
+  Textarea: Textarea.extend({
+    defaultProps: { size: 'sm' },
+    styles: bidiFieldStyles,
+  }),
+
+  PillsInputField: PillsInputField.extend({
+    defaultProps: { dir: 'auto' },
+    styles: {
+      field: {
+        unicodeBidi: 'plaintext',
+        textAlign: 'start',
+      },
+    },
   }),
 
   Select: Select.extend({
@@ -84,6 +115,17 @@ export const components = {
       centered: true,
       radius: 'lg',
       overlayProps: { backgroundOpacity: 0.55, blur: 3 },
+    },
+    styles: {
+      content: { background: 'var(--monosuite-color-surface)' },
+      header: { background: 'var(--monosuite-color-surface)' },
+    },
+  }),
+
+  Drawer: Drawer.extend({
+    styles: {
+      content: { background: 'var(--monosuite-color-surface)' },
+      header: { background: 'var(--monosuite-color-surface)' },
     },
   }),
 

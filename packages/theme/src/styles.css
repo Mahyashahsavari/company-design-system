@@ -60,3 +60,78 @@ body {
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/*
+ * Bidirectional typing in text fields.
+ * Persian, English, and mixed strings use plaintext bidi so the caret and
+ * punctuation follow the first strong character — without flipping field chrome.
+ */
+.mantine-Input-input,
+.mantine-TextInput-input,
+.mantine-Textarea-input,
+.mantine-PasswordInput-input,
+.mantine-TagsInput-input,
+.mantine-Autocomplete-input,
+.mantine-JsonInput-input,
+.mantine-PillsInput-field,
+.mantine-PillsInputField-field,
+textarea,
+input:not([type]),
+input[type='text'],
+input[type='search'],
+input[type='email'],
+input[type='url'],
+input[type='tel'],
+input[type='password'] {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+input[type='number'],
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'],
+input[type='month'],
+input[type='week'] {
+  unicode-bidi: isolate;
+  direction: ltr;
+  text-align: start;
+}
+
+/*
+ * Dark scheme controls use semantic navy fills instead of Mantine's warm gray.
+ * Inputs, default buttons, and dropdowns inherit --mantine-color-default.
+ */
+[data-mantine-color-scheme='dark'] .mantine-Input-input,
+[data-mantine-color-scheme='dark'] .mantine-PillsInput-input,
+[data-mantine-color-scheme='dark'] .mantine-NativeSelect-input,
+[data-mantine-color-scheme='dark'] .mantine-JsonInput-input {
+  background-color: var(--monosuite-color-surface-raised);
+  border-color: var(--monosuite-color-border);
+  color: var(--monosuite-color-text);
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Input-input::placeholder,
+[data-mantine-color-scheme='dark'] .mantine-PillsInput-input::placeholder {
+  color: var(--monosuite-color-text-subtle);
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Button-root[data-variant='default'],
+[data-mantine-color-scheme='dark'] .mantine-ActionIcon-root[data-variant='default'] {
+  background-color: var(--monosuite-color-surface-raised);
+  border-color: var(--monosuite-color-border);
+  color: var(--monosuite-color-text);
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Button-root[data-variant='default']:hover,
+[data-mantine-color-scheme='dark'] .mantine-ActionIcon-root[data-variant='default']:hover {
+  background-color: color-mix(in srgb, var(--monosuite-color-surface-raised) 78%, var(--monosuite-color-text) 22%);
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Combobox-dropdown,
+[data-mantine-color-scheme='dark'] .mantine-Popover-dropdown,
+[data-mantine-color-scheme='dark'] .mantine-Menu-dropdown,
+[data-mantine-color-scheme='dark'] .mantine-Select-dropdown {
+  background-color: var(--monosuite-color-surface-raised);
+  border-color: var(--monosuite-color-border);
+}

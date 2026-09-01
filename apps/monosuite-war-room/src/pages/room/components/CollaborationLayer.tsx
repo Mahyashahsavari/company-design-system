@@ -157,9 +157,6 @@ export function CollaborationLayer({
               Collaboration channel
             </TruncatedTooltipText>
           </Stack>
-          <Badge size="xs" variant="light" color="teal" style={{ flexShrink: 0 }}>
-            SOC
-          </Badge>
         </Group>
 
         <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>

@@ -1,7 +1,7 @@
 import {
   ActionIcon,
   Avatar,
-  Badge,
+  Box,
   Button,
   Group,
   TextInput,
@@ -16,6 +16,7 @@ import {
   IconSun,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../shared/constants';
+import warRoomLogoDark from '../../assets/war-room-logo-dark.png';
 
 export function GlobalHeader() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -33,15 +34,19 @@ export function GlobalHeader() {
       }}
     >
       <Group gap="sm" wrap="nowrap">
-        <Badge
-          size="lg"
-          radius="sm"
-          variant="filled"
-          color="teal"
-          style={{ width: 36, height: 28, padding: 0 }}
-        >
-          WR
-        </Badge>
+        <Box
+          component="img"
+          src={warRoomLogoDark}
+          alt="War Room"
+          w={36}
+          h={36}
+          style={{
+            display: 'block',
+            objectFit: 'contain',
+            mixBlendMode: 'screen',
+            flexShrink: 0,
+          }}
+        />
         <Text
           fw={700}
           size="sm"

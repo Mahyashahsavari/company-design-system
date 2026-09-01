@@ -92,10 +92,9 @@ export function LiveMediaFloatPanel({
     <Box
       data-testid="live-media-float-panel"
       data-joined={joined ? 'true' : 'false'}
+      className="monosuite-live-float-panel"
       style={{
-        width: 'fit-content',
-        maxWidth: 'min(960px, calc(100vw - 32px))',
-        marginInline: 'auto',
+        width: '100%',
         borderRadius: 14,
         background: 'var(--monosuite-color-chrome)',
         color: 'var(--monosuite-color-chrome-text)',
@@ -110,36 +109,38 @@ export function LiveMediaFloatPanel({
       {joined ? (
         <Stack gap={0}>
           <Group
-            px="sm"
-            py={6}
+            px="lg"
+            py="sm"
+            gap="md"
             justify="space-between"
             wrap="nowrap"
+            w="100%"
             style={{
               borderBottom: '1px solid var(--monosuite-color-chrome-border)',
               background: 'var(--monosuite-color-chrome-raised)',
             }}
           >
-            <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+            <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
               <Badge color="success" size="xs" variant="filled">
                 LIVE
               </Badge>
               <Text size="xs" fw={700} visibleFrom="xs">
                 Live collaboration
               </Text>
-              <Group gap={4} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
+              <Group gap={6} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
                 <IconUsers size={12} aria-hidden />
                 <Text size="xs" fw={600}>
                   {participantCount}
                 </Text>
               </Group>
-              <Group gap={4} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
+              <Group gap={6} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
                 <IconClock size={12} aria-hidden />
                 <Text size="xs" fw={600}>
                   {durationLabel}
                 </Text>
               </Group>
             </Group>
-            <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+            <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
               <Tooltip label={expanded ? 'Collapse participants' : 'Expand participants'}>
                 <ActionIcon
                   size="sm"
@@ -190,9 +191,9 @@ export function LiveMediaFloatPanel({
 
           {shareActive && (
             <Group
-              px="sm"
-              py={4}
-              gap="xs"
+              px="lg"
+              py={8}
+              gap="sm"
               wrap="nowrap"
               style={{
                 borderBottom: '1px solid var(--monosuite-color-chrome-border)',
@@ -223,8 +224,8 @@ export function LiveMediaFloatPanel({
 
           {expanded ? (
             <Box
-              px="sm"
-              py={6}
+              px="lg"
+              py="sm"
               style={{
                 maxHeight: 220,
                 overflow: 'auto',
@@ -254,6 +255,7 @@ export function LiveMediaFloatPanel({
       <MediaDock
         embedded
         hideStatusMeta={joined}
+        centerMediaControls={joined}
         leadingSlot={
           joined ? (
             <CompactParticipantAvatars
@@ -297,7 +299,7 @@ function CompactParticipantAvatars({
   }).filter(Boolean) as LivePerson[];
 
   return (
-    <Group gap={4} wrap="nowrap" data-testid="compact-participant-avatars">
+    <Avatar.Group spacing="sm" data-testid="compact-participant-avatars">
       {roster.map((person) => {
         const speaking = person.id === speakingId;
         const label = person.isLocal ? `${person.name} (You)` : person.name;
@@ -305,7 +307,7 @@ function CompactParticipantAvatars({
           <Tooltip key={person.id} label={label} withArrow position="top">
             <Box style={{ position: 'relative', flexShrink: 0 }}>
               <Avatar
-                size={26}
+                size={28}
                 radius="xl"
                 color={person.color}
                 aria-label={label}
@@ -352,6 +354,6 @@ function CompactParticipantAvatars({
           </Tooltip>
         );
       })}
-    </Group>
+    </Avatar.Group>
   );
 }

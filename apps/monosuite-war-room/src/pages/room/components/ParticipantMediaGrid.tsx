@@ -25,7 +25,7 @@ import {
   IconWifiOff,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../../shared/constants';
-import type { LivePerson, Participant, PinTarget } from '../data';
+import { ROOM_ROLES, type LivePerson, type Participant, type PinTarget } from '../data';
 import type { MediaState } from '../hooks/useRoomState';
 
 export interface MediaParticipant {
@@ -579,9 +579,13 @@ function ParticipantMoreMenu({
         </Menu.Item>
         <Menu.Divider />
         <Menu.Label>Role</Menu.Label>
-        {['Commander', 'Responder', 'Viewer'].map((r) => (
-          <Menu.Item key={r} onClick={() => onSetRole(r)} disabled={role === r}>
-            {r}
+        {ROOM_ROLES.map((r) => (
+          <Menu.Item
+            key={r.value}
+            onClick={() => onSetRole(r.value)}
+            disabled={role === r.value}
+          >
+            {r.label}
           </Menu.Item>
         ))}
         <Menu.Divider />

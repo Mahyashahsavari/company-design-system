@@ -7,11 +7,11 @@ import { createMonosuiteTheme } from '../theme';
 export const warRoomTheme = createMonosuiteTheme({
   primaryColor: 'teal',
   fontFamily:
-    '"Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    '"Nunito", "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Roboto, Helvetica, Arial, sans-serif',
   fontFamilyMonospace:
     '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
   headings: {
     fontFamily:
-      '"Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      '"Nunito", "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Roboto, Helvetica, Arial, sans-serif',
   },
 });

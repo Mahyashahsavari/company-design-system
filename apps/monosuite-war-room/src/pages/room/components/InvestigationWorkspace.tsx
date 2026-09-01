@@ -61,8 +61,13 @@ export function InvestigationWorkspace({
     startAddAnswer,
     cancelAddAnswer,
     submitAnswer,
+    updateAnswer,
+    deleteAnswer,
     discussionOpen,
     toggleDiscussion,
+    submitDiscussion,
+    updateDiscussion,
+    deleteDiscussion,
     selectedDecision,
     setSelectedDecision,
     recordDecision,
@@ -117,9 +122,6 @@ export function InvestigationWorkspace({
               Collaboration workspace
             </Text>
           </Stack>
-          <Badge size="xs" variant="light" color="brand" style={{ flexShrink: 0 }}>
-            SOC
-          </Badge>
         </Group>
 
         <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
@@ -211,7 +213,12 @@ export function InvestigationWorkspace({
                   onStartAnswer={() => startAddAnswer(q.id)}
                   onCancelAnswer={cancelAddAnswer}
                   onSubmitAnswer={(text) => submitAnswer(q.id, text)}
+                  onUpdateAnswer={(answerId, text) => updateAnswer(q.id, answerId, text)}
+                  onDeleteAnswer={(answerId) => deleteAnswer(q.id, answerId)}
                   onToggleDiscussion={() => toggleDiscussion(q.id)}
+                  onSubmitComment={(text) => submitDiscussion(q.id, text)}
+                  onUpdateComment={(commentId, text) => updateDiscussion(q.id, commentId, text)}
+                  onDeleteComment={(commentId) => deleteDiscussion(q.id, commentId)}
                   onSelectDecision={(choice) =>
                     setSelectedDecision((prev) => ({ ...prev, [q.id]: choice }))
                   }

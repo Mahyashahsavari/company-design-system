@@ -59,6 +59,8 @@ interface MediaDockProps {
   hideStatusMeta?: boolean;
   /** Replaces status meta on the left of live controls (e.g. compact avatars). */
   leadingSlot?: ReactNode;
+  /** Full-width bar (fullscreen collab) — keep media controls centered. */
+  centerMediaControls?: boolean;
 }
 
 type ControlVisual = 'on' | 'off' | 'muted' | 'sharing' | 'warn' | 'danger';
@@ -82,6 +84,7 @@ export function MediaDock({
   density = 'default',
   hideStatusMeta = false,
   leadingSlot,
+  centerMediaControls = false,
 }: MediaDockProps) {
   const compact = useMediaQuery('(max-width: 64em)', false, {
     getInitialValueInEffect: false,
@@ -112,35 +115,44 @@ export function MediaDock({
   };
 
   const controls = (
-    <Group gap={compact ? 8 : 12} wrap="nowrap" align="center" justify="center">
-        {!hideStatusMeta ? (
-          <Group gap={8} wrap="nowrap" style={{ flexShrink: 1, minWidth: 0 }}>
-            <StatusChip
-              tone="live"
-              label={joined ? 'LIVE' : 'LIVE ROOM'}
-              pulsing={joined}
-            />
-            <MetaItem
-              icon={<IconUsers size={13} stroke={1.75} />}
-              label={`${participantCount} participants`}
-            />
-            {!compact && (
-              <MetaItem
-                label={joined ? `${durationLabel} active` : 'Communication not started'}
-              />
+    <Group
+      gap={compact ? 'md' : 'lg'}
+      wrap="nowrap"
+      align="center"
+      justify="space-between"
+      w="100%"
+      className={centerMediaControls ? 'monosuite-media-dock-bar--centered' : undefined}
+    >
+        {(!hideStatusMeta || (joined && leadingSlot)) ? (
+          <Group gap="sm" wrap="nowrap" style={{ flexShrink: hideStatusMeta ? 0 : 1, minWidth: 0 }}>
+            {!hideStatusMeta ? (
+              <>
+                <StatusChip
+                  tone="live"
+                  label={joined ? 'LIVE' : 'LIVE ROOM'}
+                  pulsing={joined}
+                />
+                <MetaItem
+                  icon={<IconUsers size={13} stroke={1.75} />}
+                  label={`${participantCount} participants`}
+                />
+                {!compact && (
+                  <MetaItem
+                    label={joined ? `${durationLabel} active` : 'Communication not started'}
+                  />
+                )}
+                {compact && !joined && (
+                  <MetaItem label="Not started" />
+                )}
+              </>
+            ) : (
+              leadingSlot
             )}
-            {compact && !joined && (
-              <MetaItem label="Not started" />
-            )}
-          </Group>
-        ) : joined && leadingSlot ? (
-          <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
-            {leadingSlot}
+            {!centerMediaControls && <DockDivider />}
           </Group>
         ) : null}
 
-        {(!hideStatusMeta || leadingSlot) && <DockDivider />}
-
+        <Box className="monosuite-media-dock-primary">
         <Transition
           mounted={!joined}
           transition="fade"
@@ -171,7 +183,7 @@ export function MediaDock({
           timingFunction="ease"
         >
           {(styles) => (
-            <Group gap={6} wrap="nowrap" data-testid="dock-live-controls" style={styles}>
+            <Group gap="sm" wrap="nowrap" data-testid="dock-live-controls" style={{ ...styles, minWidth: 0 }}>
               <DockControl
                 testId="dock-mic"
                 label="Microphone"
@@ -205,7 +217,7 @@ export function MediaDock({
 
               <DockDivider />
 
-              <Group gap={4} wrap="nowrap">
+              <Group gap={6} wrap="nowrap">
                 <DockControl
                   testId="dock-share"
                   label="Screen Share"
@@ -216,7 +228,7 @@ export function MediaDock({
                   onClick={share.pressed ? onStopShare : onShare}
                   icon={share.icon}
                 />
-                {media.share && (
+                {media.share && !centerMediaControls && (
                   <Button
                     size="xs"
                     color="danger"
@@ -231,7 +243,7 @@ export function MediaDock({
                 )}
               </Group>
 
-              {media.share && !compact && (
+              {media.share && !compact && !centerMediaControls && (
                 <Group gap={6} wrap="nowrap" data-testid="dock-share-viewers">
                   <Box
                     component="span"
@@ -315,51 +327,24 @@ export function MediaDock({
                 </Menu.Dropdown>
               </Menu>
 
-              {connUi && (
+              {!centerMediaControls && connUi && (
                 <>
                   <DockDivider />
-                  <Group gap={6} wrap="nowrap" data-testid="dock-connection">
-                    <StatusChip
-                      tone={
-                        conn === 'connected'
-                          ? 'ok'
-                          : conn === 'poor' || conn === 'reconnecting'
-                            ? 'warn'
-                            : 'danger'
-                      }
-                      label={
-                        conn === 'connected' ? 'Connected' : connUi.label.replace(/\.\.\.$/, '')
-                      }
-                      icon={
-                        conn === 'poor' ? (
-                          <IconAlertTriangle size={12} />
-                        ) : conn === 'reconnecting' ? (
-                          <IconLoader2 size={12} />
-                        ) : conn === 'lost' ? (
-                          <IconWifiOff size={12} />
-                        ) : undefined
-                      }
-                    />
-                    {(conn === 'lost' || conn === 'reconnecting') && (
-                      <Tooltip label="Retry connection" withArrow>
-                        <ActionIcon
-                          size={28}
-                          radius="md"
-                          variant="light"
-                          color="teal"
-                          aria-label="Retry connection"
-                          onClick={onRetry}
-                        >
-                          <IconRefresh size={14} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                  </Group>
+                  <DockConnectionStatus conn={conn} connUi={connUi} onRetry={onRetry} />
                 </>
               )}
             </Group>
           )}
         </Transition>
+        </Box>
+        {centerMediaControls && connUi ? (
+          <DockConnectionStatus
+            conn={conn}
+            connUi={connUi}
+            onRetry={onRetry}
+            className="monosuite-media-dock-trailing"
+          />
+        ) : null}
       </Group>
   );
 
@@ -370,8 +355,9 @@ export function MediaDock({
         data-joined={joined ? 'true' : 'false'}
         data-density={density}
         className={density === 'sidebar' ? 'monosuite-media-dock-sidebar' : undefined}
-        px={density === 'sidebar' ? 8 : 10}
-        py={density === 'sidebar' ? 8 : 5}
+        px={density === 'sidebar' ? 8 : 24}
+        py={density === 'sidebar' ? 8 : 12}
+        w="100%"
       >
         {density === 'sidebar' ? (
           joined ? (
@@ -406,7 +392,7 @@ export function MediaDock({
         width: 'fit-content',
         maxWidth: '100%',
         marginInline: 'auto',
-        padding: '6px 12px',
+        padding: '10px 20px',
         borderRadius: 14,
         background: 'var(--monosuite-color-chrome)',
         color: 'var(--monosuite-color-chrome-text)',
@@ -433,9 +419,60 @@ function DockDivider({ className }: { className?: string }) {
         width: 1,
         height: 28,
         flexShrink: 0,
+        marginInline: 6,
         background: 'var(--monosuite-color-chrome-border)',
       }}
     />
+  );
+}
+
+function DockConnectionStatus({
+  conn,
+  connUi,
+  onRetry,
+  className,
+}: {
+  conn: ConnectionState | 'idle';
+  connUi: { label: string; detail: string };
+  onRetry: () => void;
+  className?: string;
+}) {
+  return (
+    <Group gap="xs" wrap="nowrap" data-testid="dock-connection" className={className}>
+      <StatusChip
+        tone={
+          conn === 'connected'
+            ? 'ok'
+            : conn === 'poor' || conn === 'reconnecting'
+              ? 'warn'
+              : 'danger'
+        }
+        label={conn === 'connected' ? 'Connected' : connUi.label.replace(/\.\.\.$/, '')}
+        icon={
+          conn === 'poor' ? (
+            <IconAlertTriangle size={12} />
+          ) : conn === 'reconnecting' ? (
+            <IconLoader2 size={12} />
+          ) : conn === 'lost' ? (
+            <IconWifiOff size={12} />
+          ) : undefined
+        }
+      />
+      {(conn === 'lost' || conn === 'reconnecting') && (
+        <Tooltip label="Retry connection" withArrow>
+          <ActionIcon
+            size={28}
+            radius="md"
+            variant="light"
+            color="teal"
+            aria-label="Retry connection"
+            onClick={onRetry}
+          >
+            <IconRefresh size={14} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </Group>
   );
 }
 
@@ -654,8 +691,8 @@ function StatusChip({
     <Group
       gap={6}
       wrap="nowrap"
-      px={8}
-      py={4}
+      px={10}
+      py={5}
       style={{
         borderRadius: 999,
         background:
@@ -695,7 +732,7 @@ function StatusChip({
   );
 }
 
-/** Icon + label + pressed/muted affordance — state is never color-only. */
+/** Icon + tooltip communicate on/off — muted uses the same chrome as other off controls. */
 function DockControl({
   label,
   stateLabel,
@@ -744,24 +781,6 @@ function DockControl({
         }}
       >
         {icon}
-        {visual === 'muted' && (
-          <Text
-            component="span"
-            size="xs"
-            fw={800}
-            style={{
-              position: 'absolute',
-              right: 2,
-              bottom: 1,
-              fontSize: 8,
-              lineHeight: 1,
-              letterSpacing: 0,
-              color: 'var(--mantine-color-danger-filled)',
-            }}
-          >
-            MUTE
-          </Text>
-        )}
         {visual === 'sharing' && (
           <Box
             component="span"
@@ -802,12 +821,6 @@ function visualStyles(visual: ControlVisual): {
         color: 'teal',
         border: '1px solid var(--mantine-color-teal-filled)',
       };
-    case 'muted':
-      return {
-        variant: 'light',
-        color: 'danger',
-        border: '1px solid color-mix(in srgb, var(--mantine-color-danger-filled) 40%, transparent)',
-      };
     case 'warn':
       return {
         variant: 'light',
@@ -820,6 +833,7 @@ function visualStyles(visual: ControlVisual): {
         color: 'danger',
         border: '1px solid color-mix(in srgb, var(--mantine-color-danger-filled) 40%, transparent)',
       };
+    case 'muted':
     case 'off':
     default:
       return {
@@ -844,14 +858,14 @@ function micControlMeta(state: ReturnType<typeof resolveLocalMicState>) {
     case 'off':
       return {
         stateLabel: 'Muted',
-        visual: 'muted' as const,
+        visual: 'off' as const,
         pressed: false,
         icon: <IconMicrophoneOff size={18} stroke={1.75} />,
       };
     case 'muted-by-moderator':
       return {
         stateLabel: 'Muted by moderator',
-        visual: 'muted' as const,
+        visual: 'off' as const,
         pressed: false,
         disabled: true,
         icon: <IconMicrophoneOff size={18} stroke={1.75} />,

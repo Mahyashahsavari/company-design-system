@@ -4,29 +4,33 @@ import { useMediaQuery } from '@mantine/hooks';
 import { AppChrome } from '../../shared/components/AppChrome';
 import { Toast } from '../../shared';
 import {
+  getRoomUtilityWidth,
   ROOM_MEDIA_DOCK_GUTTER,
   ROOM_MEDIA_DOCK_SAFE_ZONE,
   ROOM_PAGE_HEADER_GUTTER,
+  ROOM_UTILITY_COMPACT_MAX,
 } from '../../shared/constants';
 import { CollaborationLayer } from './components/CollaborationLayer';
 import { ContextSidebar } from './components/ContextSidebar';
 import { IncidentContextColumn } from './components/IncidentContextColumn';
 import { InvestigationWorkspace } from './components/InvestigationWorkspace';
 import { LiveMediaFloatPanel } from './components/LiveMediaFloatPanel';
-import { ManualIncidentDrawer } from './components/ManualIncidentDrawer';
+import { InviteParticipantsModal } from './components/InviteParticipantsModal';
+import { AddEvidenceModal } from './components/AddEvidenceModal';
+import { EditIncidentDrawer } from './components/EditIncidentDrawer';
 import { MediaSettingsModal } from './components/MediaSettingsModal';
+import { RoomSettingsModal } from './components/RoomSettingsModal';
 import { ResizableSplitPane } from './components/ResizableSplitPane';
 import { ResponseWorkflow } from './components/response-workflow';
 import { RoomCommandHeader } from './components/RoomCommandHeader';
 import {
   ATTACKER_ENTITIES,
+  LINKED_INCIDENT_ALERTS,
   PARTICIPANTS,
   VICTIM_ENTITIES,
   WORKFLOW_STEPS,
 } from './data';
 import { useRoomState } from './hooks/useRoomState';
-
-const RAIL_WIDTH = 52;
 
 function handleMediaMore(
   action: string,
@@ -50,10 +54,15 @@ export function RoomPage() {
   const room = useRoomState();
   const [attackerId, setAttackerId] = useState(ATTACKER_ENTITIES[0].id);
   const [victimId, setVictimId] = useState(VICTIM_ENTITIES[0].id);
-  const compactDesktop = useMediaQuery('(max-width: 87.99em)', true, {
+  const [linkedAlerts, setLinkedAlerts] = useState(LINKED_INCIDENT_ALERTS);
+  const compactDesktop = useMediaQuery(`(max-width: ${ROOM_UTILITY_COMPACT_MAX})`, true, {
     getInitialValueInEffect: false,
   });
-  const utilityWidth = room.asideCollapsed ? RAIL_WIDTH : compactDesktop ? 300 : 340;
+  const utilityExpandedWidth = getRoomUtilityWidth({ compact: compactDesktop, collapsed: false });
+  const utilityWidth = getRoomUtilityWidth({
+    compact: compactDesktop,
+    collapsed: room.asideCollapsed,
+  });
   const collabFullscreen = room.collaborationFullscreen;
   const collabSplit =
     room.collaborationSplit && room.media.joined && !collabFullscreen;
@@ -92,7 +101,11 @@ export function RoomPage() {
     />
   );
 
-  const splitUtilityWidth = room.asideCollapsed ? RAIL_WIDTH : compactDesktop ? 260 : 280;
+  const splitUtilityWidth = getRoomUtilityWidth({
+    compact: compactDesktop,
+    collapsed: room.asideCollapsed,
+    split: true,
+  });
   const activeUtilityWidth = collabSplit ? splitUtilityWidth : utilityWidth;
   const minCollabWidth = compactDesktop ? 240 : 260;
 
@@ -110,7 +123,8 @@ export function RoomPage() {
         onTabChange={room.setSidebarTab}
         history={room.history}
         onInvite={() => room.roomAction('invite')}
-        onAddEvidence={() => room.roomAction('add-evidence')}
+        onAddEvidence={(kind) => room.openAddEvidence(kind ?? 'file')}
+        evidence={room.evidence}
         collapsed={room.asideCollapsed}
         onExpand={() => {
           if (room.asideCollapsed) room.toggleAside();
@@ -141,7 +155,9 @@ export function RoomPage() {
         victimId={victimId}
         onAttackerChange={setAttackerId}
         onVictimChange={setVictimId}
-        onViewIncident={() => room.roomAction('view-incident')}
+        onEditIncident={() => room.roomAction('view-incident')}
+        linkedAlerts={linkedAlerts}
+        defaultWidth={utilityExpandedWidth}
       />
 
       <Box
@@ -149,7 +165,7 @@ export function RoomPage() {
         style={{ paddingRight: collabSplit ? 8 : 12, gap: 10, display: 'flex', flexDirection: 'column', minHeight: 0 }}
       >
         <Box style={{ flexShrink: 0 }}>
-          <ResponseWorkflow steps={WORKFLOW_STEPS} />
+          <ResponseWorkflow steps={WORKFLOW_STEPS} protocol="NIST SP 800-61" />
         </Box>
         <InvestigationWorkspace
           room={room}
@@ -196,18 +212,17 @@ export function RoomPage() {
 
   const floatFixed = (
     <Box
+      className="monosuite-live-float-anchor"
       style={{
         position: 'fixed',
         left: '50%',
         transform: 'translateX(-50%)',
         bottom: ROOM_MEDIA_DOCK_GUTTER,
-        width: 'max-content',
-        maxWidth: 'calc(100% - 32px)',
         zIndex: 10,
         pointerEvents: 'none',
       }}
     >
-      <Box style={{ pointerEvents: 'auto' }}>{liveMediaFloatPanel}</Box>
+      <Box style={{ pointerEvents: 'auto', width: '100%' }}>{liveMediaFloatPanel}</Box>
     </Box>
   );
 
@@ -237,7 +252,12 @@ export function RoomPage() {
             <Box className="monosuite-room-body">{collaboration}</Box>
           ) : (
             <Box className="monosuite-room-body">
-              <RoomCommandHeader onRoomAction={room.roomAction} onCloseRoom={room.closeRoom} />
+              <RoomCommandHeader
+                roomTitle={room.roomSettings.title}
+                roomSeverity={room.roomSettings.severity}
+                onRoomAction={room.roomAction}
+                onCloseRoom={room.closeRoom}
+              />
               <Box className="monosuite-room-workspace">
                 {collabSplit ? (
                   <ResizableSplitPane
@@ -261,10 +281,14 @@ export function RoomPage() {
         </AppShell.Main>
       </AppChrome>
 
-      <ManualIncidentDrawer
+      <EditIncidentDrawer
         opened={room.manualIncidentOpen}
         onClose={() => room.setManualIncidentOpen(false)}
-        onSave={() => room.showToast('Incident saved')}
+        linkedAlerts={linkedAlerts}
+        onSave={(next) => {
+          setLinkedAlerts(next);
+          room.showToast('Incident saved');
+        }}
       />
 
       <MediaSettingsModal
@@ -273,6 +297,27 @@ export function RoomPage() {
         devices={room.mediaDevices}
         permission={room.media.permission}
         onApply={room.applyMediaSettings}
+      />
+
+      <RoomSettingsModal
+        opened={room.roomSettingsOpen}
+        initial={room.roomSettings}
+        onClose={() => room.setRoomSettingsOpen(false)}
+        onSave={room.saveRoomSettings}
+      />
+
+      <InviteParticipantsModal
+        opened={room.inviteOpen}
+        participants={room.participants}
+        onClose={() => room.setInviteOpen(false)}
+        onSend={room.invitePeople}
+      />
+
+      <AddEvidenceModal
+        opened={room.evidenceOpen}
+        initialKind={room.evidenceKind}
+        onClose={() => room.setEvidenceOpen(false)}
+        onAdd={room.addEvidence}
       />
 
       <Toast message={room.toast} onClose={room.clearToast} />

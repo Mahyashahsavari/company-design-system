@@ -20,9 +20,18 @@ import {
   ROOM_PAGE_HEADER_CARD_HEIGHT,
   ROOM_PAGE_HEADER_GUTTER,
 } from '../../../shared/constants';
-import { INCIDENT } from '../data';
+import { INCIDENT, type RoomSeverity } from '../data';
+
+const SEVERITY_BADGE_COLOR: Record<RoomSeverity, 'danger' | 'warning' | 'success'> = {
+  Critical: 'danger',
+  High: 'danger',
+  Medium: 'warning',
+  Low: 'success',
+};
 
 interface RoomCommandHeaderProps {
+  roomTitle: string;
+  roomSeverity: RoomSeverity;
   onRoomAction: (action: string) => void;
   onCloseRoom: () => void;
 }
@@ -30,7 +39,12 @@ interface RoomCommandHeaderProps {
 const titleSize = 'clamp(1.05rem, 1.6vw, 1.35rem)';
 
 /** Room page header card — breadcrumb + room title + actions. */
-export function RoomCommandHeader({ onRoomAction, onCloseRoom }: RoomCommandHeaderProps) {
+export function RoomCommandHeader({
+  roomTitle,
+  roomSeverity,
+  onRoomAction,
+  onCloseRoom,
+}: RoomCommandHeaderProps) {
   return (
     <Box
       pt={ROOM_PAGE_HEADER_GUTTER}
@@ -85,8 +99,8 @@ export function RoomCommandHeader({ onRoomAction, onCloseRoom }: RoomCommandHead
               </Badge>
 
               <UnstyledButton
-                onClick={() => onRoomAction('view-incident')}
-                aria-label="View full incident"
+                onClick={() => onRoomAction('room-settings')}
+                aria-label="Edit room settings"
                 style={{ minWidth: 0, flex: 1, textAlign: 'left' }}
               >
                 <Text
@@ -99,7 +113,7 @@ export function RoomCommandHeader({ onRoomAction, onCloseRoom }: RoomCommandHead
                     color: 'var(--mantine-color-text)',
                   }}
                 >
-                  {INCIDENT.title}
+                  {roomTitle}
                 </Text>
               </UnstyledButton>
             </Group>
@@ -109,8 +123,8 @@ export function RoomCommandHeader({ onRoomAction, onCloseRoom }: RoomCommandHead
             <Text size="sm" c="dimmed" fw={600} visibleFrom="lg">
               {INCIDENT.id}
             </Text>
-            <Badge color="danger" size="xs" variant="light">
-              {INCIDENT.severity}
+            <Badge color={SEVERITY_BADGE_COLOR[roomSeverity]} size="xs" variant="light">
+              {roomSeverity}
             </Badge>
             <Badge color="success" size="xs" variant="light">
               {INCIDENT.status}
