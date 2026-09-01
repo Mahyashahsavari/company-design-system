@@ -62,18 +62,18 @@ export function ResponseWorkflow({
             <FocusStepCard
               step={prevStep}
               index={safeFocus - 1}
-              role="prev"
+              dataRole="prev"
               onSelect={() => setFocusedIndex(safeFocus - 1)}
             />
           ) : (
             <Box className="monosuite-workflow-focus-slot" aria-hidden />
           )}
-          <FocusStepCard step={focused} index={safeFocus} role="current" />
+          <FocusStepCard step={focused} index={safeFocus} dataRole="current" />
           {nextStep ? (
             <FocusStepCard
               step={nextStep}
               index={safeFocus + 1}
-              role="next"
+              dataRole="next"
               onSelect={() => setFocusedIndex(safeFocus + 1)}
             />
           ) : (
@@ -148,17 +148,17 @@ export function ResponseWorkflow({
 function FocusStepCard({
   step,
   index,
-  role,
+  dataRole,
   onSelect,
 }: {
   step: WorkflowStep;
   index: number;
-  role: 'prev' | 'current' | 'next';
+  dataRole: 'prev' | 'current' | 'next';
   onSelect?: () => void;
 }) {
   const stepNo = String(index + 1).padStart(2, '0');
   const phaseColor = phaseFill(step.phase.color);
-  const isCurrent = role === 'current';
+  const isCurrent = dataRole === 'current';
   const pending = step.status === 'pending';
   const done = step.status === 'completed';
 
@@ -197,9 +197,9 @@ function FocusStepCard({
       <UnstyledButton
         type="button"
         className="monosuite-workflow-focus-card"
-        data-role={role}
+        data-role={dataRole}
         data-status={step.status}
-        aria-label={`${role === 'prev' ? 'Previous step' : 'Next step'}: ${step.label}, ${STATUS_LABEL[step.status]}`}
+        aria-label={`${dataRole === 'prev' ? 'Previous step' : 'Next step'}: ${step.label}, ${STATUS_LABEL[step.status]}`}
         onClick={onSelect}
         style={cardStyle}
       >
@@ -211,7 +211,7 @@ function FocusStepCard({
   return (
     <Box
       className="monosuite-workflow-focus-card"
-      data-role={role}
+      data-role={dataRole}
       data-status={step.status}
       aria-label={`${step.label}, ${STATUS_LABEL[step.status]}, ${step.phase.label}`}
       style={cardStyle}
