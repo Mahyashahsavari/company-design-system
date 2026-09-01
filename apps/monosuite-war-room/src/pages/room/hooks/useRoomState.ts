@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CURRENT_USER } from '../../../shared/constants';
+import { CURRENT_USER, ROOM_DENSE_WIDTH_QUERY } from '../../../shared/constants';
 import {
   CONNECTION_CYCLE,
   DEFAULT_ROOM_SETTINGS,
@@ -123,9 +123,15 @@ export function resolveLocalShareState(media: MediaState): LocalShareState {
   return 'available';
 }
 
+function prefersCollapsedUtility() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia(ROOM_DENSE_WIDTH_QUERY).matches;
+}
+
 export function useRoomState() {
   const [sidebarTab, setSidebarTab] = useState<ContextTab>('participants');
-  const [asideCollapsed, setAsideCollapsed] = useState(false);
+  const [asideCollapsed, setAsideCollapsed] = useState(prefersCollapsedUtility);
+  const asidePinnedByUser = useRef(false);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('questions');
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(1);
   const [answeringQuestion, setAnsweringQuestion] = useState<number | null>(null);
@@ -232,7 +238,18 @@ export function useRoomState() {
   );
 
   const toggleAside = useCallback(() => {
+    asidePinnedByUser.current = true;
     setAsideCollapsed((v) => !v);
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(ROOM_DENSE_WIDTH_QUERY);
+    const sync = () => {
+      if (asidePinnedByUser.current) return;
+      setAsideCollapsed(mediaQuery.matches);
+    };
+    mediaQuery.addEventListener('change', sync);
+    return () => mediaQuery.removeEventListener('change', sync);
   }, []);
 
   const toggleQuestion = useCallback((id: number) => {

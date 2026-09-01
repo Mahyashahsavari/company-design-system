@@ -231,6 +231,28 @@ body {
   opacity: 1;
 }
 
+.monosuite-workflow--strip .monosuite-workflow-card--strip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  min-height: 28px;
+}
+
+.monosuite-workflow--strip .monosuite-workflow-status-text {
+  display: none;
+}
+
+.monosuite-workflow--strip .monosuite-workflow-status {
+  padding-inline: 5px;
+  padding-block: 2px;
+}
+
+.monosuite-workflow--strip .monosuite-workflow-progress {
+  top: 50%;
+}
+
 @container workflow (max-width: 620px) {
   .monosuite-workflow-card {
     flex: 0 0 auto;
@@ -675,6 +697,17 @@ body {
 
 .monosuite-live-float-panel {
   width: 100%;
+}
+
+.monosuite-live-float-panel--dense {
+  border-radius: 12px;
+}
+
+@media (max-width: 1400px) {
+  .monosuite-live-float-anchor {
+    width: min(48rem, calc(100vw - 24px));
+    min-width: min(28rem, calc(100vw - 24px));
+  }
 }
 
 /* Fullscreen / float dock — media controls stay visually centered without overlapping sides. */

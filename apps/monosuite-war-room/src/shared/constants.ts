@@ -1,30 +1,9 @@
 /**
  * Global UI scale for the War Room app (1 = 100%).
- * Compact (0.9) keeps the room dense on laptop widths; 1920px and above
- * stay at 100% so QHD / ultrawide monitors do not shrink type.
+ * One value for every viewport so type and chrome stay the same size;
+ * extra pixels on QHD / ultrawide show more of the room, not a larger UI.
  */
-export const APP_UI_SCALE_COMPACT = 0.9;
-export const APP_UI_SCALE_DEFAULT = 1;
-export const APP_UI_SCALE_WIDE_MIN_WIDTH = 1920;
-
-export function getAppUiScale(viewportWidth: number): number {
-  return viewportWidth >= APP_UI_SCALE_WIDE_MIN_WIDTH
-    ? APP_UI_SCALE_DEFAULT
-    : APP_UI_SCALE_COMPACT;
-}
-
-const UI_SCALE_VAR = '--war-room-ui-scale';
-
-export function applyAppUiScale(root: HTMLElement | null = document.getElementById('root')) {
-  if (!root) return;
-  root.style.setProperty(UI_SCALE_VAR, String(getAppUiScale(window.innerWidth)));
-}
-
-export function initAppUiScale() {
-  applyAppUiScale();
-  const media = window.matchMedia(`(min-width: ${APP_UI_SCALE_WIDE_MIN_WIDTH}px)`);
-  media.addEventListener('change', () => applyAppUiScale());
-}
+export const APP_UI_SCALE = 0.9;
 
 /** App chrome heights — keep sticky panels aligned with the room page header. */
 export const GLOBAL_HEADER_HEIGHT = 52;
@@ -49,6 +28,15 @@ export const ROOM_UTILITY_WIDTH = 340;
 export const ROOM_UTILITY_WIDTH_COMPACT = 300;
 export const ROOM_UTILITY_SPLIT_WIDTH = 280;
 export const ROOM_UTILITY_SPLIT_WIDTH_COMPACT = 260;
+/** 1366-class laptops — collapse secondary chrome, keep the same 90% scale. */
+export const ROOM_DENSE_MAX_WIDTH = '1400px';
+export const ROOM_DENSE_MAX_HEIGHT = '820px';
+export const ROOM_DENSE_WIDTH_QUERY = `(max-width: ${ROOM_DENSE_MAX_WIDTH})`;
+export const ROOM_DENSE_HEIGHT_QUERY = `(max-height: ${ROOM_DENSE_MAX_HEIGHT})`;
+export const ROOM_ATTACK_CHAIN_WIDTH_DENSE = 260;
+export const ROOM_LIVE_FLOAT_PANEL_HEIGHT_DENSE = 80;
+export const ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE =
+  ROOM_LIVE_FLOAT_PANEL_HEIGHT_DENSE + ROOM_MEDIA_DOCK_GUTTER + 8;
 
 export function getRoomUtilityWidth({
   compact,

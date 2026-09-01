@@ -5,8 +5,12 @@ import { AppChrome } from '../../shared/components/AppChrome';
 import { Toast } from '../../shared';
 import {
   getRoomUtilityWidth,
+  ROOM_ATTACK_CHAIN_WIDTH_DENSE,
+  ROOM_DENSE_HEIGHT_QUERY,
+  ROOM_DENSE_WIDTH_QUERY,
   ROOM_MEDIA_DOCK_GUTTER,
   ROOM_MEDIA_DOCK_SAFE_ZONE,
+  ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE,
   ROOM_PAGE_HEADER_GUTTER,
   ROOM_UTILITY_COMPACT_MAX,
 } from '../../shared/constants';
@@ -58,6 +62,13 @@ export function RoomPage() {
   const compactDesktop = useMediaQuery(`(max-width: ${ROOM_UTILITY_COMPACT_MAX})`, true, {
     getInitialValueInEffect: false,
   });
+  const denseWidth = useMediaQuery(ROOM_DENSE_WIDTH_QUERY, true, {
+    getInitialValueInEffect: false,
+  });
+  const denseHeight = useMediaQuery(ROOM_DENSE_HEIGHT_QUERY, true, {
+    getInitialValueInEffect: false,
+  });
+  const denseRoom = denseWidth || denseHeight;
   const utilityExpandedWidth = getRoomUtilityWidth({ compact: compactDesktop, collapsed: false });
   const utilityWidth = getRoomUtilityWidth({
     compact: compactDesktop,
@@ -146,9 +157,10 @@ export function RoomPage() {
   const roomBody = (
     <Box
       className="monosuite-room-row"
+      data-density={denseRoom ? 'dense' : 'default'}
       px={ROOM_PAGE_HEADER_GUTTER}
-      pt={ROOM_PAGE_HEADER_GUTTER}
-      pb={ROOM_PAGE_HEADER_GUTTER}
+      pt={denseRoom ? 6 : ROOM_PAGE_HEADER_GUTTER}
+      pb={denseRoom ? 6 : ROOM_PAGE_HEADER_GUTTER}
     >
       <IncidentContextColumn
         attackerId={attackerId}
@@ -157,20 +169,30 @@ export function RoomPage() {
         onVictimChange={setVictimId}
         onEditIncident={() => room.roomAction('view-incident')}
         linkedAlerts={linkedAlerts}
-        defaultWidth={utilityExpandedWidth}
+        defaultWidth={denseWidth ? ROOM_ATTACK_CHAIN_WIDTH_DENSE : utilityExpandedWidth}
       />
 
       <Box
         className="monosuite-room-column"
-        style={{ paddingRight: collabSplit ? 8 : 12, gap: 10, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+        style={{
+          paddingRight: collabSplit ? 8 : 12,
+          gap: denseRoom ? 6 : 10,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
       >
         <Box style={{ flexShrink: 0 }}>
-          <ResponseWorkflow steps={WORKFLOW_STEPS} protocol="NIST SP 800-61" />
+          <ResponseWorkflow
+            steps={WORKFLOW_STEPS}
+            protocol="NIST SP 800-61"
+            density={denseRoom ? 'strip' : 'cards'}
+          />
         </Box>
         <InvestigationWorkspace
           room={room}
           dockSafeZone={showDockedFloat}
-          dockSafeZoneHeight={ROOM_MEDIA_DOCK_SAFE_ZONE}
+          dockSafeZoneHeight={denseRoom ? ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE : ROOM_MEDIA_DOCK_SAFE_ZONE}
         />
       </Box>
 
@@ -188,6 +210,7 @@ export function RoomPage() {
       pinnedTarget={room.pinnedTarget}
       durationLabel={room.durationLabel}
       participantCount={room.participants.length}
+      dense={denseRoom}
       onJoin={room.joinLive}
       onToggleMedia={room.toggleMedia}
       onShare={room.startShare}

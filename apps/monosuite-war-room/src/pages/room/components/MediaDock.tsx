@@ -61,6 +61,8 @@ interface MediaDockProps {
   leadingSlot?: ReactNode;
   /** Full-width bar (fullscreen collab) — keep media controls centered. */
   centerMediaControls?: boolean;
+  /** Force the compact control layout (1366-class desktops). */
+  compactLayout?: boolean;
 }
 
 type ControlVisual = 'on' | 'off' | 'muted' | 'sharing' | 'warn' | 'danger';
@@ -85,10 +87,12 @@ export function MediaDock({
   hideStatusMeta = false,
   leadingSlot,
   centerMediaControls = false,
+  compactLayout = false,
 }: MediaDockProps) {
-  const compact = useMediaQuery('(max-width: 64em)', false, {
+  const compactQuery = useMediaQuery('(max-width: 64em)', false, {
     getInitialValueInEffect: false,
   });
+  const compact = compactLayout || compactQuery;
 
   const { joined, connection } = media;
   const conn = (joined ? connection : 'idle') as ConnectionState;
@@ -355,8 +359,8 @@ export function MediaDock({
         data-joined={joined ? 'true' : 'false'}
         data-density={density}
         className={density === 'sidebar' ? 'monosuite-media-dock-sidebar' : undefined}
-        px={density === 'sidebar' ? 8 : 24}
-        py={density === 'sidebar' ? 8 : 12}
+        px={density === 'sidebar' ? 8 : compact ? 14 : 24}
+        py={density === 'sidebar' ? 8 : compact ? 6 : 12}
         w="100%"
       >
         {density === 'sidebar' ? (

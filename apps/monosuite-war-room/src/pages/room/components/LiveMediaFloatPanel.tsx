@@ -53,6 +53,8 @@ interface LiveMediaFloatPanelProps {
   onRemoveParticipant: (id: string) => void;
   onSetParticipantRole: (id: string, role: string) => void;
   onViewParticipantDetails: (id: string) => void;
+  /** Single-row chrome for 1366×768-class desktops. */
+  dense?: boolean;
 }
 
 /** Unified floating live presence + media controls — replaces inline collaboration + separate dock. */
@@ -82,6 +84,7 @@ export function LiveMediaFloatPanel({
   onRemoveParticipant,
   onSetParticipantRole,
   onViewParticipantDetails,
+  dense = false,
 }: LiveMediaFloatPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const joined = media.joined;
@@ -92,7 +95,7 @@ export function LiveMediaFloatPanel({
     <Box
       data-testid="live-media-float-panel"
       data-joined={joined ? 'true' : 'false'}
-      className="monosuite-live-float-panel"
+      className={`monosuite-live-float-panel${dense ? ' monosuite-live-float-panel--dense' : ''}`}
       style={{
         width: '100%',
         borderRadius: 14,
@@ -109,9 +112,9 @@ export function LiveMediaFloatPanel({
       {joined ? (
         <Stack gap={0}>
           <Group
-            px="lg"
-            py="sm"
-            gap="md"
+            px={dense ? 'md' : 'lg'}
+            py={dense ? 6 : 'sm'}
+            gap={dense ? 'sm' : 'md'}
             justify="space-between"
             wrap="nowrap"
             w="100%"
@@ -124,7 +127,7 @@ export function LiveMediaFloatPanel({
               <Badge color="success" size="xs" variant="filled">
                 LIVE
               </Badge>
-              <Text size="xs" fw={700} visibleFrom="xs">
+              <Text size="xs" fw={700} visibleFrom={dense ? 'xl' : 'xs'}>
                 Live collaboration
               </Text>
               <Group gap={6} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
@@ -256,6 +259,7 @@ export function LiveMediaFloatPanel({
         embedded
         hideStatusMeta={joined}
         centerMediaControls={joined}
+        compactLayout={dense}
         leadingSlot={
           joined ? (
             <CompactParticipantAvatars
