@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   Box,
   Button,
+  Badge,
   Collapse,
   Group,
   Menu,
@@ -189,10 +190,13 @@ export function ThreatEntityPanel({
               {ui.label}
             </Text>
             <Text size="xs" c="dimmed">
-              {ui.subtitle} · {entities.length}
+              {ui.subtitle}
             </Text>
           </Stack>
         </Group>
+        <Badge size="sm" variant="light" color={ui.color} style={{ flexShrink: 0 }}>
+          {entities.length}
+        </Badge>
       </Group>
 
       <EntitySwitcher

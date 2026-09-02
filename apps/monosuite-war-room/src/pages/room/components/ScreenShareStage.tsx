@@ -116,7 +116,7 @@ export function ScreenShareStage({
             <Group gap={6}>
               <IconDeviceDesktop size={14} />
               <Text size="xs" fw={600} c="var(--monosuite-color-chrome-text)">
-                CoreLog — Alert CL-8847291
+                Splunk — Alert SPL-8847291
               </Text>
             </Group>
             <Text size="xs" c="var(--monosuite-color-chrome-text-muted)">

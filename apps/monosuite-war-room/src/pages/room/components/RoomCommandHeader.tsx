@@ -10,7 +10,7 @@ import {
 } from '@mantine/core';
 import {
   IconArrowLeft,
-  IconChevronRight,
+  IconCrown,
   IconDotsVertical,
   IconDownload,
   IconDoorExit,
@@ -77,48 +77,19 @@ export function RoomCommandHeader({
       >
         <Group justify="space-between" align="center" wrap="nowrap" gap="md" w="100%">
           <Group gap={8} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
-            {compact ? (
-              <ActionIcon
-                variant="subtle"
-                color="neutral"
-                size="sm"
-                aria-label="Back to rooms list"
-                data-testid="back-to-rooms"
-                onClick={backToRooms}
-              >
-                <IconArrowLeft size={16} />
-              </ActionIcon>
-            ) : (
-              <>
-            <UnstyledButton
-              onClick={backToRooms}
+            <ActionIcon
+              variant="subtle"
+              color="neutral"
+              size="sm"
               aria-label="Back to rooms list"
               data-testid="back-to-rooms"
+              onClick={backToRooms}
               style={{ flexShrink: 0 }}
             >
-              <Text
-                component="span"
-                fw={600}
-                c="dimmed"
-                style={{ fontSize: headingSize, letterSpacing: '-0.02em' }}
-              >
-                Rooms
-              </Text>
-            </UnstyledButton>
+              <IconArrowLeft size={16} />
+            </ActionIcon>
 
-            <IconChevronRight
-              size={18}
-              aria-hidden
-              style={{ flexShrink: 0, color: 'var(--mantine-color-dimmed)' }}
-            />
-              </>
-            )}
-
-            <Group gap={6} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
-              <Badge color="success" variant="light" size="sm" style={{ flexShrink: 0 }}>
-                LIVE
-              </Badge>
-
+            <Group gap={8} wrap="nowrap" align="center" style={{ minWidth: 0, flex: 1 }}>
               <UnstyledButton
                 onClick={() => onRoomAction('room-settings')}
                 aria-label="Edit room settings"
@@ -137,20 +108,40 @@ export function RoomCommandHeader({
                   {roomTitle}
                 </Text>
               </UnstyledButton>
+              <Group gap={5} wrap="nowrap" visibleFrom="md" style={{ flexShrink: 0 }}>
+                <Badge color="neutral" variant="outline" size="sm">
+                  {INCIDENT.id}
+                </Badge>
+                <Badge color={ROOM_SEVERITY_COLOR[roomSeverity]} size="sm" variant="light">
+                  {roomSeverity}
+                </Badge>
+                <Badge color="success" size="sm" variant="light">
+                  {INCIDENT.status}
+                </Badge>
+                <Badge
+                  color="brand"
+                  size="sm"
+                  variant="light"
+                  leftSection={<IconCrown size={12} aria-hidden />}
+                >
+                  Commander · {INCIDENT.owner}
+                </Badge>
+              </Group>
+              {compact ? (
+                <Badge
+                  color="brand"
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconCrown size={11} aria-hidden />}
+                  style={{ flexShrink: 0 }}
+                >
+                  {INCIDENT.owner}
+                </Badge>
+              ) : null}
             </Group>
           </Group>
 
           <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
-            <Text size="sm" c="dimmed" fw={600} visibleFrom="lg">
-              {INCIDENT.id}
-            </Text>
-            <Badge color={ROOM_SEVERITY_COLOR[roomSeverity]} size="xs" variant="light">
-              {roomSeverity}
-            </Badge>
-            <Badge color="success" size="xs" variant="light">
-              {INCIDENT.status}
-            </Badge>
-
             <Menu shadow="md" width={220} position="bottom-end">
               <Menu.Target>
                 <Button

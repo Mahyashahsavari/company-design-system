@@ -1,5 +1,22 @@
-import { ActionIcon, Badge, Box, Button, Collapse, Group, Stack, Text, Tooltip } from '@mantine/core';
-import { IconArrowDown, IconChevronDown, IconPencil, IconRadar2, IconShield } from '@tabler/icons-react';
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Collapse,
+  Group,
+  Stack,
+  Text,
+  Tooltip,
+} from '@mantine/core';
+import {
+  IconArrowDown,
+  IconChevronDown,
+  IconLayoutSidebarLeftCollapse,
+  IconPencil,
+  IconRadar2,
+  IconShield,
+} from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { INCIDENT, type LinkedIncidentAlert } from '../data';
 import { SeverityIcon, severityColor } from '../severity';
@@ -209,7 +226,13 @@ export function IncidentAttackCard({
   );
 }
 
-export function ThreatRailHeader({ onEdit }: { onEdit?: () => void }) {
+export function ThreatRailHeader({
+  onEdit,
+  onCollapse,
+}: {
+  onEdit?: () => void;
+  onCollapse?: () => void;
+}) {
   return (
     <Group gap={8} wrap="nowrap" justify="space-between" style={{ flexShrink: 0 }}>
       <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
@@ -229,23 +252,38 @@ export function ThreatRailHeader({ onEdit }: { onEdit?: () => void }) {
           <IconRadar2 size={14} color="var(--mantine-color-brand-filled)" aria-hidden />
         </Box>
         <Text size="sm" fw={700}>
-          Attack chain
+          Incident context
         </Text>
       </Group>
-      {onEdit ? (
-        <Tooltip label="Edit incident, attacker, and victim" withArrow>
-          <ActionIcon
-            variant="transparent"
-            color="accent"
-            size="sm"
-            aria-label="Edit attack chain"
-            data-testid="edit-incident-button"
-            onClick={onEdit}
-          >
-            <IconPencil size={16} />
-          </ActionIcon>
-        </Tooltip>
-      ) : null}
+      <Group gap={2} wrap="nowrap">
+        {onEdit ? (
+          <Tooltip label="Edit incident, attacker, and affected entities" withArrow>
+            <ActionIcon
+              variant="transparent"
+              color="accent"
+              size="sm"
+              aria-label="Edit incident context"
+              data-testid="edit-incident-button"
+              onClick={onEdit}
+            >
+              <IconPencil size={16} />
+            </ActionIcon>
+          </Tooltip>
+        ) : null}
+        {onCollapse ? (
+          <Tooltip label="Compact incident context" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="neutral"
+              size="sm"
+              aria-label="Compact incident context"
+              onClick={onCollapse}
+            >
+              <IconLayoutSidebarLeftCollapse size={16} />
+            </ActionIcon>
+          </Tooltip>
+        ) : null}
+      </Group>
     </Group>
   );
 }

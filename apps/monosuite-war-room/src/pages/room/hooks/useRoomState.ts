@@ -68,14 +68,14 @@ export interface MediaDevices {
 }
 
 const INITIAL_MEDIA: MediaState = {
-  joined: false,
+  joined: true,
   mic: true,
   camera: false,
   speaker: true,
   share: false,
   remoteShareBy: null,
   shareLayout: 'split',
-  connection: 'idle',
+  connection: 'connected',
   speakingId: 'sarah',
   permission: 'granted',
   micPermission: 'granted',
@@ -229,12 +229,12 @@ export function useRoomState() {
   const remoteCamerasOn = useMemo(() => getRemoteCamerasOn(livePeople), [livePeople]);
   const mediaSurfaceActive = Boolean(
     media.joined &&
-      (presenting ||
-        remoteCamerasOn.length > 0 ||
-        media.camera ||
-        media.permission !== 'granted' ||
-        media.connection === 'reconnecting' ||
-        media.connection === 'lost'),
+    (presenting ||
+      remoteCamerasOn.length > 0 ||
+      media.camera ||
+      media.permission !== 'granted' ||
+      media.connection === 'reconnecting' ||
+      media.connection === 'lost'),
   );
 
   const toggleAside = useCallback(() => {
@@ -447,6 +447,22 @@ export function useRoomState() {
     showToast('Joined live communication');
   }, [showToast]);
 
+  const leaveLive = useCallback(() => {
+    setMedia((m) => ({
+      ...m,
+      joined: false,
+      mic: false,
+      camera: false,
+      share: false,
+      remoteShareBy: null,
+      connection: 'idle',
+    }));
+    setPinnedTarget(null);
+    setCollaborationSplit(false);
+    setCollaborationFullscreen(false);
+    showToast('Left live communication');
+  }, [showToast]);
+
   const toggleMedia = useCallback(
     (key: 'mic' | 'camera' | 'speaker') => {
       setMedia((m) => {
@@ -639,7 +655,6 @@ export function useRoomState() {
           setInviteOpen(true);
           break;
         case 'add-evidence':
-          setSidebarTab('evidence');
           setEvidenceKind('file');
           setEvidenceOpen(true);
           break;
@@ -665,7 +680,6 @@ export function useRoomState() {
   );
 
   const openAddEvidence = useCallback((kind: EvidenceKind = 'file') => {
-    setSidebarTab('evidence');
     setEvidenceKind(kind);
     setEvidenceOpen(true);
   }, []);
@@ -1028,6 +1042,7 @@ export function useRoomState() {
     setSelectedDecision,
     recordDecision,
     joinLive,
+    leaveLive,
     toggleMedia,
     startShare,
     stopShare,

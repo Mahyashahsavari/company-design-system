@@ -10,25 +10,17 @@ import {
   Stack,
   Tabs,
   Text,
-  ThemeIcon,
   Tooltip,
 } from '@mantine/core';
-import { useRef, type ReactNode } from 'react';
 import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconDatabase,
-  IconDeviceDesktop,
+  IconActivity,
   IconDots,
-  IconHistory,
   IconLayoutSidebarRightCollapse,
   IconLayoutSidebarRightExpand,
-  IconList,
   IconMessage,
   IconMicrophone,
   IconMicrophoneOff,
   IconPaperclip,
-  IconServer,
   IconShield,
   IconUser,
   IconUserOff,
@@ -38,28 +30,24 @@ import {
   IconVideoOff,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../../shared/constants';
-import { TruncatedTooltipText } from '../../../shared/components/TruncatedTooltipText';
 import {
-  ASSETS,
   ROOM_ROLES,
-  SEVERITY_COLOR,
   type ContextTab,
   type EvidenceItem,
-  type EvidenceKind,
   type HistoryEntry,
   type Participant,
 } from '../data';
 import type { MediaState } from '../hooks/useRoomState';
 import { ChatPanel } from './ChatPanel';
-import { EvidencePanel } from './EvidencePanel';
 import { HistoryPanel } from './HistoryPanel';
+import { TruncatedTooltipText } from '../../../shared/components/TruncatedTooltipText';
 
 interface ContextSidebarProps {
   tab: ContextTab;
   onTabChange: (tab: ContextTab) => void;
   history: HistoryEntry[];
   onInvite: () => void;
-  onAddEvidence: (kind?: EvidenceKind) => void;
+  onOpenEvidence: () => void;
   evidence: EvidenceItem[];
   collapsed?: boolean;
   onExpand?: () => void;
@@ -75,18 +63,10 @@ interface ContextSidebarProps {
   onToggleCollapse?: () => void;
 }
 
-const ASSET_ICONS = {
-  server: IconServer,
-  database: IconDatabase,
-  desktop: IconDeviceDesktop,
-} as const;
-
 const RAIL_TABS: { value: ContextTab; label: string; icon: typeof IconUsers }[] = [
   { value: 'participants', label: 'Participants', icon: IconUsers },
   { value: 'chat', label: 'Chat', icon: IconMessage },
-  { value: 'assets', label: 'Assets', icon: IconServer },
-  { value: 'evidence', label: 'Evidence', icon: IconPaperclip },
-  { value: 'history', label: 'History', icon: IconHistory },
+  { value: 'activity', label: 'Activity', icon: IconActivity },
 ];
 
 export function ContextSidebar({
@@ -94,7 +74,7 @@ export function ContextSidebar({
   onTabChange,
   history,
   onInvite,
-  onAddEvidence,
+  onOpenEvidence,
   evidence,
   collapsed = false,
   onExpand,
@@ -115,7 +95,28 @@ export function ContextSidebar({
     return (
       <Stack gap={0} className="monosuite-context-rail-inner">
         <Box className="monosuite-context-rail-accent" aria-hidden />
-        <Stack gap={6} align="center" py="sm" px={4} style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <Stack
+          gap={6}
+          align="center"
+          py="sm"
+          px={4}
+          style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+        >
+          <Tooltip label="Expand utility panel" position="left" withArrow>
+            <ActionIcon
+              variant="light"
+              color="brand"
+              size="lg"
+              aria-label="Expand utility panel"
+              onClick={onToggleCollapse}
+            >
+              <IconLayoutSidebarRightExpand size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <Box
+            my={2}
+            style={{ width: 24, height: 1, background: 'var(--monosuite-color-border)' }}
+          />
           {RAIL_TABS.map((item) => {
             const Icon = item.icon;
             const active = tab === item.value;
@@ -134,7 +135,8 @@ export function ContextSidebar({
                   style={
                     active
                       ? {
-                          border: '1px solid color-mix(in srgb, var(--mantine-color-teal-filled) 35%, transparent)',
+                          border:
+                            '1px solid color-mix(in srgb, var(--mantine-color-teal-filled) 35%, transparent)',
                         }
                       : undefined
                   }
@@ -144,8 +146,22 @@ export function ContextSidebar({
               </Tooltip>
             );
           })}
+          <Box
+            my={4}
+            style={{ width: 24, height: 1, background: 'var(--monosuite-color-border)' }}
+          />
+          <Tooltip label={`Evidence · ${evidence.length}`} position="left" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="accent"
+              size="lg"
+              aria-label={`Open evidence (${evidence.length})`}
+              onClick={onOpenEvidence}
+            >
+              <IconPaperclip size={18} />
+            </ActionIcon>
+          </Tooltip>
         </Stack>
-        <ContextRailFooter collapsed onToggle={onToggleCollapse} />
       </Stack>
     );
   }
@@ -153,7 +169,12 @@ export function ContextSidebar({
   return (
     <Stack gap={0} className="monosuite-context-rail-inner">
       <Box className="monosuite-context-rail-accent" aria-hidden />
-      <ContextRailHeader label={activeTabMeta?.label ?? 'Operations'} />
+      <ContextRailHeader
+        label={activeTabMeta?.label ?? 'Participants'}
+        evidenceCount={evidence.length}
+        onOpenEvidence={onOpenEvidence}
+        onCollapse={onToggleCollapse}
+      />
 
       <Tabs
         value={tab}
@@ -161,13 +182,11 @@ export function ContextSidebar({
         className="monosuite-room-tabs-fill monosuite-context-rail-tabs"
         style={{ flex: 1, minHeight: 0, height: '100%' }}
       >
-        <ScrollableTabList>
+        <Tabs.List grow px="xs" style={{ flexShrink: 0 }}>
           <Tabs.Tab value="participants">Participants</Tabs.Tab>
           <Tabs.Tab value="chat">Chat</Tabs.Tab>
-          <Tabs.Tab value="assets">Assets</Tabs.Tab>
-          <Tabs.Tab value="evidence">Evidence</Tabs.Tab>
-          <Tabs.Tab value="history">History</Tabs.Tab>
-        </ScrollableTabList>
+          <Tabs.Tab value="activity">Activity</Tabs.Tab>
+        </Tabs.List>
 
         <Box className="monosuite-room-tabs-body">
           <Tabs.Panel value="participants" className="monosuite-context-tab-panel">
@@ -193,66 +212,7 @@ export function ContextSidebar({
             <ChatPanel />
           </Tabs.Panel>
 
-          <Tabs.Panel value="assets" className="monosuite-context-tab-panel">
-            <ScrollArea h="100%" type="auto">
-              <Box px="md" py="sm">
-                <Stack gap="sm">
-                  <Text fw={700} size="sm">
-                    Affected Assets{' '}
-                    <Text span c="dimmed" fw={400}>
-                      · {ASSETS.length}
-                    </Text>
-                  </Text>
-                  {ASSETS.map((a) => {
-                    const Icon = ASSET_ICONS[a.icon];
-                    return (
-                      <Group
-                        key={a.id}
-                        gap="sm"
-                        p="sm"
-                        wrap="nowrap"
-                        style={{
-                          borderRadius: 'var(--mantine-radius-sm)',
-                          background: 'var(--monosuite-color-surface-sunken)',
-                        }}
-                      >
-                        <ThemeIcon variant="light" color="neutral" size="lg">
-                          <Icon size={16} />
-                        </ThemeIcon>
-                        <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-                          <TruncatedTooltipText size="sm" fw={600} tooltip={a.name}>
-                            {a.name}
-                          </TruncatedTooltipText>
-                          <TruncatedTooltipText size="xs" c="dimmed" tooltip={a.type}>
-                            {a.type}
-                          </TruncatedTooltipText>
-                          <TruncatedTooltipText size="xs" c="dimmed" tooltip={a.ip}>
-                            {a.ip}
-                          </TruncatedTooltipText>
-                        </Stack>
-                        <Badge size="sm" color={SEVERITY_COLOR[a.severity]}>
-                          {a.severity}
-                        </Badge>
-                      </Group>
-                    );
-                  })}
-                  <Button size="xs" variant="subtle" leftSection={<IconList size={14} />}>
-                    View all assets
-                  </Button>
-                </Stack>
-              </Box>
-            </ScrollArea>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="evidence" className="monosuite-context-tab-panel">
-            <ScrollArea h="100%" type="auto">
-              <Box px="md" py="sm">
-                <EvidencePanel items={evidence} onAdd={onAddEvidence} />
-              </Box>
-            </ScrollArea>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="history" className="monosuite-context-tab-panel">
+          <Tabs.Panel value="activity" className="monosuite-context-tab-panel">
             <ScrollArea h="100%" type="auto">
               <Box px="md" py="sm">
                 <HistoryPanel items={history} />
@@ -262,12 +222,21 @@ export function ContextSidebar({
         </Box>
       </Tabs>
 
-      <ContextRailFooter collapsed={false} onToggle={onToggleCollapse} />
     </Stack>
   );
 }
 
-function ContextRailHeader({ label }: { label: string }) {
+function ContextRailHeader({
+  label,
+  evidenceCount,
+  onOpenEvidence,
+  onCollapse,
+}: {
+  label: string;
+  evidenceCount: number;
+  onOpenEvidence: () => void;
+  onCollapse?: () => void;
+}) {
   return (
     <Group gap={8} wrap="nowrap" px="sm" py={8} style={{ flexShrink: 0 }}>
       <Box
@@ -278,7 +247,8 @@ function ContextRailHeader({ label }: { label: string }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'color-mix(in srgb, var(--mantine-color-teal-filled) 12%, var(--monosuite-color-surface-sunken))',
+          background:
+            'color-mix(in srgb, var(--mantine-color-teal-filled) 12%, var(--monosuite-color-surface-sunken))',
           border: '1px solid var(--monosuite-color-border)',
           flexShrink: 0,
         }}
@@ -287,101 +257,38 @@ function ContextRailHeader({ label }: { label: string }) {
       </Box>
       <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
         <Text size="10px" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.1em' }}>
-          Room utility
+          Room collaboration
         </Text>
         <TruncatedTooltipText size="xs" fw={700} tooltip={label}>
           {label}
         </TruncatedTooltipText>
       </Stack>
-    </Group>
-  );
-}
-
-function ContextRailFooter({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle?: () => void;
-}) {
-  if (!onToggle) return null;
-
-  return (
-    <Box className="monosuite-context-rail-footer" px={collapsed ? 4 : 'sm'} py={6}>
-      <Tooltip
-        label={collapsed ? 'Expand utility panel' : 'Collapse utility panel'}
-        position="left"
-        withArrow
-      >
+      <Tooltip label={`Open evidence · ${evidenceCount}`} withArrow>
         <Button
-          fullWidth={!collapsed}
-          variant="subtle"
-          color="neutral"
           size="compact-xs"
-          onClick={onToggle}
-          aria-label={collapsed ? 'Expand utility panel' : 'Collapse utility panel'}
-          aria-expanded={!collapsed}
-          leftSection={
-            collapsed ? undefined : (
-              <IconLayoutSidebarRightCollapse size={14} aria-hidden />
-            )
-          }
-          style={collapsed ? { padding: 0, width: 36, height: 32, margin: '0 auto' } : undefined}
+          variant="light"
+          color="accent"
+          leftSection={<IconPaperclip size={12} />}
+          onClick={onOpenEvidence}
+          aria-label={`Open evidence (${evidenceCount})`}
+          style={{ flexShrink: 0 }}
         >
-          {collapsed ? <IconLayoutSidebarRightExpand size={16} aria-hidden /> : 'Collapse panel'}
+          {evidenceCount}
         </Button>
       </Tooltip>
-    </Box>
-  );
-}
-
-function ScrollableTabList({ children }: { children: ReactNode }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const scroll = (direction: -1 | 1) => {
-    scrollRef.current?.scrollBy({ left: direction * 72, behavior: 'smooth' });
-  };
-
-  return (
-    <Group gap={2} wrap="nowrap" px={4} pt={6} pb={4} align="center" style={{ flexShrink: 0, borderBottom: '1px solid var(--monosuite-color-border)' }}>
-      <ActionIcon
-        variant="subtle"
-        color="neutral"
-        size="sm"
-        aria-label="Scroll tabs left"
-        onClick={() => scroll(-1)}
-      >
-        <IconChevronLeft size={14} />
-      </ActionIcon>
-      <Box
-        ref={scrollRef}
-        className="monosuite-hide-scrollbar-x"
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflowX: 'auto',
-          overflowY: 'hidden',
-        }}
-      >
-        <Tabs.List
-          style={{
-            flexWrap: 'nowrap',
-            width: 'max-content',
-            minWidth: '100%',
-          }}
-        >
-          {children}
-        </Tabs.List>
-      </Box>
-      <ActionIcon
-        variant="subtle"
-        color="neutral"
-        size="sm"
-        aria-label="Scroll tabs right"
-        onClick={() => scroll(1)}
-      >
-        <IconChevronRight size={14} />
-      </ActionIcon>
+      {onCollapse ? (
+        <Tooltip label="Compact utility panel" withArrow>
+          <ActionIcon
+            variant="subtle"
+            color="neutral"
+            size="sm"
+            aria-label="Compact utility panel"
+            onClick={onCollapse}
+          >
+            <IconLayoutSidebarRightCollapse size={16} />
+          </ActionIcon>
+        </Tooltip>
+      ) : null}
     </Group>
   );
 }
@@ -419,9 +326,6 @@ function ParticipantsPanel({
       </Text>
 
       <Stack gap={6}>
-        <Text size="10px" fw={700} c="teal" tt="uppercase" style={{ letterSpacing: '0.08em' }}>
-          My media
-        </Text>
         <ParticipantRow
           name={CURRENT_USER.name}
           initials={CURRENT_USER.initials}
@@ -433,12 +337,6 @@ function ParticipantsPanel({
           isLocal
           canManage={false}
         />
-      </Stack>
-
-      <Stack gap={6}>
-        <Text size="10px" fw={700} c="dimmed" tt="uppercase" style={{ letterSpacing: '0.08em' }}>
-          Remote participants
-        </Text>
         {participants.map((p) => (
           <ParticipantRow
             key={p.id}
@@ -462,7 +360,12 @@ function ParticipantsPanel({
         ))}
       </Stack>
 
-      <Button size="xs" variant="subtle" leftSection={<IconUserPlus size={14} />} onClick={onInvite}>
+      <Button
+        size="xs"
+        variant="subtle"
+        leftSection={<IconUserPlus size={14} />}
+        onClick={onInvite}
+      >
         Invite participant
       </Button>
     </Stack>
@@ -579,7 +482,12 @@ function ParticipantRow({
             </Tooltip>
             <Menu shadow="md" width={200} position="bottom-end">
               <Menu.Target>
-                <ActionIcon variant="subtle" color="neutral" size="sm" aria-label={`More actions for ${name}`}>
+                <ActionIcon
+                  variant="subtle"
+                  color="neutral"
+                  size="sm"
+                  aria-label={`More actions for ${name}`}
+                >
                   <IconDots size={14} />
                 </ActionIcon>
               </Menu.Target>
@@ -604,7 +512,11 @@ function ParticipantRow({
                   </Menu.Item>
                 ))}
                 <Menu.Divider />
-                <Menu.Item color="danger" leftSection={<IconUserOff size={14} />} onClick={onRemove}>
+                <Menu.Item
+                  color="danger"
+                  leftSection={<IconUserOff size={14} />}
+                  onClick={onRemove}
+                >
                   Remove participant
                 </Menu.Item>
               </Menu.Dropdown>

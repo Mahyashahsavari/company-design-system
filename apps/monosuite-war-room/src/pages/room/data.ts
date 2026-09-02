@@ -4,7 +4,7 @@ export type PresenceStatus = 'online' | 'away';
 export type SourceStatus = 'synced' | 'partial' | 'error';
 export type AssetSeverity = 'critical' | 'high' | 'medium' | 'low';
 export type WorkspaceTab = 'questions' | 'findings' | 'decisions';
-export type ContextTab = 'participants' | 'chat' | 'assets' | 'evidence' | 'history';
+export type ContextTab = 'participants' | 'chat' | 'activity';
 
 export interface ContextEntityField {
   label: string;
@@ -296,6 +296,9 @@ export interface Asset {
   ip: string;
   severity: AssetSeverity;
   icon: 'server' | 'database' | 'desktop';
+  owner: string;
+  admin: string;
+  source: string;
 }
 
 export interface MitreTechnique {
@@ -322,7 +325,7 @@ export const INCIDENT = {
   owner: 'Sarah Johnson',
   occurred: '21:42',
   detected: '21:47',
-  source: 'CoreLog',
+  source: 'Splunk',
   /** Adapter-sourced incidents lock mapped fields; addresses and attacker fields stay additive. */
   fromAdapter: true,
 };
@@ -360,7 +363,6 @@ export const LINKED_INCIDENT_ALERTS: LinkedIncidentAlert[] = [
 export const LINK_SOURCE_OPTIONS = [
   'Splunk',
   'MonoSuite',
-  'CoreLog',
   'Threat Intelligence',
   MANUAL_LINK_SOURCE,
 ];
@@ -421,7 +423,7 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     id: 'detected',
     label: 'Incident Detected',
     status: 'completed',
-    owner: 'CoreLog',
+    owner: 'Splunk',
     time: '21:47',
     icon: 'bell',
     phase: {
@@ -623,7 +625,7 @@ export const INITIAL_HISTORY: HistoryEntry[] = [
   { time: '12:49', actor: 'Mike Chen', action: 'Finding created', highlight: true },
   { time: '12:48', actor: 'Alex Smith', action: 'Evidence added', highlight: false },
   { time: '12:46', actor: 'Mike Chen', action: 'MITRE mapping updated', highlight: false },
-  { time: '12:44', actor: 'System', action: 'Incident synchronized from CoreLog', highlight: false },
+  { time: '12:44', actor: 'System', action: 'Incident synchronized from Splunk', highlight: false },
   { time: '12:42', actor: 'Sarah Johnson', action: 'joined the room', highlight: false },
 ];
 
@@ -745,8 +747,8 @@ export const DIRECTORY_USERS: DirectoryUser[] = [
 
 export const CONNECTED_SOURCES: ConnectedSource[] = [
   {
-    id: 'corelog',
-    adapter: 'CoreLog',
+    id: 'splunk',
+    adapter: 'Splunk',
     role: 'Alert Source',
     dataType: 'Alert',
     status: 'synced',
@@ -912,7 +914,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
   {
     id: 'e2',
     kind: 'file',
-    name: 'corelog-alert-CL-8847291.png',
+    name: 'splunk-alert-SPL-8847291.png',
     type: 'PNG',
     sizeBytes: 1_048_576,
     by: 'Sarah Johnson',
@@ -941,7 +943,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     kind: 'note',
     name: 'Auth burst window',
     type: 'NOTE',
-    note: 'Failed logons clustered 21:42–21:47 UTC against svc-backup. Correlate with CoreLog CL-8847291 before containment.',
+    note: 'Failed logons clustered 21:42–21:47 UTC against svc-backup. Correlate with Splunk alert SPL-8847291 before containment.',
     by: 'Harriette Spoonlicker',
     time: '12:53',
   },
@@ -972,6 +974,9 @@ export const ASSETS: Asset[] = [
     ip: '10.20.1.15',
     severity: 'critical',
     icon: 'server',
+    owner: 'Finance Operations',
+    admin: 'Mike Chen',
+    source: 'MonoSuite',
   },
   {
     id: 'db-prod-02',
@@ -980,6 +985,9 @@ export const ASSETS: Asset[] = [
     ip: '10.20.1.20',
     severity: 'high',
     icon: 'database',
+    owner: 'Finance Operations',
+    admin: 'David Lee',
+    source: 'MonoSuite',
   },
   {
     id: 'workstation-114',
@@ -988,6 +996,9 @@ export const ASSETS: Asset[] = [
     ip: '10.20.4.114',
     severity: 'medium',
     icon: 'desktop',
+    owner: 'Sarah Johnson',
+    admin: 'Endpoint Operations',
+    source: 'Manual',
   },
 ];
 

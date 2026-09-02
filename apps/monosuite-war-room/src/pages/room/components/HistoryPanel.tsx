@@ -93,7 +93,7 @@ export function HistoryPanel({ items }: HistoryPanelProps) {
   return (
     <Stack gap="sm">
       <Text fw={700} size="sm">
-        Room history{' '}
+        Room activity{' '}
         <Text span c="dimmed" fw={400}>
           · {items.length}
         </Text>

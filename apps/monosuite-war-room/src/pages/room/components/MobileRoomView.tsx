@@ -27,6 +27,9 @@ interface MobileRoomViewProps {
   onEditIncident: () => void;
   linkedAlerts: LinkedIncidentAlert[];
   livePanel: ReactNode;
+  onOpenAffectedEntities: () => void;
+  onOpenAttackMap: () => void;
+  onOpenEvidence: () => void;
 }
 
 /** Phone layout: one pane at a time so the room stays reachable below 768px. */
@@ -39,6 +42,9 @@ export function MobileRoomView({
   onEditIncident,
   linkedAlerts,
   livePanel,
+  onOpenAffectedEntities,
+  onOpenAttackMap,
+  onOpenEvidence,
 }: MobileRoomViewProps) {
   const [tab, setTab] = useState<MobileRoomTab>('incident');
 
@@ -53,7 +59,7 @@ export function MobileRoomView({
       />
 
       <Box px="xs" pt="md" pb="sm" style={{ flexShrink: 0 }}>
-          <ResponseWorkflow steps={WORKFLOW_STEPS} protocol="NIST SP 800-61" density="focus" />
+        <ResponseWorkflow steps={WORKFLOW_STEPS} protocol="NIST SP 800-61" density="focus" />
       </Box>
 
       <Box className="monosuite-room-mobile-tabs" role="tablist" aria-label="Room section">
@@ -92,16 +98,21 @@ export function MobileRoomView({
             onVictimChange={onVictimChange}
             onEditIncident={onEditIncident}
             linkedAlerts={linkedAlerts}
+            onOpenAffectedEntities={onOpenAffectedEntities}
+            onOpenAttackMap={onOpenAttackMap}
           />
         ) : null}
         {tab === 'room' ? (
-          <Box className="monosuite-room-utility-panel monosuite-context-rail" style={{ width: '100%', height: '100%' }}>
+          <Box
+            className="monosuite-room-utility-panel monosuite-context-rail"
+            style={{ width: '100%', height: '100%' }}
+          >
             <ContextSidebar
               tab={room.sidebarTab}
               onTabChange={room.setSidebarTab}
               history={room.history}
               onInvite={() => room.roomAction('invite')}
-              onAddEvidence={(kind) => room.openAddEvidence(kind ?? 'file')}
+              onOpenEvidence={onOpenEvidence}
               evidence={room.evidence}
               collapsed={false}
               participants={room.participants}

@@ -23,7 +23,10 @@ import { LiveMediaFloatPanel } from './components/LiveMediaFloatPanel';
 import { MobileRoomView } from './components/MobileRoomView';
 import { InviteParticipantsModal } from './components/InviteParticipantsModal';
 import { AddEvidenceModal } from './components/AddEvidenceModal';
+import { AffectedEntitiesBoard } from './components/AffectedEntitiesBoard';
+import { AttackMapModal } from './components/AttackMapModal';
 import { EditIncidentDrawer } from './components/EditIncidentDrawer';
+import { EvidenceDrawer } from './components/EvidenceDrawer';
 import { MediaSettingsModal } from './components/MediaSettingsModal';
 import { RoomSettingsModal } from './components/RoomSettingsModal';
 import { ResizableSplitPane } from './components/ResizableSplitPane';
@@ -38,10 +41,7 @@ import {
 } from './data';
 import { useRoomState } from './hooks/useRoomState';
 
-function handleMediaMore(
-  action: string,
-  room: ReturnType<typeof useRoomState>,
-) {
+function handleMediaMore(action: string, room: ReturnType<typeof useRoomState>) {
   if (action === 'simulate-moderator-mute') {
     room.setLocalMediaFlags({ mutedByModerator: true, mic: false });
     room.showToast('Microphone muted by moderator');
@@ -61,6 +61,10 @@ export function RoomPage() {
   const [attackerId, setAttackerId] = useState(ATTACKER_ENTITIES[0].id);
   const [victimId, setVictimId] = useState(VICTIM_ENTITIES[0].id);
   const [linkedAlerts, setLinkedAlerts] = useState(LINKED_INCIDENT_ALERTS);
+  const [contextCollapsed, setContextCollapsed] = useState(false);
+  const [evidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
+  const [affectedEntitiesOpen, setAffectedEntitiesOpen] = useState(false);
+  const [attackMapOpen, setAttackMapOpen] = useState(false);
   const compactDesktop = useMediaQuery(`(max-width: ${ROOM_UTILITY_COMPACT_MAX})`, true, {
     getInitialValueInEffect: false,
   });
@@ -80,8 +84,7 @@ export function RoomPage() {
     collapsed: room.asideCollapsed,
   });
   const collabFullscreen = room.collaborationFullscreen;
-  const collabSplit =
-    room.collaborationSplit && room.media.joined && !collabFullscreen;
+  const collabSplit = room.collaborationSplit && room.media.joined && !collabFullscreen;
   const showDockedFloat = !collabSplit && !collabFullscreen;
 
   const collaboration = (
@@ -139,7 +142,7 @@ export function RoomPage() {
         onTabChange={room.setSidebarTab}
         history={room.history}
         onInvite={() => room.roomAction('invite')}
-        onAddEvidence={(kind) => room.openAddEvidence(kind ?? 'file')}
+        onOpenEvidence={() => setEvidenceDrawerOpen(true)}
         evidence={room.evidence}
         collapsed={room.asideCollapsed}
         onExpand={() => {
@@ -159,54 +162,6 @@ export function RoomPage() {
     </Box>
   );
 
-  const roomBody = (
-    <Box
-      className="monosuite-room-row"
-      data-density={denseRoom ? 'dense' : 'default'}
-      px={ROOM_PAGE_HEADER_GUTTER}
-      pt={denseRoom ? 6 : ROOM_PAGE_HEADER_GUTTER}
-      pb={denseRoom ? 6 : ROOM_PAGE_HEADER_GUTTER}
-    >
-      <IncidentContextColumn
-        attackerId={attackerId}
-        victimId={victimId}
-        onAttackerChange={setAttackerId}
-        onVictimChange={setVictimId}
-        onEditIncident={() => room.roomAction('view-incident')}
-        linkedAlerts={linkedAlerts}
-        defaultWidth={denseWidth ? ROOM_ATTACK_CHAIN_WIDTH_DENSE : utilityExpandedWidth}
-      />
-
-      <Box
-        className="monosuite-room-column"
-        style={{
-          paddingRight: collabSplit ? 8 : 12,
-          gap: denseRoom ? 6 : 10,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
-        <Box style={{ flexShrink: 0 }}>
-          <ResponseWorkflow
-            steps={WORKFLOW_STEPS}
-            protocol="NIST SP 800-61"
-            density={denseRoom ? 'strip' : 'cards'}
-          />
-        </Box>
-        <InvestigationWorkspace
-          room={room}
-          dockSafeZone={showDockedFloat}
-          dockSafeZoneHeight={denseRoom ? ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE : ROOM_MEDIA_DOCK_SAFE_ZONE}
-        />
-      </Box>
-
-      {utilitySidebar}
-    </Box>
-  );
-
-  const splitRightPane = <Box className="monosuite-room-panel">{collaboration}</Box>;
-
   const liveMediaFloatPanel = (
     <LiveMediaFloatPanel
       media={room.media}
@@ -218,6 +173,7 @@ export function RoomPage() {
       dense={denseRoom || isMobile}
       mobile={isMobile}
       onJoin={room.joinLive}
+      onLeave={room.leaveLive}
       onToggleMedia={room.toggleMedia}
       onShare={room.startShare}
       onStopShare={room.stopShare}
@@ -239,21 +195,75 @@ export function RoomPage() {
     />
   );
 
-  const floatFixed = (
+  const roomBody = (
     <Box
-      className="monosuite-live-float-anchor"
-      style={{
-        position: 'fixed',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        bottom: ROOM_MEDIA_DOCK_GUTTER,
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}
+      className="monosuite-room-row"
+      data-density={denseRoom ? 'dense' : 'default'}
+      px={ROOM_PAGE_HEADER_GUTTER}
+      pt={denseRoom ? 6 : ROOM_PAGE_HEADER_GUTTER}
+      pb={denseRoom ? 6 : ROOM_PAGE_HEADER_GUTTER}
     >
-      <Box style={{ pointerEvents: 'auto', width: '100%' }}>{liveMediaFloatPanel}</Box>
+      <IncidentContextColumn
+        attackerId={attackerId}
+        victimId={victimId}
+        onAttackerChange={setAttackerId}
+        onVictimChange={setVictimId}
+        onEditIncident={() => room.roomAction('view-incident')}
+        linkedAlerts={linkedAlerts}
+        defaultWidth={denseWidth ? ROOM_ATTACK_CHAIN_WIDTH_DENSE : utilityExpandedWidth}
+        collapsed={contextCollapsed}
+        onToggleCollapse={() => setContextCollapsed((value) => !value)}
+        onOpenAffectedEntities={() => setAffectedEntitiesOpen(true)}
+        onOpenAttackMap={() => setAttackMapOpen(true)}
+      />
+
+      <Box
+        className="monosuite-room-column"
+        style={{
+          paddingRight: collabSplit ? 8 : 12,
+          gap: denseRoom ? 6 : 10,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          position: 'relative',
+        }}
+      >
+        <Box style={{ flexShrink: 0 }}>
+          <ResponseWorkflow
+            steps={WORKFLOW_STEPS}
+            protocol="NIST SP 800-61"
+            density={denseRoom ? 'strip' : 'cards'}
+          />
+        </Box>
+        <InvestigationWorkspace
+          room={room}
+          dockSafeZone={showDockedFloat}
+          dockSafeZoneHeight={
+            denseRoom ? ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE : ROOM_MEDIA_DOCK_SAFE_ZONE
+          }
+        />
+        {showDockedFloat ? (
+          <Box
+            className="monosuite-live-float-anchor"
+            style={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              bottom: ROOM_MEDIA_DOCK_GUTTER + 8,
+              zIndex: 10,
+              pointerEvents: 'none',
+            }}
+          >
+            <Box style={{ pointerEvents: 'auto', width: '100%' }}>{liveMediaFloatPanel}</Box>
+          </Box>
+        ) : null}
+      </Box>
+
+      {utilitySidebar}
     </Box>
   );
+
+  const splitRightPane = <Box className="monosuite-room-panel">{collaboration}</Box>;
 
   const splitLeftPane = <Box className="monosuite-room-panel">{roomBody}</Box>;
 
@@ -291,6 +301,9 @@ export function RoomPage() {
                 onEditIncident={() => room.roomAction('view-incident')}
                 linkedAlerts={linkedAlerts}
                 livePanel={liveMediaFloatPanel}
+                onOpenAffectedEntities={() => setAffectedEntitiesOpen(true)}
+                onOpenAttackMap={() => setAttackMapOpen(true)}
+                onOpenEvidence={() => setEvidenceDrawerOpen(true)}
               />
             </Box>
           ) : (
@@ -319,8 +332,6 @@ export function RoomPage() {
               </Box>
             </Box>
           )}
-
-          {showDockedFloat && !isMobile && floatFixed}
         </AppShell.Main>
       </AppChrome>
 
@@ -361,6 +372,25 @@ export function RoomPage() {
         initialKind={room.evidenceKind}
         onClose={() => room.setEvidenceOpen(false)}
         onAdd={room.addEvidence}
+      />
+
+      <EvidenceDrawer
+        opened={evidenceDrawerOpen}
+        onClose={() => setEvidenceDrawerOpen(false)}
+        items={room.evidence}
+        onAdd={(kind) => room.openAddEvidence(kind)}
+      />
+
+      <AffectedEntitiesBoard
+        opened={affectedEntitiesOpen}
+        onClose={() => setAffectedEntitiesOpen(false)}
+      />
+
+      <AttackMapModal
+        opened={attackMapOpen}
+        onClose={() => setAttackMapOpen(false)}
+        attacker={ATTACKER_ENTITIES.find((entity) => entity.id === attackerId) ?? ATTACKER_ENTITIES[0]}
+        victim={VICTIM_ENTITIES.find((entity) => entity.id === victimId) ?? VICTIM_ENTITIES[0]}
       />
 
       <Toast message={room.toast} onClose={room.clearToast} />

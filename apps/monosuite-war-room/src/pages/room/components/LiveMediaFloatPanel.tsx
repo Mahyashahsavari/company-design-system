@@ -35,6 +35,7 @@ interface LiveMediaFloatPanelProps {
   durationLabel: string;
   participantCount: number;
   onJoin: () => void;
+  onLeave: () => void;
   onToggleMedia: (key: 'mic' | 'camera' | 'speaker') => void;
   onShare: () => void;
   onStopShare: () => void;
@@ -68,6 +69,7 @@ export function LiveMediaFloatPanel({
   durationLabel,
   participantCount,
   onJoin,
+  onLeave,
   onToggleMedia,
   onShare,
   onStopShare,
@@ -129,10 +131,10 @@ export function LiveMediaFloatPanel({
           >
             <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
               <Badge color="success" size="xs" variant="filled">
-                LIVE
+                CONNECTED
               </Badge>
               <Text size="xs" fw={700} visibleFrom={dense ? 'xl' : 'xs'}>
-                Live collaboration
+                Media session
               </Text>
               <Group gap={6} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
                 <IconUsers size={12} aria-hidden />
@@ -311,6 +313,7 @@ export function LiveMediaFloatPanel({
         durationLabel={durationLabel}
         participantCount={participantCount}
         onJoin={onJoin}
+        onLeave={onLeave}
         onToggleMedia={onToggleMedia}
         onShare={onShare}
         onStopShare={onStopShare}

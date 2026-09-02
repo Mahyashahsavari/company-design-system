@@ -19,6 +19,7 @@ import {
   IconMicrophoneOff,
   IconNetwork,
   IconPlayerPlay,
+  IconPhoneOff,
   IconRefresh,
   IconScreenShare,
   IconScreenShareOff,
@@ -45,6 +46,7 @@ interface MediaDockProps {
   durationLabel: string;
   participantCount: number;
   onJoin: () => void;
+  onLeave?: () => void;
   onToggleMedia: (key: 'mic' | 'camera' | 'speaker') => void;
   onShare: () => void;
   onStopShare: () => void;
@@ -55,7 +57,7 @@ interface MediaDockProps {
   embedded?: boolean;
   /** Sidebar / split panel — compact grid, no overlap. */
   density?: 'default' | 'sidebar';
-  /** Hide LIVE / participant count / duration — shown in parent header instead. */
+  /** Hide media status / participant count / duration — shown in parent header instead. */
   hideStatusMeta?: boolean;
   /** Replaces status meta on the left of live controls (e.g. compact avatars). */
   leadingSlot?: ReactNode;
@@ -71,13 +73,14 @@ type ControlVisual = 'on' | 'off' | 'muted' | 'sharing' | 'warn' | 'danger';
 
 /**
  * Floating Live Room Control Dock.
- * Distinguishes “War Room is active” (pre-join) from “joined live communication”.
+ * Distinguishes room access from joining the room's media session.
  */
 export function MediaDock({
   media,
   durationLabel,
   participantCount,
   onJoin,
+  onLeave,
   onToggleMedia,
   onShare,
   onStopShare,
@@ -117,6 +120,7 @@ export function MediaDock({
     onStopShare,
     onSettings,
     onMore,
+    onLeave,
     conn,
     connUi,
     onRetry,
@@ -143,7 +147,7 @@ export function MediaDock({
               <>
                 <StatusChip
                   tone="live"
-                  label={joined ? 'LIVE' : 'LIVE ROOM'}
+                  label={joined ? 'MEDIA CONNECTED' : 'MEDIA ROOM'}
                   pulsing={joined}
                 />
                 <MetaItem
@@ -179,10 +183,10 @@ export function MediaDock({
               leftSection={<IconPlayerPlay size={16} />}
               onClick={onJoin}
               data-testid="dock-join"
-              aria-label="Join live communication"
+              aria-label="Join media session"
               styles={{ root: { fontWeight: 700 } }}
             >
-              Join Live
+              Join media
             </Button>
           )}
         </Transition>
@@ -288,7 +292,6 @@ export function MediaDock({
               />
               {trailingSlot}
 
-              {!compact && (
               <Menu shadow="md" width={220} position="top" withinPortal>
                 <Menu.Target>
                   <Tooltip label="More" withArrow position="top">
@@ -337,7 +340,22 @@ export function MediaDock({
                 </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
-              )}
+
+              {onLeave ? (
+                <Tooltip label="Leave live communication" withArrow position="top">
+                  <ActionIcon
+                    variant="filled"
+                    color="danger"
+                    size={36}
+                    radius="xl"
+                    aria-label="Leave live communication"
+                    data-testid="dock-leave"
+                    onClick={onLeave}
+                  >
+                    <IconPhoneOff size={18} stroke={1.8} />
+                  </ActionIcon>
+                </Tooltip>
+              ) : null}
 
               {!compact && !centerMediaControls && connUi && (
                 <>
@@ -383,10 +401,10 @@ export function MediaDock({
               leftSection={<IconPlayerPlay size={16} />}
               onClick={onJoin}
               data-testid="dock-join"
-              aria-label="Join live communication"
+              aria-label="Join media session"
               styles={{ root: { fontWeight: 700 } }}
             >
-              Join Live
+              Join media
             </Button>
           )
         ) : (
@@ -498,6 +516,7 @@ type LiveControlBundle = {
   onStopShare: () => void;
   onSettings: () => void;
   onMore: (action: string) => void;
+  onLeave?: () => void;
   conn: ConnectionState | 'idle';
   connUi: { label: string; detail: string } | null;
   onRetry: () => void;
@@ -514,6 +533,7 @@ function SidebarDockControls({
   onStopShare,
   onSettings,
   onMore,
+  onLeave,
   conn,
   connUi,
   onRetry,
@@ -624,6 +644,21 @@ function SidebarDockControls({
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
+        {onLeave ? (
+          <Tooltip label="Leave live communication" withArrow position="top">
+            <ActionIcon
+              variant="filled"
+              color="danger"
+              size={controlSize}
+              radius="xl"
+              aria-label="Leave live communication"
+              data-testid="dock-leave"
+              onClick={onLeave}
+            >
+              <IconPhoneOff size={15} />
+            </ActionIcon>
+          </Tooltip>
+        ) : null}
         {connUi ? (
           <Tooltip
             label={
