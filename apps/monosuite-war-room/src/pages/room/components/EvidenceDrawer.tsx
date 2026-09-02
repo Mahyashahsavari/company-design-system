@@ -7,10 +7,11 @@ interface EvidenceDrawerProps {
   onClose: () => void;
   items: EvidenceItem[];
   onAdd: (kind: EvidenceKind) => void;
+  onRemove?: (id: string) => void;
 }
 
 /** Evidence is part of the durable incident record, not a collaboration-panel tab. */
-export function EvidenceDrawer({ opened, onClose, items, onAdd }: EvidenceDrawerProps) {
+export function EvidenceDrawer({ opened, onClose, items, onAdd, onRemove }: EvidenceDrawerProps) {
   return (
     <Drawer
       opened={opened}
@@ -29,7 +30,7 @@ export function EvidenceDrawer({ opened, onClose, items, onAdd }: EvidenceDrawer
     >
       <ScrollArea h="calc(100dvh - 92px)" type="auto">
         <Box pr="xs" pb="xl">
-          <EvidencePanel items={items} onAdd={onAdd} />
+          <EvidencePanel items={items} onAdd={onAdd} onRemove={onRemove} />
         </Box>
       </ScrollArea>
     </Drawer>

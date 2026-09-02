@@ -13,7 +13,6 @@ import { useState } from 'react';
 import {
   IconChevronDown,
   IconChevronUp,
-  IconClock,
   IconLayoutSidebarRight,
   IconMaximize,
   IconMaximizeOff,
@@ -32,7 +31,6 @@ interface LiveMediaFloatPanelProps {
   livePeople: LivePerson[];
   participants: Participant[];
   pinnedTarget: PinTarget | null;
-  durationLabel: string;
   participantCount: number;
   onJoin: () => void;
   onLeave: () => void;
@@ -54,6 +52,9 @@ interface LiveMediaFloatPanelProps {
   onRemoveParticipant: (id: string) => void;
   onSetParticipantRole: (id: string, role: string) => void;
   onViewParticipantDetails: (id: string) => void;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
+  onTransferCommand?: () => void;
   /** Single-row chrome for 1366×768-class desktops. */
   dense?: boolean;
   /** Phone layout — hide split, keep a single control row, and expose fullscreen in the dock. */
@@ -66,7 +67,6 @@ export function LiveMediaFloatPanel({
   livePeople,
   participants,
   pinnedTarget,
-  durationLabel,
   participantCount,
   onJoin,
   onLeave,
@@ -88,6 +88,9 @@ export function LiveMediaFloatPanel({
   onRemoveParticipant,
   onSetParticipantRole,
   onViewParticipantDetails,
+  commanderParticipantId,
+  canTransferCommand = false,
+  onTransferCommand,
   dense = false,
   mobile = false,
 }: LiveMediaFloatPanelProps) {
@@ -140,12 +143,6 @@ export function LiveMediaFloatPanel({
                 <IconUsers size={12} aria-hidden />
                 <Text size="xs" fw={600}>
                   {participantCount}
-                </Text>
-              </Group>
-              <Group gap={6} wrap="nowrap" c="var(--monosuite-color-chrome-text-muted)">
-                <IconClock size={12} aria-hidden />
-                <Text size="xs" fw={600}>
-                  {durationLabel}
                 </Text>
               </Group>
             </Group>
@@ -257,6 +254,9 @@ export function LiveMediaFloatPanel({
                 onRemove={onRemoveParticipant}
                 onSetRole={onSetParticipantRole}
                 onViewDetails={onViewParticipantDetails}
+                commanderParticipantId={commanderParticipantId}
+                canTransferCommand={canTransferCommand}
+                onTransferCommand={onTransferCommand}
               />
             </Box>
           ) : null}
@@ -310,7 +310,6 @@ export function LiveMediaFloatPanel({
           ) : undefined
         }
         media={media}
-        durationLabel={durationLabel}
         participantCount={participantCount}
         onJoin={onJoin}
         onLeave={onLeave}

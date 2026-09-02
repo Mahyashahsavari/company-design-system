@@ -18,6 +18,7 @@ import { DiscardChangesModal } from '../../../shared/components/DiscardChangesMo
 import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
 import {
   CONNECTED_SOURCES,
+  getWorkflowDefinition,
   ROOM_SEVERITY_COLOR,
   ROOM_SEVERITY_OPTIONS,
   ROOM_TAG_SUGGESTIONS,
@@ -25,6 +26,7 @@ import {
   type RoomSettingsDraft,
   type RoomSeverity,
 } from '../data';
+import { WorkflowInfoLabel } from './response-workflow/WorkflowInfoLabel';
 
 interface RoomSettingsModalProps {
   opened: boolean;
@@ -104,7 +106,7 @@ export function RoomSettingsModal({ opened, initial, onClose, onSave }: RoomSett
           }
         />
 
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <Select
             label="Room Severity"
             required
@@ -122,23 +124,31 @@ export function RoomSettingsModal({ opened, initial, onClose, onSave }: RoomSett
             )}
           />
           <Select
-            label="Response workflow"
+            label={
+              <WorkflowInfoLabel
+                size="sm"
+                fw={500}
+                workflowName={getWorkflowDefinition(draft.workflow)?.label}
+                workflowDescription={getWorkflowDefinition(draft.workflow)?.description}
+              />
+            }
             required
             data={[...ROOM_WORKFLOW_OPTIONS]}
             value={draft.workflow}
             onChange={(value) => value && setDraft((current) => ({ ...current, workflow: value }))}
           />
-          <TagsInput
-            label="Tag"
-            placeholder="Enter tags"
-            data={ROOM_TAG_SUGGESTIONS}
-            value={draft.tags}
-            onChange={(tags) => setDraft((current) => ({ ...current, tags }))}
-            clearable
-          />
         </SimpleGrid>
 
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <TagsInput
+          label="Tag"
+          placeholder="Enter tags"
+          data={ROOM_TAG_SUGGESTIONS}
+          value={draft.tags}
+          onChange={(tags) => setDraft((current) => ({ ...current, tags }))}
+          clearable
+        />
+
+        <Stack gap="md">
           <AdapterReferenceField
             label="Incident References"
             value={draft.incidentReferences}
@@ -154,7 +164,7 @@ export function RoomSettingsModal({ opened, initial, onClose, onSave }: RoomSett
             value={draft.victimReferences}
             onChange={(victimReferences) => setDraft((current) => ({ ...current, victimReferences }))}
           />
-        </SimpleGrid>
+        </Stack>
 
         <Group justify="flex-end" mt="xs">
           <Button variant="default" onClick={requestClose}>

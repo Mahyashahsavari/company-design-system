@@ -53,7 +53,13 @@ export function classifyHistoryEntry(entry: HistoryEntry): HistoryEventKind {
   if (action.includes('joined') || action.includes('invited') || action.includes('removed')) {
     return 'people';
   }
-  if (action.includes('evidence')) return 'evidence';
+  if (
+    action.includes('evidence') ||
+    action.includes('linked source record') ||
+    action.includes('removed linked source')
+  ) {
+    return 'evidence';
+  }
   if (action.includes('mitre') || action.includes('ioc')) return 'intel';
   if (action.includes('finding')) return 'finding';
   if (action.includes('decision')) return 'decision';

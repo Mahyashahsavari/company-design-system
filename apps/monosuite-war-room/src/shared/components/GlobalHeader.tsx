@@ -2,7 +2,6 @@ import {
   ActionIcon,
   Avatar,
   Box,
-  Button,
   Group,
   TextInput,
   Text,
@@ -12,7 +11,6 @@ import {
   IconBell,
   IconMoon,
   IconSearch,
-  IconSparkles,
   IconSun,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../shared/constants';
@@ -107,18 +105,6 @@ export function GlobalHeader({ navBurger }: GlobalHeaderProps) {
         >
           {dark ? <IconSun size={18} /> : <IconMoon size={18} />}
         </ActionIcon>
-        <Button
-          size="xs"
-          variant="light"
-          color="teal"
-          leftSection={<IconSparkles size={14} />}
-          aria-label="MonoAI"
-          visibleFrom="sm"
-        >
-          <Text span visibleFrom="lg" inherit>
-            MonoAI
-          </Text>
-        </Button>
         <Group gap={8} wrap="nowrap">
           <Avatar size={28} radius="xl" color="accent">
             {CURRENT_USER.initials}

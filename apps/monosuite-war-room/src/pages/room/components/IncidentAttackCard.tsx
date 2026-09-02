@@ -124,7 +124,7 @@ export function IncidentAttackCard({
   return (
     <Box
       className="monosuite-threat-rail-card monosuite-threat-rail-card--incident"
-      style={{ position: 'relative', paddingLeft: 28, paddingRight: 2 }}
+      style={{ position: 'relative', paddingLeft: THREAT_RAIL_CARD_GUTTER, paddingRight: 2 }}
     >
       <ThreatRailNodeDot tone="accent" pulse />
 
@@ -339,4 +339,8 @@ export function ThreatRailNodeDot({
   );
 }
 
+export const THREAT_RAIL_CHAIN_INSET = 4;
+export const THREAT_RAIL_CARD_GUTTER = 28;
+/** Chain inset + timeline gutter — aligns quick actions with card bodies. */
+export const THREAT_RAIL_CARD_BODY_OFFSET = THREAT_RAIL_CHAIN_INSET + THREAT_RAIL_CARD_GUTTER;
 export const THREAT_RAIL_TIMELINE_LEFT = 14;

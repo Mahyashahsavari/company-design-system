@@ -43,7 +43,6 @@ import {
 
 interface MediaDockProps {
   media: MediaState;
-  durationLabel: string;
   participantCount: number;
   onJoin: () => void;
   onLeave?: () => void;
@@ -77,7 +76,6 @@ type ControlVisual = 'on' | 'off' | 'muted' | 'sharing' | 'warn' | 'danger';
  */
 export function MediaDock({
   media,
-  durationLabel,
   participantCount,
   onJoin,
   onLeave,
@@ -154,11 +152,6 @@ export function MediaDock({
                   icon={<IconUsers size={13} stroke={1.75} />}
                   label={`${participantCount} participants`}
                 />
-                {!compact && (
-                  <MetaItem
-                    label={joined ? `${durationLabel} active` : 'Communication not started'}
-                  />
-                )}
               </>
             ) : (
               leadingSlot

@@ -1,14 +1,28 @@
-import { Box, Group, Text, Tooltip, UnstyledButton } from '@mantine/core';
-import { Fragment, useState } from 'react';
-import { IconCheck, IconChevronRight } from '@tabler/icons-react';
+import {
+  Box,
+  Button,
+  Group,
+  Skeleton,
+  Stack,
+  Text,
+  Tooltip,
+  UnstyledButton,
+} from '@mantine/core';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { IconAlertCircle, IconCheck, IconChevronRight, IconRefresh } from '@tabler/icons-react';
 import { TruncatedTooltipText } from '../../../../shared/components/TruncatedTooltipText';
+import type { RoomWorkflowFetchStatus } from '../../hooks/useRoomWorkflow';
 import type { WorkflowPhaseColor, WorkflowStep } from '../../data';
+import { WorkflowInfoLabel } from './WorkflowInfoLabel';
 
-interface ResponseWorkflowProps {
+export interface ResponseWorkflowProps {
   steps: WorkflowStep[];
-  protocol?: string;
-  title?: string;
-  height?: number;
+  fetchStatus: RoomWorkflowFetchStatus;
+  workflowName?: string;
+  workflowDescription?: string;
+  errorMessage?: string | null;
+  onRetry?: () => void;
+  onOpenSettings?: () => void;
   /** Strip is a single-row stepper for short desktops. Focus peeks prev/current/next on phones. */
   density?: 'cards' | 'strip' | 'focus';
 }
@@ -26,37 +40,84 @@ function phaseFill(color: WorkflowPhaseColor) {
 /** Full-width compact workflow cards — phase color is independent of progress status. */
 export function ResponseWorkflow({
   steps,
-  protocol = 'NIST SP 800-61',
-  title = 'Response Workflow',
+  fetchStatus,
+  workflowName,
+  workflowDescription,
+  errorMessage,
+  onRetry,
+  onOpenSettings,
   density = 'cards',
 }: ResponseWorkflowProps) {
-  const completedCount = steps.filter((s) => s.status === 'completed').length;
-  const progress =
-    ((completedCount + (steps.some((s) => s.status === 'current') ? 0.5 : 0)) / steps.length) * 100;
   const strip = density === 'strip';
   const focus = density === 'focus';
+
   const currentIndex = Math.max(
     0,
     steps.findIndex((step) => step.status === 'current'),
   );
-  const current = steps[currentIndex] ?? steps[0];
   const [focusedIndex, setFocusedIndex] = useState(currentIndex);
-  const safeFocus = Math.min(Math.max(focusedIndex, 0), steps.length - 1);
+
+  useEffect(() => {
+    setFocusedIndex(currentIndex);
+  }, [currentIndex, steps]);
+
+  if (fetchStatus === 'loading') {
+    return (
+      <WorkflowShell density={density} ariaLabel="Response workflow loading">
+        <WorkflowHeader
+          workflowName={workflowName}
+          workflowDescription={workflowDescription}
+          trailing={strip ? null : undefined}
+        />
+        <WorkflowLoadingState strip={strip} focus={focus} />
+      </WorkflowShell>
+    );
+  }
+
+  if (fetchStatus === 'empty') {
+    return (
+      <WorkflowShell density={density} ariaLabel="Response workflow unavailable">
+        <WorkflowHeader
+          workflowName={workflowName}
+          workflowDescription={workflowDescription}
+        />
+        <WorkflowEmptyState onOpenSettings={onOpenSettings} />
+      </WorkflowShell>
+    );
+  }
+
+  if (fetchStatus === 'error') {
+    return (
+      <WorkflowShell density={density} ariaLabel="Response workflow failed to load">
+        <WorkflowHeader
+          workflowName={workflowName}
+          workflowDescription={workflowDescription}
+        />
+        <WorkflowErrorState message={errorMessage} onRetry={onRetry} />
+      </WorkflowShell>
+    );
+  }
+
+  const completedCount = steps.filter((s) => s.status === 'completed').length;
+  const progress =
+    steps.length > 0
+      ? ((completedCount + (steps.some((s) => s.status === 'current') ? 0.5 : 0)) / steps.length) *
+        100
+      : 0;
+  const current = steps[currentIndex] ?? steps[0];
+
+  const safeFocus = Math.min(Math.max(focusedIndex, 0), Math.max(steps.length - 1, 0));
   const prevStep = safeFocus > 0 ? steps[safeFocus - 1] : null;
   const nextStep = safeFocus < steps.length - 1 ? steps[safeFocus + 1] : null;
   const focused = steps[safeFocus] ?? current;
 
   if (focus) {
     return (
-      <Box className="monosuite-workflow monosuite-workflow--focus" aria-label={title}>
-        <Group justify="space-between" mb={8} wrap="nowrap" gap="xs">
-          <Text size="xs" fw={600}>
-            {title}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {protocol}
-          </Text>
-        </Group>
+      <WorkflowShell density="focus" ariaLabel="Response workflow">
+        <WorkflowHeader
+          workflowName={workflowName}
+          workflowDescription={workflowDescription}
+        />
         <Box className="monosuite-workflow-focus-track" aria-label="Previous, current, and next workflow steps">
           {prevStep ? (
             <FocusStepCard
@@ -101,33 +162,21 @@ export function ResponseWorkflow({
             </Tooltip>
           ))}
         </Group>
-      </Box>
+      </WorkflowShell>
     );
   }
 
   return (
-    <Box
-      className={`monosuite-workflow${strip ? ' monosuite-workflow--strip' : ''}`}
-      aria-label={title}
-    >
-      <Group justify="space-between" mb={strip ? 4 : 6} wrap="nowrap" gap="xs">
-        <TruncatedTooltipText size="xs" fw={600} style={{ minWidth: 0, flex: 1 }}>
-          {title}
-        </TruncatedTooltipText>
-        <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
-          <PhaseKey steps={steps} />
-          <Text size="xs" c="dimmed">
-            {protocol}
-          </Text>
-        </Group>
-      </Group>
+    <WorkflowShell density={strip ? 'strip' : 'cards'} ariaLabel="Response workflow">
+      <WorkflowHeader
+        workflowName={workflowName}
+        workflowDescription={workflowDescription}
+        trailing={strip ? null : <PhaseKey steps={steps} />}
+      />
 
       <Box className="monosuite-workflow-shell" style={{ position: 'relative', width: '100%' }}>
         <Box className="monosuite-workflow-progress" aria-hidden>
-          <Box
-            className="monosuite-workflow-progress-fill"
-            style={{ width: `${progress}%` }}
-          />
+          <Box className="monosuite-workflow-progress-fill" style={{ width: `${progress}%` }} />
         </Box>
 
         <Box className="monosuite-workflow-track">
@@ -141,6 +190,129 @@ export function ResponseWorkflow({
           ))}
         </Box>
       </Box>
+    </WorkflowShell>
+  );
+}
+
+function WorkflowShell({
+  density,
+  ariaLabel,
+  children,
+}: {
+  density: 'cards' | 'strip' | 'focus';
+  ariaLabel: string;
+  children: ReactNode;
+}) {
+  const strip = density === 'strip';
+  const focus = density === 'focus';
+
+  return (
+    <Box
+      className={`monosuite-workflow${strip ? ' monosuite-workflow--strip' : ''}${focus ? ' monosuite-workflow--focus' : ''}`}
+      aria-label={ariaLabel}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function WorkflowHeader({
+  workflowName,
+  workflowDescription,
+  trailing,
+}: {
+  workflowName?: string;
+  workflowDescription?: string;
+  trailing?: ReactNode | null;
+}) {
+  return (
+    <Group justify="space-between" mb={6} wrap="nowrap" gap="xs">
+      <Box style={{ minWidth: 0, flex: 1 }}>
+        <WorkflowInfoLabel workflowName={workflowName} workflowDescription={workflowDescription} />
+      </Box>
+      {trailing === undefined ? null : trailing}
+    </Group>
+  );
+}
+
+function WorkflowLoadingState({ strip, focus }: { strip: boolean; focus: boolean }) {
+  const cardCount = focus ? 3 : strip ? 5 : 5;
+
+  return (
+    <Box className="monosuite-workflow-state" aria-busy="true" aria-live="polite">
+      <Group gap={strip || focus ? 6 : 0} wrap="nowrap" grow={!strip && !focus}>
+        {Array.from({ length: cardCount }, (_, index) => (
+          <Skeleton
+            key={index}
+            height={focus ? 56 : strip ? 28 : 52}
+            radius="sm"
+            style={{ flex: strip || focus ? '1 1 0' : undefined, minWidth: 0 }}
+          />
+        ))}
+      </Group>
+      <Text size="xs" c="dimmed" mt={8}>
+        Loading workflow phases…
+      </Text>
+    </Box>
+  );
+}
+
+function WorkflowEmptyState({ onOpenSettings }: { onOpenSettings?: () => void }) {
+  return (
+    <Box className="monosuite-workflow-state monosuite-workflow-state--empty" aria-live="polite">
+      <Stack gap={6} align="flex-start">
+        <Text size="sm" fw={600}>
+          No response workflow configured
+        </Text>
+        <Text size="xs" c="dimmed" maw={480}>
+          Select a response workflow in Room settings to show phase tracking for this room.
+        </Text>
+        {onOpenSettings ? (
+          <Button variant="light" color="brand" size="xs" onClick={onOpenSettings}>
+            Open Room settings
+          </Button>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+}
+
+function WorkflowErrorState({
+  message,
+  onRetry,
+}: {
+  message?: string | null;
+  onRetry?: () => void;
+}) {
+  return (
+    <Box className="monosuite-workflow-state monosuite-workflow-state--error" aria-live="assertive">
+      <Group gap="sm" align="flex-start" wrap="nowrap">
+        <IconAlertCircle
+          size={18}
+          color="var(--mantine-color-danger-filled)"
+          aria-hidden
+          style={{ flexShrink: 0, marginTop: 2 }}
+        />
+        <Stack gap={6} style={{ minWidth: 0 }}>
+          <Text size="sm" fw={600}>
+            Unable to load workflow
+          </Text>
+          <Text size="xs" c="dimmed">
+            {message ?? 'The response workflow could not be retrieved. Retry or check Room settings.'}
+          </Text>
+          {onRetry ? (
+            <Button
+              variant="light"
+              color="brand"
+              size="xs"
+              leftSection={<IconRefresh size={14} />}
+              onClick={onRetry}
+            >
+              Retry
+            </Button>
+          ) : null}
+        </Stack>
+      </Group>
     </Box>
   );
 }
@@ -223,7 +395,7 @@ function FocusStepCard({
 
 function PhaseKey({ steps }: { steps: WorkflowStep[] }) {
   return (
-    <Group gap={4} wrap="nowrap" aria-label="NIST phase colors">
+    <Group gap={4} wrap="nowrap" aria-label="Workflow phase colors">
       {steps.map((step) => (
         <Tooltip
           key={step.id}
@@ -382,10 +554,12 @@ function StatusChip({
 
 function WorkflowConnector({ filled }: { filled: boolean }) {
   return (
-    <Box className="monosuite-workflow-connector workflow-connector" aria-hidden data-filled={filled ? 'true' : 'false'}>
+    <Box
+      className="monosuite-workflow-connector workflow-connector"
+      aria-hidden
+      data-filled={filled ? 'true' : 'false'}
+    >
       <IconChevronRight size={11} />
     </Box>
   );
 }
-
-export type { ResponseWorkflowProps };

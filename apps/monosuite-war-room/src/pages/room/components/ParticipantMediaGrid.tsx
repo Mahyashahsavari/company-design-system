@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import {
+  IconArrowsExchange,
   IconDots,
   IconMicrophone,
   IconMicrophoneOff,
@@ -25,7 +26,7 @@ import {
   IconWifiOff,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../../shared/constants';
-import { ROOM_ROLES, type LivePerson, type Participant, type PinTarget } from '../data';
+import { ASSIGNABLE_ROOM_ROLES, participantRoleLabel, isRoomCommander, type LivePerson, type Participant, type PinTarget } from '../data';
 import type { MediaState } from '../hooks/useRoomState';
 
 export interface MediaParticipant {
@@ -34,6 +35,7 @@ export interface MediaParticipant {
   initials: string;
   color: string;
   role: string;
+  assignableRole: string;
   camera: boolean;
   mic: boolean;
   speaking: boolean;
@@ -61,12 +63,16 @@ interface ParticipantMediaGridProps {
   onRemove: (id: string) => void;
   onSetRole: (id: string, role: string) => void;
   onViewDetails: (id: string) => void;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
+  onTransferCommand?: () => void;
 }
 
 export function buildMediaRoster(
   livePeople: LivePerson[],
   participants: Participant[],
   media: MediaState,
+  commanderParticipantId: string,
 ): MediaParticipant[] {
   return livePeople.map((person) => {
     const remote = participants.find((p) => p.id === person.id);
@@ -80,7 +86,14 @@ export function buildMediaRoster(
       name: isLocal ? CURRENT_USER.name : person.name,
       initials: person.initials,
       color: person.color,
-      role: isLocal ? CURRENT_USER.role : (remote?.role ?? 'Responder'),
+      assignableRole: isLocal ? CURRENT_USER.roomRole : (remote?.role ?? 'Responder'),
+      role: isLocal
+        ? participantRoleLabel(CURRENT_USER.id, CURRENT_USER.roomRole, commanderParticipantId)
+        : participantRoleLabel(
+            person.id,
+            remote?.role ?? 'Responder',
+            commanderParticipantId,
+          ),
       camera: isLocal ? media.camera : (remote?.camera ?? person.camera),
       mic: isLocal
         ? media.mic && !media.mutedByModerator
@@ -111,9 +124,18 @@ export function ParticipantMediaGrid({
   onRemove,
   onSetRole,
   onViewDetails,
+  commanderParticipantId,
+  canTransferCommand = false,
+  onTransferCommand,
 }: ParticipantMediaGridProps) {
-  const roster = buildMediaRoster(livePeople, participants, media);
+  const roster = buildMediaRoster(livePeople, participants, media, commanderParticipantId);
   if (!media.joined || roster.length === 0) return null;
+
+  const tileCommandProps = {
+    commanderParticipantId,
+    canTransferCommand,
+    onTransferCommand,
+  };
 
   const pinnedParticipant =
     pinnedTarget?.kind === 'participant'
@@ -147,6 +169,7 @@ export function ParticipantMediaGrid({
             onRemove={() => onRemove(person.id)}
             onSetRole={(role) => onSetRole(person.id, role)}
             onViewDetails={() => onViewDetails(person.id)}
+            {...tileCommandProps}
           />
         ))}
       </Stack>
@@ -191,6 +214,7 @@ export function ParticipantMediaGrid({
               onRemove={() => onRemove(person.id)}
               onSetRole={(role) => onSetRole(person.id, role)}
               onViewDetails={() => onViewDetails(person.id)}
+              {...tileCommandProps}
             />
           ))}
         </Box>
@@ -233,6 +257,7 @@ export function ParticipantMediaGrid({
                 onRemove={() => onRemove(primary.id)}
                 onSetRole={(role) => onSetRole(primary.id, role)}
                 onViewDetails={() => onViewDetails(primary.id)}
+                {...tileCommandProps}
               />
             </Box>
           )}
@@ -251,6 +276,7 @@ export function ParticipantMediaGrid({
               onRemove={() => onRemove(person.id)}
               onSetRole={(role) => onSetRole(person.id, role)}
               onViewDetails={() => onViewDetails(person.id)}
+              {...tileCommandProps}
             />
           ))}
         </Box>
@@ -272,6 +298,9 @@ export function ParticipantTile({
   onRemove,
   onSetRole,
   onViewDetails,
+  commanderParticipantId,
+  canTransferCommand = false,
+  onTransferCommand,
 }: {
   person: MediaParticipant;
   size: 'primary' | 'thumb' | 'stage' | 'rail' | 'featured';
@@ -284,6 +313,9 @@ export function ParticipantTile({
   onRemove: () => void;
   onSetRole: (role: string) => void;
   onViewDetails: () => void;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
+  onTransferCommand?: () => void;
 }) {
   const w = '100%';
   const h =
@@ -451,12 +483,16 @@ export function ParticipantTile({
               />
               {isLarge && (
                 <ParticipantMoreMenu
+                  participantId={person.id}
                   name={person.name}
-                  role={person.role}
+                  assignableRole={person.assignableRole}
+                  commanderParticipantId={commanderParticipantId}
+                  canTransferCommand={canTransferCommand}
                   onViewDetails={onViewDetails}
                   onPin={onPin}
                   onSetRole={onSetRole}
                   onRemove={onRemove}
+                  onTransferCommand={onTransferCommand}
                 />
               )}
             </>
@@ -535,20 +571,30 @@ function ChromeMediaToggle({
 
 /** Role / remove actions — primary tile only; mic/camera toggles sit inline with the name. */
 function ParticipantMoreMenu({
+  participantId,
   name,
-  role,
+  assignableRole,
+  commanderParticipantId,
+  canTransferCommand = false,
   onViewDetails,
   onPin,
   onSetRole,
   onRemove,
+  onTransferCommand,
 }: {
+  participantId: string;
   name: string;
-  role: string;
+  assignableRole: string;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
   onViewDetails: () => void;
   onPin: () => void;
   onSetRole: (role: string) => void;
   onRemove: () => void;
+  onTransferCommand?: () => void;
 }) {
+  const isCommander = isRoomCommander(participantId, commanderParticipantId);
+
   return (
     <Menu shadow="md" width={200} position="top-end" withinPortal>
       <Menu.Target>
@@ -579,17 +625,33 @@ function ParticipantMoreMenu({
         </Menu.Item>
         <Menu.Divider />
         <Menu.Label>Role</Menu.Label>
-        {ROOM_ROLES.map((r) => (
+        {ASSIGNABLE_ROOM_ROLES.map((r) => (
           <Menu.Item
             key={r.value}
             onClick={() => onSetRole(r.value)}
-            disabled={role === r.value}
+            disabled={assignableRole === r.value}
           >
             {r.label}
           </Menu.Item>
         ))}
+        {isCommander && canTransferCommand && onTransferCommand ? (
+          <>
+            <Menu.Divider />
+            <Menu.Item
+              leftSection={<IconArrowsExchange size={14} />}
+              onClick={onTransferCommand}
+            >
+              Transfer command
+            </Menu.Item>
+          </>
+        ) : null}
         <Menu.Divider />
-        <Menu.Item color="danger" leftSection={<IconUserOff size={14} />} onClick={onRemove}>
+        <Menu.Item
+          color="danger"
+          leftSection={<IconUserOff size={14} />}
+          onClick={onRemove}
+          disabled={isCommander}
+        >
           Remove participant
         </Menu.Item>
       </Menu.Dropdown>
