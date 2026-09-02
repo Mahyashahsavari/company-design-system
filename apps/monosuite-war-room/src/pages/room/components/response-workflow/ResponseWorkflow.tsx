@@ -51,6 +51,16 @@ export function ResponseWorkflow({
   const strip = density === 'strip';
   const focus = density === 'focus';
 
+  const currentIndex = Math.max(
+    0,
+    steps.findIndex((step) => step.status === 'current'),
+  );
+  const [focusedIndex, setFocusedIndex] = useState(currentIndex);
+
+  useEffect(() => {
+    setFocusedIndex(currentIndex);
+  }, [currentIndex, steps]);
+
   if (fetchStatus === 'loading') {
     return (
       <WorkflowShell density={density} ariaLabel="Response workflow loading">
@@ -94,16 +104,7 @@ export function ResponseWorkflow({
       ? ((completedCount + (steps.some((s) => s.status === 'current') ? 0.5 : 0)) / steps.length) *
         100
       : 0;
-  const currentIndex = Math.max(
-    0,
-    steps.findIndex((step) => step.status === 'current'),
-  );
   const current = steps[currentIndex] ?? steps[0];
-  const [focusedIndex, setFocusedIndex] = useState(currentIndex);
-
-  useEffect(() => {
-    setFocusedIndex(currentIndex);
-  }, [currentIndex, steps]);
 
   const safeFocus = Math.min(Math.max(focusedIndex, 0), Math.max(steps.length - 1, 0));
   const prevStep = safeFocus > 0 ? steps[safeFocus - 1] : null;
