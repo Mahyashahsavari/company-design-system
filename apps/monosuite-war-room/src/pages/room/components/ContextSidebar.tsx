@@ -13,6 +13,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import {
+  IconArrowsExchange,
   IconActivity,
   IconDots,
   IconLayoutSidebarRightCollapse,
@@ -31,7 +32,9 @@ import {
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../../shared/constants';
 import {
-  ROOM_ROLES,
+  ASSIGNABLE_ROOM_ROLES,
+  participantRoleLabel,
+  isRoomCommander,
   type ContextTab,
   type EvidenceItem,
   type HistoryEntry,
@@ -61,6 +64,9 @@ interface ContextSidebarProps {
   onViewDetails: (id: string) => void;
   onPinParticipant?: (id: string) => void;
   onToggleCollapse?: () => void;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
+  onTransferCommand?: () => void;
 }
 
 const RAIL_TABS: { value: ContextTab; label: string; icon: typeof IconUsers }[] = [
@@ -88,6 +94,9 @@ export function ContextSidebar({
   onViewDetails,
   onPinParticipant,
   onToggleCollapse,
+  commanderParticipantId,
+  canTransferCommand = false,
+  onTransferCommand,
 }: ContextSidebarProps) {
   const activeTabMeta = RAIL_TABS.find((item) => item.value === tab);
 
@@ -196,6 +205,8 @@ export function ContextSidebar({
                   participants={participants}
                   media={media}
                   canManage={canManageParticipants}
+                  commanderParticipantId={commanderParticipantId}
+                  canTransferCommand={canTransferCommand}
                   onInvite={onInvite}
                   onMute={onMuteParticipant}
                   onDisableCamera={onDisableCamera}
@@ -203,6 +214,7 @@ export function ContextSidebar({
                   onSetRole={onSetRole}
                   onViewDetails={onViewDetails}
                   onPin={onPinParticipant}
+                  onTransferCommand={onTransferCommand}
                 />
               </Box>
             </ScrollArea>
@@ -297,6 +309,8 @@ function ParticipantsPanel({
   participants,
   media,
   canManage,
+  commanderParticipantId,
+  canTransferCommand,
   onInvite,
   onMute,
   onDisableCamera,
@@ -304,10 +318,13 @@ function ParticipantsPanel({
   onSetRole,
   onViewDetails,
   onPin,
+  onTransferCommand,
 }: {
   participants: Participant[];
   media: MediaState;
   canManage: boolean;
+  commanderParticipantId: string;
+  canTransferCommand: boolean;
   onInvite: () => void;
   onMute: (id: string) => void;
   onDisableCamera: (id: string) => void;
@@ -315,6 +332,7 @@ function ParticipantsPanel({
   onSetRole: (id: string, role: string) => void;
   onViewDetails: (id: string) => void;
   onPin?: (id: string) => void;
+  onTransferCommand?: () => void;
 }) {
   return (
     <Stack gap="sm" pl={2}>
@@ -327,22 +345,28 @@ function ParticipantsPanel({
 
       <Stack gap={6}>
         <ParticipantRow
+          participantId={CURRENT_USER.id}
           name={CURRENT_USER.name}
           initials={CURRENT_USER.initials}
-          role={CURRENT_USER.role}
+          role={CURRENT_USER.roomRole}
+          commanderParticipantId={commanderParticipantId}
           status="online"
           color="brand"
           mic={media.mic && !media.mutedByModerator}
           camera={media.camera}
           isLocal
           canManage={false}
+          canTransferCommand={canTransferCommand}
+          onTransferCommand={onTransferCommand}
         />
         {participants.map((p) => (
           <ParticipantRow
             key={p.id}
+            participantId={p.id}
             name={p.name}
             initials={p.initials}
             role={p.role}
+            commanderParticipantId={commanderParticipantId}
             status={p.status}
             color={p.color}
             mic={p.mic}
@@ -350,12 +374,14 @@ function ParticipantsPanel({
             speaking={media.speakingId === p.id}
             typing={p.typing}
             canManage={canManage}
+            canTransferCommand={canTransferCommand}
             onMute={() => onMute(p.id)}
             onDisableCamera={() => onDisableCamera(p.id)}
             onRemove={() => onRemove(p.id)}
             onSetRole={(role) => onSetRole(p.id, role)}
             onViewDetails={() => onViewDetails(p.id)}
             onPin={onPin ? () => onPin(p.id) : undefined}
+            onTransferCommand={onTransferCommand}
           />
         ))}
       </Stack>
@@ -373,9 +399,11 @@ function ParticipantsPanel({
 }
 
 function ParticipantRow({
+  participantId,
   name,
   initials,
   role,
+  commanderParticipantId,
   status,
   color,
   mic,
@@ -384,16 +412,20 @@ function ParticipantRow({
   typing,
   isLocal,
   canManage,
+  canTransferCommand,
   onMute,
   onDisableCamera,
   onRemove,
   onSetRole,
   onViewDetails,
   onPin,
+  onTransferCommand,
 }: {
+  participantId: string;
   name: string;
   initials: string;
   role: string;
+  commanderParticipantId: string;
   status: 'online' | 'away';
   color: string;
   mic: boolean;
@@ -402,13 +434,17 @@ function ParticipantRow({
   typing?: boolean;
   isLocal?: boolean;
   canManage: boolean;
+  canTransferCommand?: boolean;
   onMute?: () => void;
   onDisableCamera?: () => void;
   onRemove?: () => void;
   onSetRole?: (role: string) => void;
   onViewDetails?: () => void;
   onPin?: () => void;
+  onTransferCommand?: () => void;
 }) {
+  const isCommander = isRoomCommander(participantId, commanderParticipantId);
+  const displayRole = participantRoleLabel(participantId, role, commanderParticipantId);
   return (
     <Group
       gap="sm"
@@ -445,10 +481,10 @@ function ParticipantRow({
         <TruncatedTooltipText
           size="xs"
           c="dimmed"
-          tooltip={`${role}${role === 'Guest' ? ' · view only' : ''}${typing && !speaking ? ' · typing…' : ''}`}
+          tooltip={`${displayRole}${displayRole === 'Guest' ? ' · view only' : ''}${typing && !speaking ? ' · typing…' : ''}`}
         >
-          {role}
-          {role === 'Guest' ? ' · view only' : ''}
+          {displayRole}
+          {displayRole === 'Guest' ? ' · view only' : ''}
           {typing && !speaking ? ' · typing…' : ''}
         </TruncatedTooltipText>
       </Stack>
@@ -502,7 +538,7 @@ function ParticipantRow({
                 )}
                 <Menu.Divider />
                 <Menu.Label>Role</Menu.Label>
-                {ROOM_ROLES.map((r) => (
+                {ASSIGNABLE_ROOM_ROLES.map((r) => (
                   <Menu.Item
                     key={r.value}
                     onClick={() => onSetRole?.(r.value)}
@@ -511,14 +547,31 @@ function ParticipantRow({
                     {r.label}
                   </Menu.Item>
                 ))}
+                {isCommander && canTransferCommand && onTransferCommand ? (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Item
+                      leftSection={<IconArrowsExchange size={14} />}
+                      onClick={onTransferCommand}
+                    >
+                      Transfer command
+                    </Menu.Item>
+                  </>
+                ) : null}
                 <Menu.Divider />
-                <Menu.Item
-                  color="danger"
-                  leftSection={<IconUserOff size={14} />}
-                  onClick={onRemove}
+                <Tooltip
+                  label={isCommander ? 'Transfer command before removing the commander' : undefined}
+                  disabled={!isCommander}
                 >
-                  Remove participant
-                </Menu.Item>
+                  <Menu.Item
+                    color="danger"
+                    leftSection={<IconUserOff size={14} />}
+                    onClick={onRemove}
+                    disabled={isCommander}
+                  >
+                    Remove participant
+                  </Menu.Item>
+                </Tooltip>
               </Menu.Dropdown>
             </Menu>
           </>

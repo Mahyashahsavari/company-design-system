@@ -12,7 +12,6 @@ import {
 } from '@mantine/core';
 import {
   IconActivity,
-  IconClock,
   IconRadar2,
   IconUsers,
   IconX,
@@ -73,7 +72,6 @@ export function InvestigationWorkspace({
     recordDecision,
     history,
     typingVisible,
-    durationShort,
   } = room;
 
   const tabLabel = (base: string, count: number) => `${base} · ${count}`;
@@ -134,12 +132,6 @@ export function InvestigationWorkspace({
             <IconUsers size={14} aria-hidden />
             <Text size="xs" fw={600}>
               {PARTICIPANTS.length}
-            </Text>
-          </Group>
-          <Group gap={4} c="dimmed" wrap="nowrap" visibleFrom="sm">
-            <IconClock size={14} aria-hidden />
-            <Text size="xs" fw={600}>
-              {durationShort}
             </Text>
           </Group>
           {typingVisible && (

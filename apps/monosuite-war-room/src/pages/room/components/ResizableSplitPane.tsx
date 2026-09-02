@@ -107,6 +107,7 @@ export function ResizableSplitPane({
       </Box>
 
       <Box
+        className="monosuite-threat-rail-resize monosuite-room-side-resize monosuite-room-collab-split-resize"
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize live collaboration panel"
@@ -120,20 +121,11 @@ export function ResizableSplitPane({
           flexShrink: 0,
           cursor: 'col-resize',
           touchAction: 'none',
-          background: dragging
-            ? 'color-mix(in srgb, var(--mantine-color-teal-filled) 28%, transparent)'
-            : 'var(--monosuite-color-border)',
-          transition: dragging ? 'none' : 'background 120ms ease',
+          alignSelf: 'stretch',
+          marginInline: '2px',
         }}
-        onMouseEnter={(event) => {
-          if (dragging) return;
-          event.currentTarget.style.background =
-            'color-mix(in srgb, var(--mantine-color-teal-filled) 18%, transparent)';
-        }}
-        onMouseLeave={(event) => {
-          if (dragging) return;
-          event.currentTarget.style.background = 'var(--monosuite-color-border)';
-        }}
+        data-dragging={dragging ? 'true' : undefined}
+        data-testid="collaboration-split-resize"
       />
 
       <Box

@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { AppShell, Box } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { useElementSize, useMediaQuery } from '@mantine/hooks';
 import { AppChrome } from '../../shared/components/AppChrome';
 import { Toast } from '../../shared';
 import {
-  getRoomUtilityWidth,
-  ROOM_ATTACK_CHAIN_WIDTH_DENSE,
   ROOM_DENSE_HEIGHT_QUERY,
   ROOM_DENSE_WIDTH_QUERY,
   ROOM_MEDIA_DOCK_GUTTER,
@@ -28,7 +26,9 @@ import { AttackMapModal } from './components/AttackMapModal';
 import { EditIncidentDrawer } from './components/EditIncidentDrawer';
 import { EvidenceDrawer } from './components/EvidenceDrawer';
 import { MediaSettingsModal } from './components/MediaSettingsModal';
+import { TransferCommandModal } from './components/TransferCommandModal';
 import { RoomSettingsModal } from './components/RoomSettingsModal';
+import { ResizableRoomSidePanel } from './components/ResizableRoomSidePanel';
 import { ResizableSplitPane } from './components/ResizableSplitPane';
 import { ResponseWorkflow } from './components/response-workflow';
 import { RoomCommandHeader } from './components/RoomCommandHeader';
@@ -37,9 +37,9 @@ import {
   LINKED_INCIDENT_ALERTS,
   PARTICIPANTS,
   VICTIM_ENTITIES,
-  WORKFLOW_STEPS,
 } from './data';
 import { useRoomState } from './hooks/useRoomState';
+import { useRoomSidePanelWidths } from './hooks/useRoomSidePanelWidths';
 
 function handleMediaMore(action: string, room: ReturnType<typeof useRoomState>) {
   if (action === 'simulate-moderator-mute') {
@@ -65,6 +65,15 @@ export function RoomPage() {
   const [evidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
   const [affectedEntitiesOpen, setAffectedEntitiesOpen] = useState(false);
   const [attackMapOpen, setAttackMapOpen] = useState(false);
+  const { ref: roomRowRef, width: roomRowWidth } = useElementSize();
+  const {
+    leftWidth,
+    rightWidth,
+    setLeftWidth,
+    setRightWidth,
+    minWidth: sidePanelMinWidth,
+    maxWidth: sidePanelMaxWidth,
+  } = useRoomSidePanelWidths(roomRowWidth);
   const compactDesktop = useMediaQuery(`(max-width: ${ROOM_UTILITY_COMPACT_MAX})`, true, {
     getInitialValueInEffect: false,
   });
@@ -78,14 +87,15 @@ export function RoomPage() {
   const isMobile = useMediaQuery(ROOM_MOBILE_QUERY, false, {
     getInitialValueInEffect: false,
   });
-  const utilityExpandedWidth = getRoomUtilityWidth({ compact: compactDesktop, collapsed: false });
-  const utilityWidth = getRoomUtilityWidth({
-    compact: compactDesktop,
-    collapsed: room.asideCollapsed,
-  });
   const collabFullscreen = room.collaborationFullscreen;
   const collabSplit = room.collaborationSplit && room.media.joined && !collabFullscreen;
   const showDockedFloat = !collabSplit && !collabFullscreen;
+
+  const commanderProps = {
+    commanderParticipantId: room.commanderParticipantId,
+    canTransferCommand: room.canTransferCommand,
+    onTransferCommand: room.openTransferCommand,
+  };
 
   const collaboration = (
     <CollaborationLayer
@@ -96,7 +106,6 @@ export function RoomPage() {
       viewerCount={PARTICIPANTS.length}
       fullscreen={collabFullscreen}
       split={collabSplit}
-      durationLabel={room.durationLabel}
       participantCount={room.participants.length}
       onJoin={room.joinLive}
       onToggleMedia={room.toggleMedia}
@@ -117,27 +126,29 @@ export function RoomPage() {
       onRemoveParticipant={room.removeParticipant}
       onSetParticipantRole={room.setParticipantRole}
       onViewParticipantDetails={room.viewParticipantDetails}
+      {...commanderProps}
     />
   );
 
-  const splitUtilityWidth = getRoomUtilityWidth({
-    compact: compactDesktop,
-    collapsed: room.asideCollapsed,
-    split: true,
-  });
-  const activeUtilityWidth = collabSplit ? splitUtilityWidth : utilityWidth;
   const minCollabWidth = compactDesktop ? 240 : 260;
 
   const utilitySidebar = (
-    <Box
-      className="monosuite-room-utility-panel monosuite-context-rail"
-      style={{
-        width: activeUtilityWidth,
-        marginRight: 4,
-        transition: 'width 160ms ease',
-      }}
+    <ResizableRoomSidePanel
+      className="monosuite-room-utility-panel"
+      collapsed={room.asideCollapsed}
+      width={rightWidth}
+      onWidthChange={setRightWidth}
+      minWidth={sidePanelMinWidth}
+      maxWidth={sidePanelMaxWidth}
+      resizeEdge="leading"
+      data-testid="utility-panel-resize"
     >
-      <ContextSidebar
+      <Box
+        className="monosuite-context-rail"
+        h="100%"
+        style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+      >
+        <ContextSidebar
         tab={room.sidebarTab}
         onTabChange={room.setSidebarTab}
         history={room.history}
@@ -158,8 +169,10 @@ export function RoomPage() {
         onSetRole={room.setParticipantRole}
         onViewDetails={room.viewParticipantDetails}
         onPinParticipant={room.pinParticipant}
+        {...commanderProps}
       />
-    </Box>
+      </Box>
+    </ResizableRoomSidePanel>
   );
 
   const liveMediaFloatPanel = (
@@ -168,7 +181,6 @@ export function RoomPage() {
       livePeople={room.livePeople}
       participants={room.participants}
       pinnedTarget={room.pinnedTarget}
-      durationLabel={room.durationLabel}
       participantCount={room.participants.length}
       dense={denseRoom || isMobile}
       mobile={isMobile}
@@ -192,11 +204,13 @@ export function RoomPage() {
       onRemoveParticipant={room.removeParticipant}
       onSetParticipantRole={room.setParticipantRole}
       onViewParticipantDetails={room.viewParticipantDetails}
+      {...commanderProps}
     />
   );
 
   const roomBody = (
     <Box
+      ref={roomRowRef}
       className="monosuite-room-row"
       data-density={denseRoom ? 'dense' : 'default'}
       px={ROOM_PAGE_HEADER_GUTTER}
@@ -210,7 +224,10 @@ export function RoomPage() {
         onVictimChange={setVictimId}
         onEditIncident={() => room.roomAction('view-incident')}
         linkedAlerts={linkedAlerts}
-        defaultWidth={denseWidth ? ROOM_ATTACK_CHAIN_WIDTH_DENSE : utilityExpandedWidth}
+        panelWidth={leftWidth}
+        onPanelWidthChange={setLeftWidth}
+        minPanelWidth={sidePanelMinWidth}
+        maxPanelWidth={sidePanelMaxWidth}
         collapsed={contextCollapsed}
         onToggleCollapse={() => setContextCollapsed((value) => !value)}
         onOpenAffectedEntities={() => setAffectedEntitiesOpen(true)}
@@ -230,8 +247,15 @@ export function RoomPage() {
       >
         <Box style={{ flexShrink: 0 }}>
           <ResponseWorkflow
-            steps={WORKFLOW_STEPS}
-            protocol="NIST SP 800-61"
+            steps={room.roomWorkflow.steps}
+            fetchStatus={room.roomWorkflow.status}
+            workflowName={room.roomWorkflow.workflowName}
+            workflowDescription={room.roomWorkflow.workflowDescription}
+            errorMessage={room.roomWorkflow.errorMessage}
+            onRetry={room.roomWorkflow.retry}
+            onOpenSettings={
+              room.canEditRoomSettings ? () => room.setRoomSettingsOpen(true) : undefined
+            }
             density={denseRoom ? 'strip' : 'cards'}
           />
         </Box>
@@ -310,9 +334,19 @@ export function RoomPage() {
             <Box className="monosuite-room-body">
               <RoomCommandHeader
                 roomTitle={room.roomSettings.title}
+                roomDescription={room.roomSettings.description}
+                roomTags={room.roomSettings.tags}
                 roomSeverity={room.roomSettings.severity}
                 onRoomAction={room.roomAction}
                 onCloseRoom={room.closeRoom}
+                canEditRoomSettings={room.canEditRoomSettings}
+                showOperationalTime={room.showOperationalTime}
+                startedAtLabel={room.startedAtLabel}
+                elapsedLabel={room.elapsedLabel}
+                roomSlaPolicy={room.roomSlaPolicy}
+                commanderName={room.commanderParticipant?.name}
+                canTransferCommand={room.canTransferCommand}
+                onTransferCommand={room.openTransferCommand}
               />
               <Box className="monosuite-room-workspace">
                 {collabSplit ? (
@@ -379,6 +413,7 @@ export function RoomPage() {
         onClose={() => setEvidenceDrawerOpen(false)}
         items={room.evidence}
         onAdd={(kind) => room.openAddEvidence(kind)}
+        onRemove={room.removeEvidence}
       />
 
       <AffectedEntitiesBoard
@@ -391,6 +426,14 @@ export function RoomPage() {
         onClose={() => setAttackMapOpen(false)}
         attacker={ATTACKER_ENTITIES.find((entity) => entity.id === attackerId) ?? ATTACKER_ENTITIES[0]}
         victim={VICTIM_ENTITIES.find((entity) => entity.id === victimId) ?? VICTIM_ENTITIES[0]}
+      />
+
+      <TransferCommandModal
+        opened={room.transferCommandOpen}
+        commanderName={room.commanderParticipant?.name ?? 'Commander'}
+        candidates={room.transferCommandCandidates}
+        onClose={() => room.setTransferCommandOpen(false)}
+        onConfirm={room.transferCommand}
       />
 
       <Toast message={room.toast} onClose={room.clearToast} />

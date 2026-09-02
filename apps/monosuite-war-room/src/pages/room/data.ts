@@ -68,7 +68,19 @@ export interface ChatMessage {
   edited?: boolean;
 }
 
-export type EvidenceKind = 'file' | 'link' | 'note';
+export type EvidenceKind = 'file' | 'link' | 'note' | 'source';
+
+export interface LinkedSourceRecord {
+  adapterId: string;
+  adapter: string;
+  recordType: string;
+  recordTypeLabel: string;
+  recordId: string;
+  syncStatus: SourceStatus;
+  readOnly: boolean;
+  lastSync: string;
+  fields: SourceField[];
+}
 
 export interface EvidenceItem {
   id: string;
@@ -80,12 +92,14 @@ export interface EvidenceItem {
   sizeBytes?: number;
   url?: string;
   note?: string;
+  source?: LinkedSourceRecord;
 }
 
 export type EvidenceDraft =
   | { kind: 'file'; name: string; type: string; sizeBytes: number }
   | { kind: 'link'; name: string; url: string }
-  | { kind: 'note'; name: string; note: string };
+  | { kind: 'note'; name: string; note: string }
+  | { kind: 'source'; preview: SourceRecordPreview };
 
 export function evidenceFileType(fileName: string): string {
   const extension = fileName.split('.').pop()?.trim().toUpperCase();
@@ -215,6 +229,11 @@ export interface Participant {
 
 export type RoomRole = 'Commander' | 'Responder' | 'Viewer' | 'Guest';
 
+/** Commander is assigned via commanderParticipantId — not the role dropdown. */
+export type AssignableRoomRole = Exclude<RoomRole, 'Commander'>;
+
+export const DEFAULT_COMMANDER_PARTICIPANT_ID = 'sarah';
+
 export const ROOM_ROLES: { value: RoomRole; label: string; description: string }[] = [
   {
     value: 'Commander',
@@ -238,10 +257,28 @@ export const ROOM_ROLES: { value: RoomRole; label: string; description: string }
   },
 ];
 
-export const INVITE_ROLE_OPTIONS = ROOM_ROLES.map((role) => ({
+export const ASSIGNABLE_ROOM_ROLES = ROOM_ROLES.filter(
+  (role): role is { value: AssignableRoomRole; label: string; description: string } =>
+    role.value !== 'Commander',
+);
+
+export const INVITE_ROLE_OPTIONS = ASSIGNABLE_ROOM_ROLES.map((role) => ({
   value: role.value,
   label: role.label,
 }));
+
+export function isRoomCommander(participantId: string, commanderParticipantId: string): boolean {
+  return participantId === commanderParticipantId;
+}
+
+export function participantRoleLabel(
+  participantId: string,
+  role: string,
+  commanderParticipantId: string,
+): string {
+  if (isRoomCommander(participantId, commanderParticipantId)) return 'Commander';
+  return role;
+}
 
 export interface MemberInvite {
   userId: string;
@@ -383,42 +420,16 @@ export const ROOM_WORKFLOW_OPTIONS = [
   { value: 'nic800', label: 'NIC800' },
 ] as const;
 
-export const ROOM_TAG_SUGGESTIONS = [
-  'Lateral Movement',
-  'FIN7',
-  'Credential Access',
-  'C2',
-  'Containment',
-];
+export type RoomWorkflowId = (typeof ROOM_WORKFLOW_OPTIONS)[number]['value'];
 
-export interface RoomSettingsDraft {
-  title: string;
+export interface RoomWorkflowDefinition {
+  id: RoomWorkflowId;
+  label: string;
   description: string;
-  severity: RoomSeverity;
-  workflow: string;
-  tags: string[];
-  incidentReferences: string[];
-  attackerReferences: string[];
-  victimReferences: string[];
+  steps: WorkflowStep[];
 }
 
-export const DEFAULT_ROOM_SETTINGS: RoomSettingsDraft = {
-  title: INCIDENT.title,
-  description:
-    'Suspicious authentication burst from 185.23.45.10 against workstation-114. Room opened to coordinate investigation and containment.',
-  severity: INCIDENT.severity,
-  workflow: 'nist-800-61',
-  tags: ['Lateral Movement', 'FIN7'],
-  incidentReferences: [],
-  attackerReferences: [],
-  victimReferences: [],
-};
-
-export { CURRENT_USER } from '../../shared/constants';
-
-export const ROOM_START_MINUTES = 12;
-
-export const WORKFLOW_STEPS: WorkflowStep[] = [
+const NIST_800_61_STEPS: WorkflowStep[] = [
   {
     id: 'detected',
     label: 'Incident Detected',
@@ -490,6 +501,173 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     },
   },
 ];
+
+const NIC800_STEPS: WorkflowStep[] = [
+  {
+    id: 'prepare',
+    label: 'Prepare',
+    status: 'completed',
+    owner: 'Sarah Johnson',
+    time: '21:45',
+    icon: 'bell',
+    phase: {
+      id: 'prepare',
+      label: 'Preparation',
+      stage: 'Prepare',
+      color: 'accent',
+    },
+  },
+  {
+    id: 'identify',
+    label: 'Identify',
+    status: 'completed',
+    owner: 'Mike Chen',
+    time: '21:50',
+    icon: 'filter',
+    phase: {
+      id: 'identify',
+      label: 'Identification',
+      stage: 'Identify',
+      color: 'warning',
+    },
+  },
+  {
+    id: 'respond',
+    label: 'Respond',
+    status: 'current',
+    owner: 'Sarah Johnson',
+    time: '21:55',
+    icon: 'search',
+    phase: {
+      id: 'respond',
+      label: 'Response',
+      stage: 'Respond',
+      color: 'brand',
+    },
+  },
+  {
+    id: 'recover',
+    label: 'Recover',
+    status: 'pending',
+    owner: '—',
+    time: '—',
+    icon: 'shield',
+    phase: {
+      id: 'recover',
+      label: 'Recovery',
+      stage: 'Recover',
+      color: 'success',
+    },
+  },
+  {
+    id: 'review',
+    label: 'Review',
+    status: 'pending',
+    owner: '—',
+    time: '—',
+    icon: 'heartbeat',
+    phase: {
+      id: 'review',
+      label: 'Post-Incident Review',
+      stage: 'Review',
+      color: 'accent',
+    },
+  },
+];
+
+export const WORKFLOW_DEFINITIONS: Record<RoomWorkflowId, RoomWorkflowDefinition> = {
+  'nist-800-61': {
+    id: 'nist-800-61',
+    label: 'NIST SP 800-61',
+    description:
+      'NIST Computer Security Incident Handling Guide (SP 800-61). Phases map to detection, analysis, containment, eradication, and recovery.',
+    steps: NIST_800_61_STEPS,
+  },
+  nic800: {
+    id: 'nic800',
+    label: 'NIC800',
+    description:
+      'NIC800 internal playbook — streamlined prepare, identify, respond, recover, and review phases for coordinated incident response.',
+    steps: NIC800_STEPS,
+  },
+};
+
+export function getWorkflowDefinition(workflowId: string): RoomWorkflowDefinition | null {
+  if (!workflowId) return null;
+  return WORKFLOW_DEFINITIONS[workflowId as RoomWorkflowId] ?? null;
+}
+
+export function getWorkflowOptionLabel(workflowId: string): string {
+  return ROOM_WORKFLOW_OPTIONS.find((option) => option.value === workflowId)?.label ?? workflowId;
+}
+
+export const RESPONSE_WORKFLOW_FIELD_DESCRIPTION =
+  'The response workflow defines the phase model shown in the room and aligns investigation steps with your organization’s playbook.';
+
+export const ROOM_TAG_SUGGESTIONS = [
+  'Lateral Movement',
+  'FIN7',
+  'Credential Access',
+  'C2',
+  'Containment',
+];
+
+export interface RoomSettingsDraft {
+  title: string;
+  description: string;
+  severity: RoomSeverity;
+  workflow: string;
+  tags: string[];
+  incidentReferences: string[];
+  attackerReferences: string[];
+  victimReferences: string[];
+}
+
+export const DEFAULT_ROOM_SETTINGS: RoomSettingsDraft = {
+  title: INCIDENT.title,
+  description:
+    'Suspicious authentication burst from 185.23.45.10 against workstation-114. Room opened to coordinate investigation and containment.',
+  severity: INCIDENT.severity,
+  workflow: 'nist-800-61',
+  tags: ['Lateral Movement', 'FIN7', 'Credential Access', 'Ransomware', 'C2', 'Containment'],
+  incidentReferences: [],
+  attackerReferences: [],
+  victimReferences: [],
+};
+
+export { CURRENT_USER } from '../../shared/constants';
+
+export const ROOM_ELAPSED_SEED_MS = (12 * 60 + 36) * 1000;
+
+/** @deprecated use ROOM_ELAPSED_SEED_MS */
+export const ROOM_START_MINUTES = 12;
+
+export type RoomLifecycle = 'active' | 'scheduled';
+
+/** Response SLA from backend policy — omit when not provided. */
+export interface RoomSlaPolicy {
+  label: string;
+  status: 'ok' | 'warning' | 'breached';
+}
+
+export function formatRoomElapsedHms(elapsedMs: number): string {
+  const totalSec = Math.max(0, Math.floor(elapsedMs / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+export function formatStartedAtTime(startedAtMs: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(startedAtMs));
+}
+
+/** @deprecated Use WORKFLOW_DEFINITIONS or room workflow fetch instead. */
+export const WORKFLOW_STEPS: WorkflowStep[] = NIST_800_61_STEPS;
 
 export const INITIAL_QUESTIONS: Question[] = [
   {
@@ -634,7 +812,7 @@ export const PARTICIPANTS: Participant[] = [
     id: 'sarah',
     name: 'Sarah Johnson',
     initials: 'SJ',
-    role: 'Commander',
+    role: 'Responder',
     status: 'online',
     color: 'teal',
     typing: true,
@@ -799,6 +977,251 @@ export const CONNECTED_SOURCES: ConnectedSource[] = [
   },
 ];
 
+export interface SourceRecordPreview {
+  recordId: string;
+  recordType: string;
+  recordTypeLabel: string;
+  adapterId: string;
+  adapter: string;
+  title: string;
+  syncStatus: SourceStatus;
+  readOnly: boolean;
+  lastSync: string;
+  fields: SourceField[];
+}
+
+export const ADAPTER_RECORD_TYPES: Record<string, { value: string; label: string }[]> = {
+  splunk: [
+    { value: 'alert', label: 'Alert' },
+    { value: 'notable', label: 'Notable Event' },
+    { value: 'search', label: 'Saved Search' },
+  ],
+  ad: [
+    { value: 'user', label: 'User Account' },
+    { value: 'computer', label: 'Computer' },
+    { value: 'session', label: 'Sign-in Session' },
+  ],
+  ti: [
+    { value: 'indicator', label: 'Indicator' },
+    { value: 'actor', label: 'Threat Actor' },
+    { value: 'report', label: 'Intel Report' },
+  ],
+};
+
+export const SOURCE_RECORD_CATALOG: SourceRecordPreview[] = [
+  {
+    recordId: 'CL-8847291',
+    recordType: 'alert',
+    recordTypeLabel: 'Alert',
+    adapterId: 'splunk',
+    adapter: 'Splunk',
+    title: 'Lateral Movement — Suspicious Auth',
+    syncStatus: 'synced',
+    readOnly: true,
+    lastSync: '12:44',
+    fields: [
+      { label: 'Alert ID', value: 'CL-8847291' },
+      { label: 'Rule', value: 'Lateral Movement — Suspicious Auth' },
+      { label: 'Severity', value: 'Critical' },
+      { label: 'Source IP', value: '185.23.45.10' },
+      { label: 'Destination Host', value: 'srv-prod-01' },
+      { label: 'Event Count', value: '47 events' },
+    ],
+  },
+  {
+    recordId: 'SPL-221904',
+    recordType: 'search',
+    recordTypeLabel: 'Saved Search',
+    adapterId: 'splunk',
+    adapter: 'Splunk',
+    title: 'Failed auth burst — finance VLAN',
+    syncStatus: 'synced',
+    readOnly: true,
+    lastSync: '12:41',
+    fields: [
+      { label: 'Search ID', value: 'SPL-221904' },
+      { label: 'Owner', value: 'soc-analyst' },
+      { label: 'Time Range', value: 'Last 24 hours' },
+      { label: 'Result Count', value: '312 events' },
+    ],
+  },
+  {
+    recordId: 'NE-99201',
+    recordType: 'notable',
+    recordTypeLabel: 'Notable Event',
+    adapterId: 'splunk',
+    adapter: 'Splunk',
+    title: 'Privileged logon from new workstation',
+    syncStatus: 'partial',
+    readOnly: true,
+    lastSync: '12:38',
+    fields: [
+      { label: 'Notable ID', value: 'NE-99201' },
+      { label: 'Urgency', value: 'High' },
+      { label: 'Status', value: 'In progress' },
+      { label: 'Assignee', value: 'Mike Chen' },
+    ],
+  },
+  {
+    recordId: 'jsmith@corp.local',
+    recordType: 'user',
+    recordTypeLabel: 'User Account',
+    adapterId: 'ad',
+    adapter: 'Active Directory',
+    title: 'John Smith',
+    syncStatus: 'synced',
+    readOnly: true,
+    lastSync: '12:43',
+    fields: [
+      { label: 'Account', value: 'jsmith@corp.local' },
+      { label: 'Department', value: 'Finance' },
+      { label: 'Last Logon', value: '21:38 UTC' },
+      { label: 'Workstation', value: 'workstation-114' },
+      { label: 'Privileged', value: 'No' },
+    ],
+  },
+  {
+    recordId: 'workstation-114',
+    recordType: 'computer',
+    recordTypeLabel: 'Computer',
+    adapterId: 'ad',
+    adapter: 'Active Directory',
+    title: 'workstation-114',
+    syncStatus: 'synced',
+    readOnly: true,
+    lastSync: '12:42',
+    fields: [
+      { label: 'Hostname', value: 'workstation-114' },
+      { label: 'OS', value: 'Windows 11 Enterprise' },
+      { label: 'Last Seen', value: '21:47 UTC' },
+      { label: 'Owner', value: 'John Smith' },
+    ],
+  },
+  {
+    recordId: 'SID-8847291',
+    recordType: 'session',
+    recordTypeLabel: 'Sign-in Session',
+    adapterId: 'ad',
+    adapter: 'Active Directory',
+    title: 'Interactive logon — workstation-114',
+    syncStatus: 'partial',
+    readOnly: true,
+    lastSync: '12:40',
+    fields: [
+      { label: 'Session ID', value: 'SID-8847291' },
+      { label: 'Logon Type', value: 'Interactive' },
+      { label: 'Source IP', value: '10.20.4.18' },
+      { label: 'Auth Result', value: 'Success' },
+    ],
+  },
+  {
+    recordId: 'IOC-8842',
+    recordType: 'indicator',
+    recordTypeLabel: 'Indicator',
+    adapterId: 'ti',
+    adapter: 'Threat Intelligence',
+    title: '185.23.45.10 — C2 infrastructure',
+    syncStatus: 'synced',
+    readOnly: true,
+    lastSync: '12:46',
+    fields: [
+      { label: 'Indicator', value: '185.23.45.10' },
+      { label: 'Type', value: 'IPv4' },
+      { label: 'Threat Actor', value: 'FIN7 (medium confidence)' },
+      { label: 'Reputation', value: '92 / 100' },
+    ],
+  },
+  {
+    recordId: 'TA-FIN7',
+    recordType: 'actor',
+    recordTypeLabel: 'Threat Actor',
+    adapterId: 'ti',
+    adapter: 'Threat Intelligence',
+    title: 'FIN7',
+    syncStatus: 'partial',
+    readOnly: true,
+    lastSync: '12:45',
+    fields: [
+      { label: 'Actor ID', value: 'TA-FIN7' },
+      { label: 'Motivation', value: 'Financial gain' },
+      { label: 'Confidence', value: 'Medium' },
+      { label: 'Recent Campaigns', value: 'Unavailable — partial sync' },
+    ],
+  },
+  {
+    recordId: 'IR-2026-0312',
+    recordType: 'report',
+    recordTypeLabel: 'Intel Report',
+    adapterId: 'ti',
+    adapter: 'Threat Intelligence',
+    title: 'FIN7 credential access patterns',
+    syncStatus: 'synced',
+    readOnly: true,
+    lastSync: '12:47',
+    fields: [
+      { label: 'Report ID', value: 'IR-2026-0312' },
+      { label: 'Published', value: '2026-03-12' },
+      { label: 'TLP', value: 'AMBER' },
+      { label: 'Summary', value: 'Credential access via RDP staging hosts' },
+    ],
+  },
+];
+
+export function getAdapterRecordTypes(adapterId: string) {
+  return ADAPTER_RECORD_TYPES[adapterId] ?? [];
+}
+
+export function searchSourceRecords(
+  adapterId: string,
+  recordType: string,
+  query: string,
+): SourceRecordPreview[] {
+  const normalized = query.trim().toLowerCase();
+  return SOURCE_RECORD_CATALOG.filter((record) => {
+    if (record.adapterId !== adapterId || record.recordType !== recordType) return false;
+    if (!normalized) return true;
+    return (
+      record.recordId.toLowerCase().includes(normalized) ||
+      record.title.toLowerCase().includes(normalized)
+    );
+  }).slice(0, 8);
+}
+
+export function getSourceRecordPreview(
+  adapterId: string,
+  recordType: string,
+  recordId: string,
+): SourceRecordPreview | null {
+  return (
+    SOURCE_RECORD_CATALOG.find(
+      (record) =>
+        record.adapterId === adapterId &&
+        record.recordType === recordType &&
+        record.recordId === recordId,
+    ) ?? null
+  );
+}
+
+export function sourceSyncStatusLabel(status: SourceStatus): string {
+  if (status === 'synced') return 'Synced';
+  if (status === 'partial') return 'Partial sync';
+  return 'Sync error';
+}
+
+export function linkedSourceFromPreview(preview: SourceRecordPreview): LinkedSourceRecord {
+  return {
+    adapterId: preview.adapterId,
+    adapter: preview.adapter,
+    recordType: preview.recordType,
+    recordTypeLabel: preview.recordTypeLabel,
+    recordId: preview.recordId,
+    syncStatus: preview.syncStatus,
+    readOnly: preview.readOnly,
+    lastSync: preview.lastSync,
+    fields: preview.fields,
+  };
+}
+
 export const ATTACKER_ENTITIES: ThreatEntity[] = [
   {
     id: 'att-185',
@@ -946,6 +1369,30 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     note: 'Failed logons clustered 21:42–21:47 UTC against svc-backup. Correlate with Splunk alert SPL-8847291 before containment.',
     by: 'Harriette Spoonlicker',
     time: '12:53',
+  },
+  {
+    id: 'e6',
+    kind: 'source',
+    name: 'Lateral Movement — Suspicious Auth',
+    type: 'ALERT',
+    by: 'Sarah Johnson',
+    time: '12:47',
+    source: {
+      adapterId: 'splunk',
+      adapter: 'Splunk',
+      recordType: 'alert',
+      recordTypeLabel: 'Alert',
+      recordId: 'CL-8847291',
+      syncStatus: 'synced',
+      readOnly: true,
+      lastSync: '12:44',
+      fields: [
+        { label: 'Alert ID', value: 'CL-8847291' },
+        { label: 'Rule', value: 'Lateral Movement — Suspicious Auth' },
+        { label: 'Severity', value: 'Critical' },
+        { label: 'Source IP', value: '185.23.45.10' },
+      ],
+    },
   },
 ];
 
@@ -1130,16 +1577,4 @@ export function getQuestionsForTab(questions: Question[], tab: WorkspaceTab): Qu
     return questions.filter((q) => q.status === 'answered' && !q.decision);
   }
   return questions;
-}
-
-export function formatRoomDuration(elapsedMs: number): string {
-  const totalSec = Math.max(0, Math.floor(elapsedMs / 1000));
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-export function formatRoomDurationShort(elapsedMs: number): string {
-  const m = Math.max(0, Math.floor(elapsedMs / 60000));
-  return `${m}m`;
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Box, UnstyledButton } from '@mantine/core';
 import type { LinkedIncidentAlert } from '../data';
-import { WORKFLOW_STEPS } from '../data';
 import type { RoomState } from '../hooks/useRoomState';
 import { ContextSidebar } from './ContextSidebar';
 import { IncidentContextColumn } from './IncidentContextColumn';
@@ -53,13 +52,34 @@ export function MobileRoomView({
       <RoomCommandHeader
         compact
         roomTitle={room.roomSettings.title}
+        roomDescription={room.roomSettings.description}
+        roomTags={room.roomSettings.tags}
         roomSeverity={room.roomSettings.severity}
         onRoomAction={room.roomAction}
         onCloseRoom={room.closeRoom}
+        canEditRoomSettings={room.canEditRoomSettings}
+        showOperationalTime={room.showOperationalTime}
+        startedAtLabel={room.startedAtLabel}
+        elapsedLabel={room.elapsedLabel}
+        roomSlaPolicy={room.roomSlaPolicy}
+        commanderName={room.commanderParticipant?.name}
+        canTransferCommand={room.canTransferCommand}
+        onTransferCommand={room.openTransferCommand}
       />
 
       <Box px="xs" pt="md" pb="sm" style={{ flexShrink: 0 }}>
-        <ResponseWorkflow steps={WORKFLOW_STEPS} protocol="NIST SP 800-61" density="focus" />
+        <ResponseWorkflow
+          steps={room.roomWorkflow.steps}
+          fetchStatus={room.roomWorkflow.status}
+          workflowName={room.roomWorkflow.workflowName}
+          workflowDescription={room.roomWorkflow.workflowDescription}
+          errorMessage={room.roomWorkflow.errorMessage}
+          onRetry={room.roomWorkflow.retry}
+          onOpenSettings={
+            room.canEditRoomSettings ? () => room.setRoomSettingsOpen(true) : undefined
+          }
+          density="focus"
+        />
       </Box>
 
       <Box className="monosuite-room-mobile-tabs" role="tablist" aria-label="Room section">
@@ -124,6 +144,9 @@ export function MobileRoomView({
               onSetRole={room.setParticipantRole}
               onViewDetails={room.viewParticipantDetails}
               onPinParticipant={room.pinParticipant}
+              commanderParticipantId={room.commanderParticipantId}
+              canTransferCommand={room.canTransferCommand}
+              onTransferCommand={room.openTransferCommand}
             />
           </Box>
         ) : null}

@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CURRENT_USER, ROOM_DENSE_WIDTH_QUERY } from '../../../shared/constants';
+import { useRoomWorkflow } from './useRoomWorkflow';
+import { CURRENT_USER, ROOM_WIDE_PANELS_COLLAPSE_QUERY } from '../../../shared/constants';
 import {
   CONNECTION_CYCLE,
+  DEFAULT_COMMANDER_PARTICIPANT_ID,
   DEFAULT_ROOM_SETTINGS,
   DIRECTORY_USERS,
   EVIDENCE_ITEMS,
   INITIAL_HISTORY,
   INITIAL_QUESTIONS,
+  linkedSourceFromPreview,
   LIVE_PEOPLE,
   PARTICIPANTS,
   PARTICIPANT_COLOR_CYCLE,
-  ROOM_START_MINUTES,
+  ROOM_ELAPSED_SEED_MS,
+  formatRoomElapsedHms,
+  formatStartedAtTime,
+  type RoomLifecycle,
+  type RoomSlaPolicy,
   initialsFromParts,
   type ConnectionState,
   type ContextTab,
@@ -32,11 +39,14 @@ import {
   type WorkspaceTab,
   type PinTarget,
   type RoomSettingsDraft,
-  formatRoomDuration,
-  formatRoomDurationShort,
   getQuestionsForTab,
   getRemoteCamerasOn,
 } from '../data';
+
+/** Mock — active room with elapsed seed; scheduled rooms hide operational time. */
+const MOCK_ROOM_LIFECYCLE: RoomLifecycle = 'active';
+/** Mock — null until backend policy provides SLA. */
+const MOCK_ROOM_SLA_POLICY: RoomSlaPolicy | null = null;
 
 export interface MediaState {
   joined: boolean;
@@ -125,10 +135,13 @@ export function resolveLocalShareState(media: MediaState): LocalShareState {
 
 function prefersCollapsedUtility() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia(ROOM_DENSE_WIDTH_QUERY).matches;
+  return window.matchMedia(ROOM_WIDE_PANELS_COLLAPSE_QUERY).matches;
 }
 
 export function useRoomState() {
+  const canManageParticipants = CURRENT_USER.canManageParticipants;
+  const canEditRoomSettings = CURRENT_USER.canEditRoomSettings;
+
   const [sidebarTab, setSidebarTab] = useState<ContextTab>('participants');
   const [asideCollapsed, setAsideCollapsed] = useState(prefersCollapsedUtility);
   const asidePinnedByUser = useRef(false);
@@ -149,6 +162,10 @@ export function useRoomState() {
   const [participants, setParticipants] = useState<Participant[]>(() =>
     structuredClone(PARTICIPANTS),
   );
+  const [commanderParticipantId, setCommanderParticipantId] = useState(
+    DEFAULT_COMMANDER_PARTICIPANT_ID,
+  );
+  const [transferCommandOpen, setTransferCommandOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [manualIncidentOpen, setManualIncidentOpen] = useState(false);
   const [mediaSettingsOpen, setMediaSettingsOpen] = useState(false);
@@ -158,13 +175,14 @@ export function useRoomState() {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceKind, setEvidenceKind] = useState<EvidenceKind>('file');
   const [roomSettings, setRoomSettings] = useState<RoomSettingsDraft>(DEFAULT_ROOM_SETTINGS);
+  const roomWorkflow = useRoomWorkflow(roomSettings.workflow);
   const [typingVisible] = useState(true);
   const [pinnedTarget, setPinnedTarget] = useState<PinTarget | null>(null);
   const [collaborationFullscreen, setCollaborationFullscreen] = useState(false);
   const [collaborationSplit, setCollaborationSplit] = useState(false);
   const [collaborationSplitWidth, setCollaborationSplitWidth] = useState(280);
   const splitBeforeFullscreenRef = useRef(false);
-  const [roomStartTime] = useState(() => Date.now() - ROOM_START_MINUTES * 60 * 1000);
+  const [startedAt] = useState(() => Date.now() - ROOM_ELAPSED_SEED_MS);
   const [now, setNow] = useState(() => Date.now());
   const [selectedDecision, setSelectedDecision] = useState<Record<number, string>>({
     2: 'Disable account',
@@ -205,9 +223,12 @@ export function useRoomState() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  const elapsedMs = now - roomStartTime;
-  const durationLabel = formatRoomDuration(elapsedMs);
-  const durationShort = formatRoomDurationShort(elapsedMs);
+  const roomLifecycle = MOCK_ROOM_LIFECYCLE;
+  const roomSlaPolicy = MOCK_ROOM_SLA_POLICY;
+  const showOperationalTime = roomLifecycle === 'active';
+  const elapsedMs = showOperationalTime ? now - startedAt : 0;
+  const startedAtLabel = formatStartedAtTime(startedAt);
+  const elapsedLabel = formatRoomElapsedHms(elapsedMs);
 
   const tabCounts = useMemo(
     () => ({
@@ -243,7 +264,7 @@ export function useRoomState() {
   }, []);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(ROOM_DENSE_WIDTH_QUERY);
+    const mediaQuery = window.matchMedia(ROOM_WIDE_PANELS_COLLAPSE_QUERY);
     const sync = () => {
       if (asidePinnedByUser.current) return;
       setAsideCollapsed(mediaQuery.matches);
@@ -645,8 +666,12 @@ export function useRoomState() {
   }, [showToast]);
 
   const closeRoom = useCallback(() => {
+    if (commanderParticipantId === CURRENT_USER.id) {
+      showToast('Transfer command before closing the room');
+      return;
+    }
     showToast('Room closed');
-  }, [showToast]);
+  }, [commanderParticipantId, showToast]);
 
   const roomAction = useCallback(
     (action: string) => {
@@ -662,10 +687,19 @@ export function useRoomState() {
           showToast('Exporting room summary…');
           break;
         case 'room-settings':
+          if (!canEditRoomSettings) {
+            showToast('You do not have permission to edit room settings');
+            break;
+          }
           setRoomSettingsOpen(true);
           break;
         case 'close-room':
           closeRoom();
+          break;
+        case 'transfer-command':
+          if (canManageParticipants || commanderParticipantId === CURRENT_USER.id) {
+            setTransferCommandOpen(true);
+          }
           break;
         case 'view-incident':
           setManualIncidentOpen(true);
@@ -676,7 +710,7 @@ export function useRoomState() {
           showToast(action);
       }
     },
-    [closeRoom, showToast],
+    [canEditRoomSettings, canManageParticipants, commanderParticipantId, closeRoom, showToast],
   );
 
   const openAddEvidence = useCallback((kind: EvidenceKind = 'file') => {
@@ -687,53 +721,130 @@ export function useRoomState() {
   const addEvidence = useCallback(
     (drafts: EvidenceDraft[]) => {
       if (drafts.length === 0) return;
-      const items: EvidenceItem[] = drafts.map((draft) => {
+
+      const historyEntries: HistoryEntry[] = [];
+      const items: EvidenceItem[] = [];
+
+      for (const draft of drafts) {
         const base = {
           id: `e-${crypto.randomUUID()}`,
           by: CURRENT_USER.name,
           time: nowTime(),
         };
-        if (draft.kind === 'file') {
-          return {
+
+        if (draft.kind === 'source') {
+          const preview = draft.preview;
+          const duplicate = evidence.some(
+            (item) =>
+              item.kind === 'source' &&
+              item.source?.adapterId === preview.adapterId &&
+              item.source.recordId === preview.recordId,
+          );
+          if (duplicate) {
+            showToast(`Already linked · ${preview.recordId}`);
+            continue;
+          }
+          const item: EvidenceItem = {
             ...base,
-            kind: 'file' as const,
+            kind: 'source',
+            name: preview.title,
+            type: preview.recordTypeLabel.toUpperCase(),
+            source: linkedSourceFromPreview(preview),
+          };
+          items.push(item);
+          historyEntries.push({
+            time: base.time,
+            actor: CURRENT_USER.name,
+            action: `linked source record · ${preview.adapter} · ${preview.recordId} · ${preview.title}`,
+            highlight: true,
+          });
+          continue;
+        }
+
+        if (draft.kind === 'file') {
+          items.push({
+            ...base,
+            kind: 'file',
             name: draft.name,
             type: draft.type,
             sizeBytes: draft.sizeBytes,
-          };
+          });
+          continue;
         }
+
         if (draft.kind === 'link') {
-          return {
+          items.push({
             ...base,
-            kind: 'link' as const,
+            kind: 'link',
             name: draft.name,
             type: 'LINK',
             url: draft.url,
-          };
+          });
+          continue;
         }
-        return {
+
+        items.push({
           ...base,
-          kind: 'note' as const,
+          kind: 'note',
           name: draft.name,
           type: 'NOTE',
           note: draft.note,
-        };
-      });
+        });
+      }
 
-      setEvidence((current) => [...items, ...current]);
-      const summary =
-        items.length === 1 ? items[0].name : `${items.length} items`;
-      showToast(`Evidence added · ${summary}`);
-      setHistory((entries) => [
-        {
+      if (items.length === 0) return;
+
+      const nonSourceItems = items.filter((item) => item.kind !== 'source');
+      if (nonSourceItems.length > 0) {
+        historyEntries.push({
           time: nowTime(),
           actor: CURRENT_USER.name,
-          action: `added evidence · ${items.map((item) => item.name).join(', ')}`,
+          action: `added evidence · ${nonSourceItems.map((item) => item.name).join(', ')}`,
           highlight: true,
-        },
-        ...entries,
-      ]);
+        });
+      }
+
+      setEvidence((current) => [...items, ...current]);
+      const summary = items.length === 1 ? items[0].name : `${items.length} items`;
+      const linkedCount = items.filter((item) => item.kind === 'source').length;
+      showToast(
+        linkedCount === items.length
+          ? `Source record linked · ${summary}`
+          : `Evidence added · ${summary}`,
+      );
+      if (historyEntries.length > 0) {
+        setHistory((entries) => [...historyEntries, ...entries]);
+      }
       setEvidenceOpen(false);
+    },
+    [evidence, showToast],
+  );
+
+  const removeEvidence = useCallback(
+    (id: string) => {
+      setEvidence((current) => {
+        const target = current.find((item) => item.id === id);
+        if (!target) return current;
+
+        const action =
+          target.kind === 'source' && target.source
+            ? `removed linked source record · ${target.source.adapter} · ${target.source.recordId}`
+            : `removed evidence · ${target.name}`;
+
+        setHistory((entries) => [
+          {
+            time: nowTime(),
+            actor: CURRENT_USER.name,
+            action,
+            highlight: false,
+          },
+          ...entries,
+        ]);
+        showToast(
+          target.kind === 'source' ? `Link removed · ${target.source?.recordId}` : `Removed · ${target.name}`,
+        );
+        return current.filter((item) => item.id !== id);
+      });
     },
     [showToast],
   );
@@ -849,11 +960,39 @@ export function useRoomState() {
     [showToast],
   );
 
-  const canManageParticipants = CURRENT_USER.canManageParticipants;
-
   const activeParticipants = useMemo(
     () => participants.filter((p) => !p.removed),
     [participants],
+  );
+
+  const commanderParticipant = useMemo(() => {
+    if (commanderParticipantId === CURRENT_USER.id) {
+      return {
+        id: CURRENT_USER.id,
+        name: CURRENT_USER.name,
+        role: CURRENT_USER.roomRole,
+      };
+    }
+    const remote = activeParticipants.find((p) => p.id === commanderParticipantId);
+    return remote
+      ? { id: remote.id, name: remote.name, role: remote.role }
+      : null;
+  }, [activeParticipants, commanderParticipantId]);
+
+  const isLocalCommander = commanderParticipantId === CURRENT_USER.id;
+
+  const canTransferCommand = canManageParticipants || isLocalCommander;
+
+  const transferCommandCandidates = useMemo(
+    () => [
+      ...activeParticipants
+        .filter((p) => p.id !== commanderParticipantId)
+        .map((p) => ({ id: p.id, name: p.name, role: p.role })),
+      ...(commanderParticipantId !== CURRENT_USER.id
+        ? [{ id: CURRENT_USER.id, name: CURRENT_USER.name, role: CURRENT_USER.roomRole }]
+        : []),
+    ],
+    [activeParticipants, commanderParticipantId],
   );
 
   const toggleParticipantMic = useCallback(
@@ -910,6 +1049,10 @@ export function useRoomState() {
   const removeParticipant = useCallback(
     (id: string) => {
       if (!canManageParticipants) return;
+      if (id === commanderParticipantId) {
+        showToast('Transfer command before removing the commander');
+        return;
+      }
       const target = participants.find((p) => p.id === id);
       setParticipants((prev) =>
         prev.map((p) => (p.id === id ? { ...p, removed: true, mic: false, camera: false } : p)),
@@ -926,16 +1069,57 @@ export function useRoomState() {
         ...h,
       ]);
     },
-    [canManageParticipants, participants, showToast],
+    [canManageParticipants, commanderParticipantId, participants, showToast],
   );
 
   const setParticipantRole = useCallback(
     (id: string, role: string) => {
       if (!canManageParticipants) return;
+      if (role === 'Commander') return;
       setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, role } : p)));
       showToast('Participant role updated');
     },
     [canManageParticipants, showToast],
+  );
+
+  const openTransferCommand = useCallback(() => {
+    if (!canTransferCommand) return;
+    setTransferCommandOpen(true);
+  }, [canTransferCommand]);
+
+  const transferCommand = useCallback(
+    (nextCommanderId: string) => {
+      if (!canTransferCommand) return;
+      if (nextCommanderId === commanderParticipantId) return;
+
+      const nextRemote = activeParticipants.find((p) => p.id === nextCommanderId);
+      const nextName =
+        nextCommanderId === CURRENT_USER.id
+          ? CURRENT_USER.name
+          : (nextRemote?.name ?? 'Participant');
+
+      const previousName = commanderParticipant?.name ?? 'Commander';
+
+      setCommanderParticipantId(nextCommanderId);
+      setTransferCommandOpen(false);
+      setHistory((h) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `transferred command from ${previousName} to ${nextName}`,
+          highlight: true,
+        },
+        ...h,
+      ]);
+      showToast(`Command transferred to ${nextName}`);
+    },
+    [
+      activeParticipants,
+      canTransferCommand,
+      commanderParticipant,
+      commanderParticipantId,
+      showToast,
+    ],
   );
 
   const viewParticipantDetails = useCallback(
@@ -998,7 +1182,17 @@ export function useRoomState() {
     mediaDevices,
     livePeople,
     participants: activeParticipants,
+    commanderParticipantId,
+    commanderParticipant,
+    isLocalCommander,
+    canTransferCommand,
+    transferCommandCandidates,
+    transferCommandOpen,
+    setTransferCommandOpen,
+    openTransferCommand,
+    transferCommand,
     canManageParticipants,
+    canEditRoomSettings,
     remoteCamerasOn,
     mediaSurfaceActive,
     shareActive,
@@ -1033,11 +1227,17 @@ export function useRoomState() {
     setEvidenceOpen,
     openAddEvidence,
     addEvidence,
+    removeEvidence,
     roomSettings,
     saveRoomSettings,
+    roomWorkflow,
     typingVisible,
-    durationLabel,
-    durationShort,
+    roomLifecycle,
+    startedAt,
+    startedAtLabel,
+    elapsedLabel,
+    showOperationalTime,
+    roomSlaPolicy,
     selectedDecision,
     setSelectedDecision,
     recordDecision,

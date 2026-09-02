@@ -10,7 +10,6 @@ import { ScreenShareStage } from './ScreenShareStage';
 import { TruncatedTooltipText } from '../../../shared/components/TruncatedTooltipText';
 
 export interface CollaborationMediaControlsProps {
-  durationLabel: string;
   participantCount: number;
   onJoin: () => void;
   onToggleMedia: (key: 'mic' | 'camera' | 'speaker') => void;
@@ -39,6 +38,9 @@ interface CollaborationImmersiveLayoutProps extends CollaborationMediaControlsPr
   onRemoveParticipant: (id: string) => void;
   onSetParticipantRole: (id: string, role: string) => void;
   onViewParticipantDetails: (id: string) => void;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
+  onTransferCommand?: () => void;
 }
 
 /** Full-height collaboration layouts — fullscreen stage+rail or split stack column. */
@@ -49,7 +51,6 @@ export function CollaborationImmersiveLayout({
   pinnedTarget,
   viewerCount,
   variant,
-  durationLabel,
   participantCount,
   onJoin,
   onToggleMedia,
@@ -68,11 +69,14 @@ export function CollaborationImmersiveLayout({
   onRemoveParticipant,
   onSetParticipantRole,
   onViewParticipantDetails,
+  commanderParticipantId,
+  canTransferCommand = false,
+  onTransferCommand,
 }: CollaborationImmersiveLayoutProps) {
   const shareActive = Boolean(media.share || media.remoteShareBy);
   const shareVisible = shareActive && media.shareLayout !== 'minimized';
   const sharerName = media.share ? 'You' : (media.remoteShareBy ?? 'Participant');
-  const roster = buildMediaRoster(livePeople, participants, media);
+  const roster = buildMediaRoster(livePeople, participants, media, commanderParticipantId);
   const isSplit = variant === 'split';
   const isMobile = useMediaQuery(ROOM_MOBILE_QUERY, false, { getInitialValueInEffect: false });
 
@@ -113,6 +117,9 @@ export function CollaborationImmersiveLayout({
     onRemove: () => onRemoveParticipant(person.id),
     onSetRole: (role: string) => onSetParticipantRole(person.id, role),
     onViewDetails: () => onViewParticipantDetails(person.id),
+    commanderParticipantId,
+    canTransferCommand,
+    onTransferCommand,
   });
 
   const shareHeader = (
@@ -388,7 +395,6 @@ export function CollaborationImmersiveLayout({
             ) : undefined
           }
           media={media}
-          durationLabel={durationLabel}
           participantCount={participantCount}
           onJoin={onJoin}
           onToggleMedia={onToggleMedia}

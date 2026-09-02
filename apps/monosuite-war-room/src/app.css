@@ -1,4 +1,5 @@
-/* War Room desktop density — scale #root (not html) so viewport height math stays correct. */
+/* War Room desktop density — scale #root (not html) so viewport height math stays correct.
+   Default 0.9; initAppUiScale() sets --war-room-ui-scale from shared/constants tiers. */
 html {
   height: 100%;
 }
@@ -87,6 +88,18 @@ body {
   min-height: 0;
   min-width: 0;
   height: 100%;
+  gap: 8px;
+}
+
+.monosuite-room-side-resize--leading {
+  margin-right: 0;
+  margin-left: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.monosuite-room-collab-split-resize {
+  margin-inline: 4px;
 }
 
 .monosuite-room-column {
@@ -112,8 +125,8 @@ body {
   min-height: 0;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex-direction: row;
+  overflow: visible;
 }
 
 .monosuite-workflow {
@@ -163,25 +176,27 @@ body {
   min-width: 0;
   padding: 6px 8px;
   border-radius: var(--mantine-radius-sm);
-  border: 1px solid color-mix(in srgb, var(--workflow-phase-color) 34%, var(--monosuite-color-border));
-  background: color-mix(in srgb, var(--workflow-phase-color) 5%, var(--monosuite-color-surface-sunken));
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--workflow-phase-color) 10%, transparent);
-  transition: background 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  border: 1px solid var(--monosuite-color-border);
+  background: var(--monosuite-color-surface-sunken);
+  box-shadow: none;
+  transition: background 200ms ease, border-color 200ms ease;
 }
 
 .monosuite-workflow-card.workflow-card--completed {
   background: var(--monosuite-color-surface);
+  border-color: color-mix(in srgb, var(--mantine-color-teal-filled) 32%, var(--monosuite-color-border));
 }
 
 .monosuite-workflow-card.workflow-card--current {
-  background: color-mix(in srgb, var(--workflow-phase-color) 12%, var(--monosuite-color-surface));
-  border-color: var(--workflow-phase-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--workflow-phase-color) 14%, transparent);
+  background: color-mix(in srgb, var(--workflow-phase-color) 8%, var(--monosuite-color-surface));
+  border-color: color-mix(in srgb, var(--workflow-phase-color) 48%, var(--monosuite-color-border));
+  box-shadow: none;
 }
 
 .monosuite-workflow-card.workflow-card--pending {
-  border-color: color-mix(in srgb, var(--workflow-phase-color) 22%, var(--monosuite-color-border));
-  box-shadow: none;
+  border-color: var(--monosuite-color-border);
+  background: var(--monosuite-color-surface-sunken);
+  opacity: 0.94;
 }
 
 .monosuite-workflow-phase-pip,
@@ -328,22 +343,22 @@ body {
   overflow: hidden;
   padding: 8px 8px 7px;
   border-radius: var(--mantine-radius-sm);
-  border: 1px solid color-mix(in srgb, var(--workflow-phase-color) 30%, var(--monosuite-color-border));
-  background: color-mix(in srgb, var(--workflow-phase-color) 5%, var(--monosuite-color-surface-sunken));
+  border: 1px solid var(--monosuite-color-border);
+  background: var(--monosuite-color-surface-sunken);
   box-shadow: none;
   text-align: start;
 }
 
 .monosuite-workflow-focus-card[data-role='prev'],
 .monosuite-workflow-focus-card[data-role='next'] {
-  opacity: 0.78;
+  opacity: 0.82;
   padding: 7px 7px 6px;
 }
 
 .monosuite-workflow-focus-card[data-role='current'] {
-  background: color-mix(in srgb, var(--workflow-phase-color) 10%, var(--monosuite-color-surface));
-  border-color: var(--workflow-phase-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--workflow-phase-color) 14%, transparent);
+  background: color-mix(in srgb, var(--workflow-phase-color) 8%, var(--monosuite-color-surface));
+  border-color: color-mix(in srgb, var(--workflow-phase-color) 48%, var(--monosuite-color-border));
+  box-shadow: none;
 }
 
 .monosuite-workflow-focus-card[data-role='current'] .monosuite-workflow-status-text {
@@ -362,6 +377,18 @@ body {
   background: var(--monosuite-color-border);
   flex-shrink: 0;
   line-height: 0;
+}
+
+.monosuite-workflow-state {
+  padding: 10px 12px;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--monosuite-color-border);
+  background: var(--monosuite-color-surface-sunken);
+}
+
+.monosuite-workflow-state--empty,
+.monosuite-workflow-state--error {
+  border-style: dashed;
 }
 
 .monosuite-workflow-focus-pip[data-status='completed'] {
@@ -834,6 +861,42 @@ body {
   flex-direction: column;
 }
 
+.monosuite-entity-modal-layout--mobile-drill {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.monosuite-entity-modal-layout--mobile-drill .monosuite-entity-modal-list,
+.monosuite-entity-modal-layout--mobile-drill .monosuite-entity-modal-detail {
+  min-height: 0;
+  flex: 1;
+}
+
+.monosuite-entity-modal-layout--mobile-drill .monosuite-entity-modal-list {
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.monosuite-entity-list-item[data-drill='true']:hover {
+  background: color-mix(in srgb, var(--mantine-color-teal-filled) 6%, var(--monosuite-color-surface));
+}
+
+.monosuite-entity-mobile-back-button {
+  display: inline-flex;
+  padding: 4px 2px;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.monosuite-entity-mobile-back-button:hover {
+  background: color-mix(in srgb, var(--mantine-color-accent-filled) 8%, transparent);
+}
+
+.monosuite-entity-detail-tabs-list {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
 .monosuite-attack-map {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(100px, 0.55fr) minmax(180px, 1fr) minmax(100px, 0.55fr) minmax(180px, 1fr);
@@ -867,16 +930,6 @@ body {
 .monosuite-attack-map-node-icon[data-tone='teal'] { color: var(--mantine-color-teal-filled); }
 
 @media (max-width: 54em) {
-  .monosuite-entity-modal-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(150px, 34%) minmax(0, 1fr);
-  }
-
-  .monosuite-entity-modal-list {
-    border-right: 0;
-    border-bottom: 1px solid var(--monosuite-color-border);
-  }
-
   .monosuite-attack-map {
     grid-template-columns: 1fr;
   }

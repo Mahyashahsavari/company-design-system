@@ -49,6 +49,9 @@ interface CollaborationLayerProps extends CollaborationMediaControlsProps {
   onRemoveParticipant: (id: string) => void;
   onSetParticipantRole: (id: string, role: string) => void;
   onViewParticipantDetails: (id: string) => void;
+  commanderParticipantId: string;
+  canTransferCommand?: boolean;
+  onTransferCommand?: () => void;
 }
 
 /** Live collaboration surface — SOC-styled immersive channel. */
@@ -60,7 +63,6 @@ export function CollaborationLayer({
   viewerCount,
   fullscreen,
   split,
-  durationLabel,
   participantCount,
   onJoin,
   onToggleMedia,
@@ -81,6 +83,9 @@ export function CollaborationLayer({
   onRemoveParticipant,
   onSetParticipantRole,
   onViewParticipantDetails,
+  commanderParticipantId,
+  canTransferCommand,
+  onTransferCommand,
 }: CollaborationLayerProps) {
   const shareActive = Boolean(media.share || media.remoteShareBy);
   const sharerName = media.share ? 'You' : (media.remoteShareBy ?? 'Participant');
@@ -249,7 +254,6 @@ export function CollaborationLayer({
           pinnedTarget={pinnedTarget}
           viewerCount={viewerCount}
           variant={fullscreen ? 'fullscreen' : 'split'}
-          durationLabel={durationLabel}
           participantCount={participantCount}
           onJoin={onJoin}
           onToggleMedia={onToggleMedia}
@@ -268,6 +272,9 @@ export function CollaborationLayer({
           onRemoveParticipant={onRemoveParticipant}
           onSetParticipantRole={onSetParticipantRole}
           onViewParticipantDetails={onViewParticipantDetails}
+          commanderParticipantId={commanderParticipantId}
+          canTransferCommand={canTransferCommand}
+          onTransferCommand={onTransferCommand}
         />
       </Box>
     </Box>
