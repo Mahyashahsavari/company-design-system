@@ -13,12 +13,12 @@ import {
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import {
-  INCIDENT,
   LINK_SOURCE_OPTIONS,
   MANUAL_LINK_SOURCE,
   type LinkedAlertEntry,
   type LinkedIncidentAlert,
 } from '../data';
+import { useRoomIncident } from '../RoomScenarioContext';
 
 function nextId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
@@ -29,9 +29,13 @@ interface LinkedIncidentAlertEditorProps {
   onChange: (rows: LinkedIncidentAlert[]) => void;
 }
 
-function sourceOptions(rows: LinkedIncidentAlert[], currentSource: string) {
+function sourceOptions(
+  rows: LinkedIncidentAlert[],
+  currentSource: string,
+  fromAdapter: boolean,
+) {
   const used = new Set(rows.map((row) => row.source).filter(Boolean));
-  const names = INCIDENT.fromAdapter ? LINK_SOURCE_OPTIONS : [MANUAL_LINK_SOURCE];
+  const names = fromAdapter ? LINK_SOURCE_OPTIONS : [MANUAL_LINK_SOURCE];
   return names.map((name) => ({
     value: name,
     label: name,
@@ -39,16 +43,18 @@ function sourceOptions(rows: LinkedIncidentAlert[], currentSource: string) {
   }));
 }
 
-function emptyGroup(): LinkedIncidentAlert {
+function emptyGroup(fromAdapter: boolean): LinkedIncidentAlert {
   return {
     id: nextId('link'),
-    source: INCIDENT.fromAdapter ? '' : MANUAL_LINK_SOURCE,
+    source: fromAdapter ? '' : MANUAL_LINK_SOURCE,
     alerts: [],
   };
 }
 
 /** One adapter group with auto-discovered alerts plus manually added Incident IDs. */
 export function LinkedIncidentAlertEditor({ rows, onChange }: LinkedIncidentAlertEditorProps) {
+  const incident = useRoomIncident();
+  const fromAdapter = incident.fromAdapter;
   const updateRow = (id: string, next: LinkedIncidentAlert) =>
     onChange(rows.map((row) => (row.id === id ? next : row)));
 
@@ -68,7 +74,8 @@ export function LinkedIncidentAlertEditor({ rows, onChange }: LinkedIncidentAler
           <AdapterLinkRow
             key={row.id}
             row={row}
-            sourceData={sourceOptions(rows, row.source)}
+            sourceData={sourceOptions(rows, row.source, fromAdapter)}
+            fromAdapter={fromAdapter}
             onChange={(next) => updateRow(row.id, next)}
             onRemove={
               row.alerts.some((alert) => alert.fromAdapter)
@@ -82,7 +89,7 @@ export function LinkedIncidentAlertEditor({ rows, onChange }: LinkedIncidentAler
           variant="subtle"
           color="teal"
           leftSection={<IconPlus size={14} />}
-          onClick={() => onChange([...rows, emptyGroup()])}
+          onClick={() => onChange([...rows, emptyGroup(fromAdapter)])}
           style={{ alignSelf: 'flex-start' }}
         >
           Add adapter
@@ -97,14 +104,16 @@ function AdapterLinkRow({
   sourceData,
   onChange,
   onRemove,
+  fromAdapter,
 }: {
   row: LinkedIncidentAlert;
   sourceData: { value: string; label: string; disabled: boolean }[];
   onChange: (row: LinkedIncidentAlert) => void;
   onRemove?: () => void;
+  fromAdapter: boolean;
 }) {
   const [draft, setDraft] = useState('');
-  const sourceLocked = row.alerts.some((alert) => alert.fromAdapter) || !INCIDENT.fromAdapter;
+  const sourceLocked = row.alerts.some((alert) => alert.fromAdapter) || !fromAdapter;
   const canAdd = Boolean(row.source);
 
   const addDraft = () => {

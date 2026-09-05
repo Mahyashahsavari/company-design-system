@@ -1,61 +1,59 @@
 import {
+  Badge,
   Box,
   Button,
   Group,
   Skeleton,
   Stack,
   Text,
-  Tooltip,
-  UnstyledButton,
 } from '@mantine/core';
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   IconAlertCircle,
-  IconCheck,
-  IconChevronRight,
   IconRefresh,
-  IconRoute2,
   IconTopologyStar,
 } from '@tabler/icons-react';
-import { TruncatedTooltipText } from '../../../../shared/components/TruncatedTooltipText';
-import type { RoomWorkflowFetchStatus } from '../../hooks/useRoomWorkflow';
-import type { Question, WorkflowPhaseColor, WorkflowStep } from '../../data';
 import { WorkflowCanvasView } from './WorkflowCanvasView';
 import { WorkflowInfoLabel } from './WorkflowInfoLabel';
-import type { WorkflowViewMode } from './types';
+import type { ResponseWorkflowProps } from './types';
 
-export interface ResponseWorkflowProps {
-  steps: WorkflowStep[];
-  fetchStatus: RoomWorkflowFetchStatus;
-  workflowName?: string;
-  workflowDescription?: string;
-  errorMessage?: string | null;
-  onRetry?: () => void;
-  onOpenSettings?: () => void;
-  /** Strip is a single-row stepper for short desktops. Focus peeks prev/current/next on phones. */
-  density?: 'cards' | 'strip' | 'focus';
-  viewMode?: WorkflowViewMode;
-  onViewModeChange?: (mode: WorkflowViewMode) => void;
-  questions?: Question[];
-  onSubmitCollabAnswer?: (questionId: number, text: string) => void;
-  onRecordDecision?: (questionId: number, choice: string) => void;
+export type { ResponseWorkflowProps, WorkflowViewMode } from './types';
+
+function CanvasHeaderMeta({ workflowName }: { workflowName?: string }) {
+  return (
+    <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
+      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+        <IconTopologyStar size={14} color="var(--mantine-color-teal-filled)" aria-hidden />
+        <Text size="xs" fw={700} c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+          {workflowName?.trim() || 'NIST SP 800-61'}
+        </Text>
+      </Group>
+      <Box
+        aria-hidden
+        style={{
+          width: 1,
+          alignSelf: 'stretch',
+          minHeight: 14,
+          background: 'var(--monosuite-color-border)',
+          flexShrink: 0,
+        }}
+      />
+      <Group gap={6} wrap="nowrap" aria-label="Collaboration card guide">
+        <Badge variant="light" color="teal" size="xs">
+          Question
+        </Badge>
+        <Badge variant="light" color="accent" size="xs">
+          Finding
+        </Badge>
+        <Badge variant="light" color="brand" size="xs">
+          Decision
+        </Badge>
+      </Group>
+    </Group>
+  );
 }
 
-export type { WorkflowViewMode } from './types';
-
-type InternalViewMode = WorkflowViewMode;
-
-const STATUS_LABEL: Record<WorkflowStep['status'], string> = {
-  completed: 'Done',
-  current: 'Active',
-  pending: 'Queued',
-};
-
-function phaseFill(color: WorkflowPhaseColor) {
-  return `var(--mantine-color-${color}-filled)`;
-}
-
-/** Full-width compact workflow cards — phase color is independent of progress status. */
+/** Response workflow surface — canvas is the primary (and only) ready view. */
 export function ResponseWorkflow({
   steps,
   fetchStatus,
@@ -65,59 +63,38 @@ export function ResponseWorkflow({
   onRetry,
   onOpenSettings,
   density = 'cards',
-  viewMode: viewModeProp,
-  onViewModeChange,
   questions = [],
   onSubmitCollabAnswer,
   onRecordDecision,
+  isCommander = false,
+  participants,
+  commanderParticipantId,
+  evidence = [],
+  commanderQuestions = [],
+  incidentTitle,
+  incidentDescription,
+  incidentSeverity,
+  triageNotes = '',
+  onTriageNotesChange,
+  onOpenIncidentContext,
+  incidentContextOpen = false,
+  onAddEvidence,
+  onRemoveEvidence,
+  onAddCommanderQuestion,
+  onUpdateCommanderQuestion,
+  onRemoveCommanderQuestion,
+  onAnswerCommanderQuestion,
+  onSetPhaseSkippable,
+  onSkipPhase,
+  skippedPhases = [],
+  assigneeOptions = [],
+  workItems,
+  collabThreads,
+  completedPhaseIds,
+  onCompletePhase,
 }: ResponseWorkflowProps) {
   const strip = density === 'strip';
   const focus = density === 'focus';
-  const [internalViewMode, setInternalViewMode] = useState<InternalViewMode>('canvas');
-  const viewMode = viewModeProp ?? internalViewMode;
-
-  const setViewMode = (mode: InternalViewMode) => {
-    if (viewModeProp == null) {
-      setInternalViewMode(mode);
-    }
-    onViewModeChange?.(mode);
-  };
-
-  const currentIndex = Math.max(
-    0,
-    steps.findIndex((step) => step.status === 'current'),
-  );
-  const [focusedIndex, setFocusedIndex] = useState(currentIndex);
-
-  useEffect(() => {
-    setFocusedIndex(currentIndex);
-  }, [currentIndex, steps]);
-
-  const viewToggle =
-    fetchStatus === 'ready' ? (
-      <Group gap={6} wrap="nowrap">
-        <Button
-          size="compact-xs"
-          variant={viewMode === 'current' ? 'filled' : 'light'}
-          color="neutral"
-          leftSection={<IconRoute2 size={13} />}
-          onClick={() => setViewMode('current')}
-          aria-pressed={viewMode === 'current'}
-        >
-          Current
-        </Button>
-        <Button
-          size="compact-xs"
-          variant={viewMode === 'canvas' ? 'filled' : 'light'}
-          color="teal"
-          leftSection={<IconTopologyStar size={13} />}
-          onClick={() => setViewMode('canvas')}
-          aria-pressed={viewMode === 'canvas'}
-        >
-          Canvas
-        </Button>
-      </Group>
-    ) : null;
 
   if (fetchStatus === 'loading') {
     return (
@@ -156,145 +133,67 @@ export function ResponseWorkflow({
     );
   }
 
-  if (viewMode === 'canvas') {
-    return (
-      <WorkflowShell density="cards" ariaLabel="Response workflow canvas" fill>
-        <WorkflowHeader
-          workflowName={workflowName}
-          workflowDescription={workflowDescription}
-          trailing={viewToggle}
-        />
-        <WorkflowCanvasView
-          steps={steps}
-          workflowName={workflowName}
-          questions={questions}
-          onSubmitCollabAnswer={onSubmitCollabAnswer}
-          onRecordDecision={onRecordDecision}
-          fillHeight
-        />
-      </WorkflowShell>
-    );
-  }
-
-  const completedCount = steps.filter((s) => s.status === 'completed').length;
-  const progress =
-    steps.length > 0
-      ? ((completedCount + (steps.some((s) => s.status === 'current') ? 0.5 : 0)) / steps.length) *
-        100
-      : 0;
-  const current = steps[currentIndex] ?? steps[0];
-
-  const safeFocus = Math.min(Math.max(focusedIndex, 0), Math.max(steps.length - 1, 0));
-  const prevStep = safeFocus > 0 ? steps[safeFocus - 1] : null;
-  const nextStep = safeFocus < steps.length - 1 ? steps[safeFocus + 1] : null;
-  const focused = steps[safeFocus] ?? current;
-
-  if (focus) {
-    return (
-      <WorkflowShell density="focus" ariaLabel="Response workflow">
-        <WorkflowHeader
-          workflowName={workflowName}
-          workflowDescription={workflowDescription}
-          trailing={viewToggle}
-        />
-        <Box className="monosuite-workflow-focus-track" aria-label="Previous, current, and next workflow steps">
-          {prevStep ? (
-            <FocusStepCard
-              step={prevStep}
-              index={safeFocus - 1}
-              dataRole="prev"
-              onSelect={() => setFocusedIndex(safeFocus - 1)}
-            />
-          ) : (
-            <Box className="monosuite-workflow-focus-slot" aria-hidden />
-          )}
-          <FocusStepCard step={focused} index={safeFocus} dataRole="current" />
-          {nextStep ? (
-            <FocusStepCard
-              step={nextStep}
-              index={safeFocus + 1}
-              dataRole="next"
-              onSelect={() => setFocusedIndex(safeFocus + 1)}
-            />
-          ) : (
-            <Box className="monosuite-workflow-focus-slot" aria-hidden />
-          )}
-        </Box>
-        <Group gap={6} justify="center" wrap="nowrap" mt={10} aria-label="Workflow progress">
-          {steps.map((step, index) => (
-            <Tooltip
-              key={step.id}
-              label={`${step.label} · ${STATUS_LABEL[step.status]}`}
-              withArrow
-              events={{ hover: true, focus: true, touch: true }}
-            >
-              <UnstyledButton
-                type="button"
-                aria-label={`${step.label}, ${STATUS_LABEL[step.status]}`}
-                aria-current={index === currentIndex ? 'step' : undefined}
-                className="monosuite-workflow-focus-pip"
-                data-status={step.status}
-                data-focused={index === safeFocus ? 'true' : 'false'}
-                onClick={() => setFocusedIndex(index)}
-                style={{ ['--workflow-phase-color' as string]: phaseFill(step.phase.color) }}
-              />
-            </Tooltip>
-          ))}
-        </Group>
-      </WorkflowShell>
-    );
-  }
-
   return (
-    <WorkflowShell density={strip ? 'strip' : 'cards'} ariaLabel="Response workflow">
+    <WorkflowShell density="cards" ariaLabel="Response workflow canvas" fill>
       <WorkflowHeader
         workflowName={workflowName}
         workflowDescription={workflowDescription}
-        trailing={
-          <Group gap="xs" wrap="nowrap">
-            {viewToggle}
-            {strip ? null : <PhaseKey steps={steps} />}
-          </Group>
-        }
+        trailing={<CanvasHeaderMeta workflowName={workflowName} />}
       />
-
-      <Box className="monosuite-workflow-shell" style={{ position: 'relative', width: '100%' }}>
-        <Box className="monosuite-workflow-progress" aria-hidden>
-          <Box className="monosuite-workflow-progress-fill" style={{ width: `${progress}%` }} />
-        </Box>
-
-        <Box className="monosuite-workflow-track">
-          {steps.map((step, index) => (
-            <Fragment key={step.id}>
-              <WorkflowStepCard step={step} index={index} strip={strip} />
-              {index < steps.length - 1 && (
-                <WorkflowConnector filled={step.status === 'completed'} />
-              )}
-            </Fragment>
-          ))}
-        </Box>
-      </Box>
+      <WorkflowCanvasView
+        steps={steps}
+        workflowName={workflowName}
+        questions={questions}
+        onSubmitCollabAnswer={onSubmitCollabAnswer}
+        onRecordDecision={onRecordDecision}
+        isCommander={isCommander}
+        participants={participants}
+        commanderParticipantId={commanderParticipantId}
+        evidence={evidence}
+        commanderQuestions={commanderQuestions}
+        incidentTitle={incidentTitle}
+        incidentDescription={incidentDescription}
+        incidentSeverity={incidentSeverity}
+        triageNotes={triageNotes}
+        onTriageNotesChange={onTriageNotesChange}
+        onOpenIncidentContext={onOpenIncidentContext}
+        incidentContextOpen={incidentContextOpen}
+        onAddEvidence={onAddEvidence}
+        onRemoveEvidence={onRemoveEvidence}
+        onAddCommanderQuestion={onAddCommanderQuestion}
+        onUpdateCommanderQuestion={onUpdateCommanderQuestion}
+        onRemoveCommanderQuestion={onRemoveCommanderQuestion}
+        onAnswerCommanderQuestion={onAnswerCommanderQuestion}
+        onSetPhaseSkippable={onSetPhaseSkippable}
+        onSkipPhase={onSkipPhase}
+        skippedPhases={skippedPhases}
+        assigneeOptions={assigneeOptions}
+        workItems={workItems}
+        collabThreads={collabThreads}
+        completedPhaseIds={completedPhaseIds}
+        onCompletePhase={onCompletePhase}
+        fillHeight
+      />
     </WorkflowShell>
   );
 }
 
 function WorkflowShell({
+  children,
   density,
   ariaLabel,
-  children,
   fill = false,
 }: {
+  children: ReactNode;
   density: 'cards' | 'strip' | 'focus';
   ariaLabel: string;
-  children: ReactNode;
   fill?: boolean;
 }) {
-  const strip = density === 'strip';
-  const focus = density === 'focus';
-
   return (
     <Box
-      className={`monosuite-workflow${strip ? ' monosuite-workflow--strip' : ''}${focus ? ' monosuite-workflow--focus' : ''}${fill ? ' monosuite-workflow--fill' : ''}`}
+      className={`monosuite-workflow${fill ? ' monosuite-workflow--fill' : ''}`}
+      data-density={density}
+      role="region"
       aria-label={ariaLabel}
       h={fill ? '100%' : undefined}
       style={fill ? { display: 'flex', flexDirection: 'column', minHeight: 0 } : undefined}
@@ -407,253 +306,6 @@ function WorkflowErrorState({
           ) : null}
         </Stack>
       </Group>
-    </Box>
-  );
-}
-
-function FocusStepCard({
-  step,
-  index,
-  dataRole,
-  onSelect,
-}: {
-  step: WorkflowStep;
-  index: number;
-  dataRole: 'prev' | 'current' | 'next';
-  onSelect?: () => void;
-}) {
-  const stepNo = String(index + 1).padStart(2, '0');
-  const phaseColor = phaseFill(step.phase.color);
-  const isCurrent = dataRole === 'current';
-  const pending = step.status === 'pending';
-  const done = step.status === 'completed';
-
-  const body = (
-    <>
-      <Group gap={4} wrap="nowrap" justify="space-between" mb={isCurrent ? 4 : 2}>
-        <Text size="10px" c="dimmed" fw={700} lh={1} style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {stepNo}
-        </Text>
-        {isCurrent ? (
-          <StatusChip status={step.status} index={index} />
-        ) : done ? (
-          <IconCheck size={12} color="var(--mantine-color-teal-filled)" aria-hidden />
-        ) : null}
-      </Group>
-      <TruncatedTooltipText
-        size={isCurrent ? 'sm' : 'xs'}
-        fw={isCurrent ? 700 : 600}
-        c={pending ? 'dimmed' : undefined}
-        lh={1.2}
-        lineClamp={1}
-        tooltip={`${step.label} · ${step.phase.label} · ${STATUS_LABEL[step.status]}`}
-        style={{ minWidth: 0 }}
-      >
-        {step.label}
-      </TruncatedTooltipText>
-    </>
-  );
-
-  const cardStyle = {
-    ['--workflow-phase-color' as string]: phaseColor,
-  };
-
-  if (onSelect) {
-    return (
-      <UnstyledButton
-        type="button"
-        className="monosuite-workflow-focus-card"
-        data-role={dataRole}
-        data-status={step.status}
-        aria-label={`${dataRole === 'prev' ? 'Previous step' : 'Next step'}: ${step.label}, ${STATUS_LABEL[step.status]}`}
-        onClick={onSelect}
-        style={cardStyle}
-      >
-        {body}
-      </UnstyledButton>
-    );
-  }
-
-  return (
-    <Box
-      className="monosuite-workflow-focus-card"
-      data-role={dataRole}
-      data-status={step.status}
-      aria-label={`${step.label}, ${STATUS_LABEL[step.status]}, ${step.phase.label}`}
-      style={cardStyle}
-    >
-      {body}
-    </Box>
-  );
-}
-
-function PhaseKey({ steps }: { steps: WorkflowStep[] }) {
-  return (
-    <Group gap={4} wrap="nowrap" aria-label="Workflow phase colors">
-      {steps.map((step) => (
-        <Tooltip
-          key={step.id}
-          label={`${step.phase.stage} · ${step.phase.label}`}
-          withArrow
-          openDelay={200}
-        >
-          <Box
-            aria-hidden
-            className="monosuite-workflow-phase-pip"
-            style={{ background: phaseFill(step.phase.color) }}
-          />
-        </Tooltip>
-      ))}
-    </Group>
-  );
-}
-
-function WorkflowStepCard({
-  step,
-  index,
-  strip,
-}: {
-  step: WorkflowStep;
-  index: number;
-  strip: boolean;
-}) {
-  const active = step.status === 'current';
-  const done = step.status === 'completed';
-  const pending = step.status === 'pending';
-  const stepNo = String(index + 1).padStart(2, '0');
-  const phaseColor = phaseFill(step.phase.color);
-
-  return (
-    <Box
-      className={`monosuite-workflow-card workflow-card workflow-card--${step.status}${strip ? ' monosuite-workflow-card--strip' : ''}`}
-      data-status={step.status}
-      aria-label={`${step.label}, ${STATUS_LABEL[step.status]}, ${step.phase.label}`}
-      style={{
-        animationDelay: `${index * 55}ms`,
-        ['--workflow-phase-color' as string]: phaseColor,
-      }}
-    >
-      {strip ? (
-        <>
-          <Tooltip label={`${step.phase.stage} · ${step.phase.label}`} withArrow openDelay={200}>
-            <Box
-              aria-hidden
-              className="monosuite-workflow-phase-mark"
-              style={{ background: phaseColor }}
-            />
-          </Tooltip>
-          <Text size="10px" c="dimmed" fw={700} lh={1} className="monosuite-workflow-step-no">
-            {stepNo}
-          </Text>
-          <TruncatedTooltipText
-            size="xs"
-            fw={active ? 700 : done ? 600 : 500}
-            c={pending ? 'dimmed' : undefined}
-            lh={1.2}
-            lineClamp={1}
-            tooltip={`${step.label} · ${step.phase.label} · ${STATUS_LABEL[step.status]}`}
-            className="monosuite-workflow-step-label"
-            style={{ minWidth: 0, flex: 1 }}
-          >
-            {step.label}
-          </TruncatedTooltipText>
-          <StatusChip status={step.status} index={index} />
-        </>
-      ) : (
-        <>
-          <Group justify="space-between" wrap="nowrap" gap={4} mb={4}>
-            <StatusChip status={step.status} index={index} />
-            <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
-              <Tooltip label={`${step.phase.stage} · ${step.phase.label}`} withArrow openDelay={200}>
-                <Box
-                  aria-hidden
-                  className="monosuite-workflow-phase-mark"
-                  style={{ background: phaseColor }}
-                />
-              </Tooltip>
-              <Text size="10px" c="dimmed" fw={700} lh={1} className="monosuite-workflow-step-no">
-                {stepNo}
-              </Text>
-            </Group>
-          </Group>
-
-          <TruncatedTooltipText
-            size="xs"
-            fw={active ? 700 : done ? 600 : 500}
-            c={pending ? 'dimmed' : undefined}
-            lh={1.25}
-            lineClamp={2}
-            tooltip={`${step.label} · ${step.phase.label} · ${STATUS_LABEL[step.status]}`}
-            className="monosuite-workflow-step-label"
-          >
-            {step.label}
-          </TruncatedTooltipText>
-        </>
-      )}
-    </Box>
-  );
-}
-
-function StatusChip({
-  status,
-  index,
-}: {
-  status: WorkflowStep['status'];
-  index: number;
-}) {
-  const active = status === 'current';
-  const done = status === 'completed';
-  const label = STATUS_LABEL[status];
-
-  const chip = (
-    <Group
-      gap={4}
-      wrap="nowrap"
-      px={6}
-      py={2}
-      className={`monosuite-workflow-status workflow-status--${status}`}
-      style={{
-        animationDelay: active ? undefined : `${index * 55 + 80}ms`,
-      }}
-    >
-      {done ? (
-        <IconCheck size={11} color="var(--mantine-color-teal-filled)" aria-hidden />
-      ) : (
-        <Box
-          aria-hidden
-          className="monosuite-workflow-status-dot"
-          data-active={active ? 'true' : 'false'}
-        />
-      )}
-      <Text
-        size="10px"
-        fw={700}
-        tt="uppercase"
-        lh={1}
-        c={active ? 'var(--monosuite-color-surface)' : done ? 'teal' : 'dimmed'}
-        className="monosuite-workflow-status-text"
-        style={{ letterSpacing: '0.03em' }}
-      >
-        {label}
-      </Text>
-    </Group>
-  );
-
-  return (
-    <Tooltip label={label} withArrow openDelay={200} position="top">
-      {chip}
-    </Tooltip>
-  );
-}
-
-function WorkflowConnector({ filled }: { filled: boolean }) {
-  return (
-    <Box
-      className="monosuite-workflow-connector workflow-connector"
-      aria-hidden
-      data-filled={filled ? 'true' : 'false'}
-    >
-      <IconChevronRight size={11} />
     </Box>
   );
 }

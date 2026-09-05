@@ -24,6 +24,8 @@ import {
   type EvidenceDraft,
   type EvidenceItem,
   type EvidenceKind,
+  type CommanderAssignee,
+  type CommanderQuestion,
   type ExternalGuestInvite,
   type HistoryEntry,
   type LivePerson,
@@ -42,6 +44,15 @@ import {
   getQuestionsForTab,
   getRemoteCamerasOn,
 } from '../data';
+import type { RoomScenarioPack } from '../scenarios';
+import {
+  formatTaskAnswerDisplay,
+  makePersonAnswer,
+  peopleForTaskRole,
+  TASK_ROLE_LABEL,
+  taskQuorumStatus,
+  upsertPersonAnswer,
+} from '../taskQuorum';
 
 /** Mock — active room with elapsed seed; scheduled rooms hide operational time. */
 const MOCK_ROOM_LIFECYCLE: RoomLifecycle = 'active';
@@ -133,26 +144,25 @@ export function resolveLocalShareState(media: MediaState): LocalShareState {
   return 'available';
 }
 
-function prefersCollapsedUtility() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia(ROOM_WIDE_PANELS_COLLAPSE_QUERY).matches;
-}
-
-export function useRoomState() {
+export function useRoomState(pack?: RoomScenarioPack | null) {
   const canManageParticipants = CURRENT_USER.canManageParticipants;
   const canEditRoomSettings = CURRENT_USER.canEditRoomSettings;
 
   const [sidebarTab, setSidebarTab] = useState<ContextTab>('participants');
-  const [asideCollapsed, setAsideCollapsed] = useState(prefersCollapsedUtility);
-  const asidePinnedByUser = useRef(false);
+  const [asideCollapsed, setAsideCollapsed] = useState(true);
+  const asidePinnedByUser = useRef(true);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('questions');
-  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(1);
+  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(
+    () => pack?.questions[0]?.id ?? 1,
+  );
   const [answeringQuestion, setAnsweringQuestion] = useState<number | null>(null);
   const [discussionOpen, setDiscussionOpen] = useState<number | null>(null);
   const [questions, setQuestions] = useState<Question[]>(() =>
-    structuredClone(INITIAL_QUESTIONS),
+    structuredClone(pack?.questions ?? INITIAL_QUESTIONS),
   );
-  const [history, setHistory] = useState<HistoryEntry[]>(() => [...INITIAL_HISTORY]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => [
+    ...(pack?.history ?? INITIAL_HISTORY),
+  ]);
   const [expandedSource, setExpandedSource] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaState>(INITIAL_MEDIA);
   const [mediaDevices, setMediaDevices] = useState<MediaDevices>(INITIAL_DEVICES);
@@ -160,10 +170,10 @@ export function useRoomState() {
     structuredClone(LIVE_PEOPLE),
   );
   const [participants, setParticipants] = useState<Participant[]>(() =>
-    structuredClone(PARTICIPANTS),
+    structuredClone(pack?.participants ?? PARTICIPANTS),
   );
   const [commanderParticipantId, setCommanderParticipantId] = useState(
-    DEFAULT_COMMANDER_PARTICIPANT_ID,
+    pack?.commanderParticipantId ?? DEFAULT_COMMANDER_PARTICIPANT_ID,
   );
   const [transferCommandOpen, setTransferCommandOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -171,11 +181,20 @@ export function useRoomState() {
   const [mediaSettingsOpen, setMediaSettingsOpen] = useState(false);
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [evidence, setEvidence] = useState<EvidenceItem[]>(() => structuredClone(EVIDENCE_ITEMS));
+  const [evidence, setEvidence] = useState<EvidenceItem[]>(() =>
+    structuredClone(pack?.evidence ?? EVIDENCE_ITEMS),
+  );
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceKind, setEvidenceKind] = useState<EvidenceKind>('file');
-  const [roomSettings, setRoomSettings] = useState<RoomSettingsDraft>(DEFAULT_ROOM_SETTINGS);
-  const roomWorkflow = useRoomWorkflow(roomSettings.workflow);
+  const [evidencePhaseId, setEvidencePhaseId] = useState<string | null>(null);
+  const [commanderQuestions, setCommanderQuestions] = useState<CommanderQuestion[]>([]);
+  const [phaseSkippable, setPhaseSkippable] = useState<Record<string, boolean>>({});
+  const [skippedPhases, setSkippedPhases] = useState<string[]>([]);
+  const [triageNotes, setTriageNotes] = useState('');
+  const [roomSettings, setRoomSettings] = useState<RoomSettingsDraft>(
+    () => structuredClone(pack?.roomSettings ?? DEFAULT_ROOM_SETTINGS),
+  );
+  const roomWorkflow = useRoomWorkflow(roomSettings.workflow, pack?.id);
   const [typingVisible] = useState(true);
   const [pinnedTarget, setPinnedTarget] = useState<PinTarget | null>(null);
   const [collaborationFullscreen, setCollaborationFullscreen] = useState(false);
@@ -184,9 +203,14 @@ export function useRoomState() {
   const splitBeforeFullscreenRef = useRef(false);
   const [startedAt] = useState(() => Date.now() - ROOM_ELAPSED_SEED_MS);
   const [now, setNow] = useState(() => Date.now());
-  const [selectedDecision, setSelectedDecision] = useState<Record<number, string>>({
-    2: 'Disable account',
-  });
+  const [selectedDecision, setSelectedDecision] = useState<Record<number, string>>({});
+  const [completedPhaseIds, setCompletedPhaseIds] = useState<string[]>([]);
+  const scenarioWorkItems = pack?.workItems;
+  const scenarioCollabThreads = pack?.collabThreads;
+  const scenarioIncident = pack?.incident;
+  const scenarioAttackers = pack?.attackerEntities;
+  const scenarioVictims = pack?.victimEntities;
+  const scenarioLinkedAlerts = pack?.linkedAlerts;
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -297,10 +321,21 @@ export function useRoomState() {
             ...(q.answers ?? []),
             { id: `a-${id}-${Date.now().toString(36)}`, author: CURRENT_USER.name, text: trimmed },
           ];
+          const roleAnswers = q.assigneeRole
+            ? upsertPersonAnswer(
+                q.roleAnswers,
+                makePersonAnswer({
+                  participantId: CURRENT_USER.id,
+                  participantName: CURRENT_USER.name,
+                  values: [trimmed],
+                }),
+              )
+            : q.roleAnswers;
           return {
             ...q,
             answers,
             answerCount: q.answerCount + 1,
+            roleAnswers,
           };
         }),
       );
@@ -424,19 +459,30 @@ export function useRoomState() {
   }, []);
 
   const recordDecision = useCallback(
-    (id: number, choiceOverride?: string) => {
-      const choice = choiceOverride ?? selectedDecision[id];
-      if (!choice) return;
+    (id: number, values: string[], otherText?: string) => {
+      if (!values.length) return;
       setQuestions((prev) =>
-        prev.map((q) =>
-          q.id === id
-            ? {
-                ...q,
-                decision: { choice, by: CURRENT_USER.name, at: nowTime() },
-                status: 'answered' as const,
-              }
-            : q,
-        ),
+        prev.map((q) => {
+          if (q.id !== id) return q;
+          const personAnswer = makePersonAnswer({
+            participantId: CURRENT_USER.id,
+            participantName: CURRENT_USER.name,
+            values,
+            otherText,
+          });
+          const roleAnswers = upsertPersonAnswer(q.roleAnswers, personAnswer);
+          const people = q.assigneeRole
+            ? peopleForTaskRole(q.assigneeRole, participants, commanderParticipantId)
+            : [];
+          const quorum = taskQuorumStatus(roleAnswers, people);
+          const summary = formatTaskAnswerDisplay(personAnswer);
+          return {
+            ...q,
+            roleAnswers,
+            decision: { choice: summary, by: CURRENT_USER.name, at: nowTime() },
+            status: quorum.isComplete || people.length === 0 ? ('answered' as const) : ('decision' as const),
+          };
+        }),
       );
       setHistory((h) => [
         {
@@ -449,7 +495,7 @@ export function useRoomState() {
       ]);
       showToast('Decision recorded');
     },
-    [selectedDecision, showToast],
+    [commanderParticipantId, participants, showToast],
   );
 
   const joinLive = useCallback(() => {
@@ -713,8 +759,9 @@ export function useRoomState() {
     [canEditRoomSettings, canManageParticipants, commanderParticipantId, closeRoom, showToast],
   );
 
-  const openAddEvidence = useCallback((kind: EvidenceKind = 'file') => {
+  const openAddEvidence = useCallback((kind: EvidenceKind = 'file', phaseId?: string | null) => {
     setEvidenceKind(kind);
+    setEvidencePhaseId(phaseId ?? null);
     setEvidenceOpen(true);
   }, []);
 
@@ -730,6 +777,7 @@ export function useRoomState() {
           id: `e-${crypto.randomUUID()}`,
           by: CURRENT_USER.name,
           time: nowTime(),
+          phaseId: draft.phaseId,
         };
 
         if (draft.kind === 'source') {
@@ -816,8 +864,207 @@ export function useRoomState() {
         setHistory((entries) => [...historyEntries, ...entries]);
       }
       setEvidenceOpen(false);
+      setEvidencePhaseId(null);
     },
     [evidence, showToast],
+  );
+
+  const resolveCommanderAssigneeDisplay = useCallback((assignee: CommanderAssignee) => {
+    if (assignee.type === 'role') {
+      return {
+        assigneeId: `role:${assignee.role}`,
+        assigneeName: TASK_ROLE_LABEL[assignee.role],
+      };
+    }
+    return { assigneeId: assignee.id, assigneeName: assignee.name };
+  }, []);
+
+  const addCommanderQuestion = useCallback(
+    (input: {
+      phaseId: string;
+      title: string;
+      assignee: CommanderAssignee;
+      required: boolean;
+    }) => {
+      const { assigneeId, assigneeName } = resolveCommanderAssigneeDisplay(input.assignee);
+      const question: CommanderQuestion = {
+        id: `cq-${crypto.randomUUID()}`,
+        phaseId: input.phaseId,
+        title: input.title.trim(),
+        assigneeId,
+        assigneeName,
+        assignee: input.assignee,
+        required: input.required,
+        answerType: 'textarea',
+        roleAnswers: [],
+        createdBy: CURRENT_USER.name,
+      };
+      setCommanderQuestions((current) => [...current, question]);
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `added custom question · ${question.title}`,
+          highlight: true,
+        },
+        ...entries,
+      ]);
+      showToast('Custom question added');
+    },
+    [resolveCommanderAssigneeDisplay, showToast],
+  );
+
+  const updateCommanderQuestion = useCallback(
+    (
+      id: string,
+      input: {
+        title: string;
+        assignee: CommanderAssignee;
+        required: boolean;
+      },
+    ) => {
+      const title = input.title.trim();
+      if (!title) {
+        showToast('Enter a question title');
+        return;
+      }
+      const { assigneeId, assigneeName } = resolveCommanderAssigneeDisplay(input.assignee);
+      setCommanderQuestions((current) => {
+        const existing = current.find((question) => question.id === id);
+        if (!existing) return current;
+        return current.map((question) =>
+          question.id === id
+            ? {
+                ...question,
+                title,
+                assigneeId,
+                assigneeName,
+                assignee: input.assignee,
+                required: input.required,
+              }
+            : question,
+        );
+      });
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `edited custom question · ${title}`,
+          highlight: true,
+        },
+        ...entries,
+      ]);
+      showToast('Custom question updated');
+    },
+    [resolveCommanderAssigneeDisplay, showToast],
+  );
+
+  const removeCommanderQuestion = useCallback(
+    (id: string) => {
+      const target = commanderQuestions.find((question) => question.id === id);
+      if (!target) return;
+      setCommanderQuestions((current) => current.filter((question) => question.id !== id));
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `removed custom question · ${target.title}`,
+          highlight: true,
+        },
+        ...entries,
+      ]);
+      showToast('Custom question removed');
+    },
+    [commanderQuestions, showToast],
+  );
+
+  const answerCommanderQuestion = useCallback(
+    (id: string, payload: { values: string[]; otherText?: string }) => {
+      if (!payload.values.length) {
+        showToast('Enter an answer first');
+        return;
+      }
+      const personAnswer = makePersonAnswer({
+        participantId: CURRENT_USER.id,
+        participantName: CURRENT_USER.name,
+        values: payload.values,
+        otherText: payload.otherText,
+      });
+      const summary = formatTaskAnswerDisplay(personAnswer);
+      const target = commanderQuestions.find((question) => question.id === id);
+      setCommanderQuestions((current) =>
+        current.map((question) =>
+          question.id === id
+            ? {
+                ...question,
+                roleAnswers: upsertPersonAnswer(question.roleAnswers, personAnswer),
+                answer: summary,
+              }
+            : question,
+        ),
+      );
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `answered custom question · ${target?.title ?? id}`,
+          highlight: false,
+        },
+        ...entries,
+      ]);
+      showToast('Answer recorded');
+    },
+    [commanderQuestions, showToast],
+  );
+
+  const setPhaseSkippableFlag = useCallback((phaseId: string, skippable: boolean) => {
+    setPhaseSkippable((current) => ({ ...current, [phaseId]: skippable }));
+    showToast(skippable ? 'Phase marked skippable' : 'Phase marked required');
+  }, [showToast]);
+
+  const skipPhase = useCallback(
+    (phaseId: string) => {
+      setSkippedPhases((current) => (current.includes(phaseId) ? current : [...current, phaseId]));
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `skipped phase · ${phaseId}`,
+          highlight: false,
+        },
+        ...entries,
+      ]);
+      showToast('Phase skipped');
+    },
+    [showToast],
+  );
+
+  const completePhase = useCallback(
+    (phaseId: string) => {
+      setCompletedPhaseIds((current) =>
+        current.includes(phaseId) ? current : [...current, phaseId],
+      );
+      roomWorkflow.setStepStatuses((steps) => {
+        const index = steps.findIndex((step) => step.id === phaseId);
+        if (index < 0) return steps;
+        return steps.map((step, stepIndex) => {
+          if (stepIndex <= index) return { ...step, status: 'completed' as const };
+          if (stepIndex === index + 1) return { ...step, status: 'current' as const };
+          return step;
+        });
+      });
+      setHistory((entries) => [
+        {
+          time: nowTime(),
+          actor: CURRENT_USER.name,
+          action: `completed phase · ${phaseId}`,
+          highlight: true,
+        },
+        ...entries,
+      ]);
+      showToast('Phase completed');
+    },
+    [roomWorkflow, showToast],
   );
 
   const removeEvidence = useCallback(
@@ -1224,10 +1471,22 @@ export function useRoomState() {
     evidence,
     evidenceOpen,
     evidenceKind,
+    evidencePhaseId,
     setEvidenceOpen,
     openAddEvidence,
     addEvidence,
     removeEvidence,
+    commanderQuestions,
+    addCommanderQuestion,
+    updateCommanderQuestion,
+    removeCommanderQuestion,
+    answerCommanderQuestion,
+    phaseSkippable,
+    setPhaseSkippableFlag,
+    skippedPhases,
+    skipPhase,
+    triageNotes,
+    setTriageNotes,
     roomSettings,
     saveRoomSettings,
     roomWorkflow,
@@ -1241,6 +1500,14 @@ export function useRoomState() {
     selectedDecision,
     setSelectedDecision,
     recordDecision,
+    completedPhaseIds,
+    completePhase,
+    scenarioWorkItems,
+    scenarioCollabThreads,
+    scenarioIncident,
+    scenarioAttackers,
+    scenarioVictims,
+    scenarioLinkedAlerts,
     joinLive,
     leaveLive,
     toggleMedia,

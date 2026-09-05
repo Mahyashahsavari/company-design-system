@@ -14,7 +14,6 @@ import {
 import {
   IconArrowLeft,
   IconArrowsExchange,
-  IconCrown,
   IconDotsVertical,
   IconDownload,
   IconDoorExit,
@@ -31,7 +30,8 @@ import {
   ROOM_PAGE_HEADER_GUTTER,
 } from '../../../shared/constants';
 import { routes } from '../../../shared/routes';
-import { INCIDENT, ROOM_SEVERITY_COLOR, type RoomSeverity, type RoomSlaPolicy } from '../data';
+import { ROOM_ROLE_COLOR, ROOM_ROLE_EMOJI, type RoomSlaPolicy } from '../data';
+import { useRoomIncident } from '../RoomScenarioContext';
 import { RoomDetailsDrawer } from './RoomDetailsDrawer';
 
 const VISIBLE_TAG_LIMIT = 2;
@@ -41,7 +41,6 @@ interface RoomCommandHeaderProps {
   roomTitle: string;
   roomDescription: string;
   roomTags: string[];
-  roomSeverity: RoomSeverity;
   onRoomAction: (action: string) => void;
   onCloseRoom: () => void;
   canEditRoomSettings?: boolean;
@@ -60,7 +59,6 @@ export function RoomCommandHeader({
   roomTitle,
   roomDescription,
   roomTags,
-  roomSeverity,
   onRoomAction,
   onCloseRoom,
   canEditRoomSettings = false,
@@ -74,6 +72,7 @@ export function RoomCommandHeader({
   onTransferCommand,
 }: RoomCommandHeaderProps) {
   const navigate = useNavigate();
+  const incident = useRoomIncident();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const headingSize = compact ? '1rem' : titleSize;
 
@@ -303,32 +302,37 @@ export function RoomCommandHeader({
 
                   <Group gap={5} wrap="nowrap" visibleFrom="md" style={{ flexShrink: 0 }}>
                     <Badge color="neutral" variant="outline" size="sm">
-                      {INCIDENT.id}
-                    </Badge>
-                    <Badge color={ROOM_SEVERITY_COLOR[roomSeverity]} size="sm" variant="light">
-                      {roomSeverity}
+                      {incident.id}
                     </Badge>
                     <Badge color="success" size="sm" variant="light">
-                      {INCIDENT.status}
+                      {incident.status}
                     </Badge>
                     <Badge
-                      color="brand"
+                      color={ROOM_ROLE_COLOR.Commander}
                       size="sm"
                       variant="light"
-                      leftSection={<IconCrown size={12} aria-hidden />}
+                      leftSection={
+                        <Text component="span" size="xs" lh={1} aria-hidden>
+                          {ROOM_ROLE_EMOJI.Commander}
+                        </Text>
+                      }
                     >
-                      Commander · {commanderName ?? INCIDENT.owner}
+                      Commander · {commanderName ?? incident.owner}
                     </Badge>
                   </Group>
                   {compact ? (
                     <Badge
-                      color="brand"
+                      color={ROOM_ROLE_COLOR.Commander}
                       size="xs"
                       variant="light"
-                      leftSection={<IconCrown size={11} aria-hidden />}
+                      leftSection={
+                        <Text component="span" size="10px" lh={1} aria-hidden>
+                          {ROOM_ROLE_EMOJI.Commander}
+                        </Text>
+                      }
                       style={{ flexShrink: 0 }}
                     >
-                      {INCIDENT.owner}
+                      {commanderName ?? incident.owner}
                     </Badge>
                   ) : null}
                 </Group>
@@ -443,7 +447,6 @@ export function RoomCommandHeader({
         opened={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         roomTitle={roomTitle}
-        roomSeverity={roomSeverity}
         description={roomDescription}
         tags={roomTags}
         canEditRoomSettings={canEditRoomSettings}

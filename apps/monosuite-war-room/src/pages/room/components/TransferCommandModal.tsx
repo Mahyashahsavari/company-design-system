@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
-import { IconCrown } from '@tabler/icons-react';
+import { Box, Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
+import { ROOM_ROLE_COLOR, ROOM_ROLE_EMOJI, roomRoleColor } from '../data';
 
 export interface TransferCommandCandidate {
   id: string;
@@ -60,7 +60,35 @@ export function TransferCommandModal({
           onChange={setNextCommanderId}
           searchable
           nothingFoundMessage="No eligible participants"
-          leftSection={<IconCrown size={16} aria-hidden />}
+          leftSection={
+            <Text component="span" size="sm" lh={1} aria-hidden>
+              {ROOM_ROLE_EMOJI.Commander}
+            </Text>
+          }
+          renderOption={({ option }) => {
+            const person = candidates.find((candidate) => candidate.id === option.value);
+            const role = person?.role ?? 'Responder';
+            return (
+              <Group gap="xs" wrap="nowrap">
+                <Box
+                  aria-hidden
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: `var(--mantine-color-${roomRoleColor(role)}-filled)`,
+                  }}
+                />
+                <Text size="sm">
+                  {person?.name ?? option.label}
+                  {' · '}
+                  <Text component="span" c={roomRoleColor(role)} fw={600}>
+                    {role}
+                  </Text>
+                </Text>
+              </Group>
+            );
+          }}
         />
 
         <Text size="xs" c="dimmed">
@@ -72,7 +100,7 @@ export function TransferCommandModal({
             Cancel
           </Button>
           <Button
-            color="teal"
+            color={ROOM_ROLE_COLOR.Commander}
             disabled={!nextCommanderId}
             onClick={() => nextCommanderId && onConfirm(nextCommanderId)}
             data-testid="transfer-command-confirm"

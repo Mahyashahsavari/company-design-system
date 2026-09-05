@@ -1,6 +1,7 @@
 import { Badge, Box, Group, Modal, Paper, Stack, Text } from '@mantine/core';
 import { IconArrowRight, IconFingerprint, IconRoute2 } from '@tabler/icons-react';
-import { INCIDENT, type ThreatEntity } from '../data';
+import type { ThreatEntity } from '../data';
+import { useRoomIncident } from '../RoomScenarioContext';
 
 interface AttackMapModalProps {
   opened: boolean;
@@ -11,6 +12,7 @@ interface AttackMapModalProps {
 
 /** Evidence-aware relationship map. It is deliberately labelled as a hypothesis until confirmed. */
 export function AttackMapModal({ opened, onClose, attacker, victim }: AttackMapModalProps) {
+  const incident = useRoomIncident();
   return (
     <Modal
       opened={opened}
@@ -37,10 +39,10 @@ export function AttackMapModal({ opened, onClose, attacker, victim }: AttackMapM
         </Paper>
 
         <Box className="monosuite-attack-map">
-          <AttackNode tone="danger" eyebrow="Threat origin" title={attacker.identifier} detail="Splunk · observed" />
-          <AttackEdge label="Valid credentials" source="Splunk SPL-8847291" />
-          <AttackNode tone="warning" eyebrow="Identity" title="svc-backup" detail="Inferred · needs confirmation" />
-          <AttackEdge label="Remote service" source={`${INCIDENT.mitreId} · ${INCIDENT.mitreTechnique}`} />
+          <AttackNode tone="danger" eyebrow="Threat origin" title={attacker.identifier} detail={`${incident.source} · observed`} />
+          <AttackEdge label="Valid credentials" source={`${incident.source} · linked alert`} />
+          <AttackNode tone="warning" eyebrow="Identity" title={incident.threatActor} detail="Inferred · needs confirmation" />
+          <AttackEdge label="Remote service" source={`${incident.mitreId} · ${incident.mitreTechnique}`} />
           <AttackNode
             tone="teal"
             eyebrow="Impacted entity"
@@ -51,13 +53,13 @@ export function AttackMapModal({ opened, onClose, attacker, victim }: AttackMapM
 
         <Group gap="xs" wrap="wrap">
           <Badge variant="outline" color="neutral">
-            Technique · {INCIDENT.mitreId}
+            Technique · {incident.mitreId}
           </Badge>
           <Badge variant="outline" color="neutral">
-            Tactic · {INCIDENT.mitreTactic}
+            Tactic · {incident.mitreTactic}
           </Badge>
           <Badge variant="outline" color="neutral">
-            Source · Splunk
+            Source · {incident.source}
           </Badge>
         </Group>
       </Stack>

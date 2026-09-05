@@ -5,7 +5,6 @@ import {
   Group,
   Modal,
   Paper,
-  Radio,
   Stack,
   Text,
   Textarea,
@@ -20,10 +19,18 @@ import {
 import { useClickOutside } from '@mantine/hooks';
 import { useState } from 'react';
 import { DiscardChangesModal } from '../../../shared/components/DiscardChangesModal';
-import { isOwnContribution } from '../../../shared/constants';
+import { CURRENT_USER, isOwnContribution } from '../../../shared/constants';
 import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
-import type { Question, WorkspaceTab } from '../data';
+import type { Participant, Question, WorkspaceTab } from '../data';
+import {
+  formatTaskAnswerDisplay,
+  isPersonInAssigneePool,
+  peopleForTaskRole,
+  taskQuorumStatus,
+} from '../taskQuorum';
 import { ContributionNote } from './ContributionNote';
+import { isChoiceAnswerValid, TaskChoiceControl } from './TaskChoiceControl';
+import { TaskQuorumProgress } from './TaskQuorumProgress';
 
 type NoteKind = 'answer' | 'discussion';
 
@@ -33,7 +40,8 @@ interface QuestionCardProps {
   expanded: boolean;
   answering: boolean;
   discussionOpen: boolean;
-  selectedDecision?: string;
+  participants: Participant[];
+  commanderParticipantId: string;
   onToggle: () => void;
   onStartAnswer: () => void;
   onCancelAnswer: () => void;
@@ -44,8 +52,7 @@ interface QuestionCardProps {
   onSubmitComment: (text: string) => void;
   onUpdateComment: (commentId: string, text: string) => void;
   onDeleteComment: (commentId: string) => void;
-  onSelectDecision: (choice: string) => void;
-  onRecordDecision: () => void;
+  onRecordDecision: (values: string[], otherText?: string) => void;
 }
 
 function statusBadge(status: Question['status'], hasDecision: boolean) {
@@ -83,7 +90,8 @@ export function QuestionCard({
   expanded,
   answering,
   discussionOpen,
-  selectedDecision,
+  participants,
+  commanderParticipantId,
   onToggle,
   onStartAnswer,
   onCancelAnswer,
@@ -94,11 +102,12 @@ export function QuestionCard({
   onSubmitComment,
   onUpdateComment,
   onDeleteComment,
-  onSelectDecision,
   onRecordDecision,
 }: QuestionCardProps) {
   const [draft, setDraft] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
+  const [choiceValues, setChoiceValues] = useState<string[]>([]);
+  const [choiceOther, setChoiceOther] = useState('');
   const [editing, setEditing] = useState<{ kind: NoteKind; id: string } | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ kind: NoteKind; id: string } | null>(null);
@@ -109,6 +118,12 @@ export function QuestionCard({
   const answeringDirty = answering && draft.trim().length > 0;
   const commentDirty = commentDraft.trim().length > 0;
   const composerDirty = answeringDirty || commentDirty;
+  const assigneePeople = q.assigneeRole
+    ? peopleForTaskRole(q.assigneeRole, participants, commanderParticipantId)
+    : [];
+  const quorum = q.assigneeRole ? taskQuorumStatus(q.roleAnswers, assigneePeople) : null;
+  const inDecisionPool = isPersonInAssigneePool(CURRENT_USER.id, assigneePeople);
+  const decisionValid = isChoiceAnswerValid(choiceValues, choiceOther, q.selectionMode);
 
   const resetComposers = () => {
     setDraft('');
@@ -230,6 +245,15 @@ export function QuestionCard({
               </Group>
             </Group>
 
+            {quorum && q.assigneeRole ? (
+              <TaskQuorumProgress
+                roleLabel={q.roleLabel ?? q.assigneeRole}
+                role={q.assigneeRole}
+                quorum={quorum}
+                compact
+              />
+            ) : null}
+
             {!expanded && recent && (
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <Avatar size={18} radius="xl" color="teal">
@@ -254,7 +278,7 @@ export function QuestionCard({
       {expanded && (
         <Stack gap="sm" mt="sm" pl={52}>
           {(q.status === 'decision' || q.decision) &&
-            (q.decision ? (
+            (quorum?.isComplete && q.decision ? (
               <Paper
                 withBorder={false}
                 shadow="none"
@@ -278,20 +302,65 @@ export function QuestionCard({
               </Paper>
             ) : (
               <Stack gap="sm">
-                <Radio.Group
-                  value={selectedDecision}
-                  onChange={onSelectDecision}
-                  name={`decision-${q.id}`}
-                >
+                {quorum && q.assigneeRole ? (
+                  <TaskQuorumProgress
+                    roleLabel={q.roleLabel ?? q.assigneeRole}
+                    role={q.assigneeRole}
+                    quorum={quorum}
+                  />
+                ) : null}
+                {(q.roleAnswers ?? []).length > 0 ? (
                   <Stack gap={6}>
-                    {(q.options ?? []).map((opt) => (
-                      <Radio key={opt} value={opt} label={opt} size="sm" />
+                    <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+                      Submitted answers
+                    </Text>
+                    {(q.roleAnswers ?? []).map((answer) => (
+                      <Paper
+                        key={answer.participantId}
+                        withBorder={false}
+                        shadow="none"
+                        p="xs"
+                        radius="sm"
+                        bg="var(--monosuite-color-surface-sunken)"
+                      >
+                        <Text size="xs" fw={700}>
+                          {answer.participantName}
+                        </Text>
+                        <Text size="sm">{formatTaskAnswerDisplay(answer)}</Text>
+                      </Paper>
                     ))}
                   </Stack>
-                </Radio.Group>
-                <Button size="xs" w="fit-content" onClick={onRecordDecision}>
-                  Record Decision
-                </Button>
+                ) : null}
+                {inDecisionPool ? (
+                  <>
+                    <TaskChoiceControl
+                      options={q.options ?? []}
+                      selectionMode={q.selectionMode}
+                      allowOther={q.allowOther}
+                      values={choiceValues}
+                      otherText={choiceOther}
+                      onValuesChange={setChoiceValues}
+                      onOtherTextChange={setChoiceOther}
+                      label="Your decision"
+                    />
+                    <Button
+                      size="xs"
+                      w="fit-content"
+                      disabled={!decisionValid}
+                      onClick={() => {
+                        onRecordDecision(choiceValues, choiceOther);
+                        setChoiceValues([]);
+                        setChoiceOther('');
+                      }}
+                    >
+                      Record Decision
+                    </Button>
+                  </>
+                ) : (
+                  <Text size="xs" c="dimmed">
+                    Waiting for assignees in this role to record their decision.
+                  </Text>
+                )}
               </Stack>
             ))}
 

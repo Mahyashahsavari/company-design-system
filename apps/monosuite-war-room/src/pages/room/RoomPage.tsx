@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppShell, Box } from '@mantine/core';
 import { useElementSize, useMediaQuery } from '@mantine/hooks';
+import { Navigate, useParams } from 'react-router';
 import { AppChrome } from '../../shared/components/AppChrome';
 import { Toast } from '../../shared';
 import {
@@ -13,6 +14,7 @@ import {
   ROOM_PAGE_HEADER_GUTTER,
   ROOM_UTILITY_COMPACT_MAX,
 } from '../../shared/constants';
+import { routes } from '../../shared/routes';
 import { CollaborationLayer } from './components/CollaborationLayer';
 import { ContextSidebar } from './components/ContextSidebar';
 import { IncidentContextColumn } from './components/IncidentContextColumn';
@@ -32,15 +34,13 @@ import { ResizableRoomSidePanel } from './components/ResizableRoomSidePanel';
 import { ResizableSplitPane } from './components/ResizableSplitPane';
 import { ResponseWorkflow } from './components/response-workflow';
 import type { WorkflowViewMode } from './components/response-workflow';
+import { nistPhaseSelectOptions } from './components/response-workflow/workflowCanvasData';
 import { RoomCommandHeader } from './components/RoomCommandHeader';
-import {
-  ATTACKER_ENTITIES,
-  LINKED_INCIDENT_ALERTS,
-  PARTICIPANTS,
-  VICTIM_ENTITIES,
-} from './data';
+import { PARTICIPANTS } from './data';
 import { useRoomState } from './hooks/useRoomState';
 import { useRoomSidePanelWidths } from './hooks/useRoomSidePanelWidths';
+import { RoomScenarioProvider } from './RoomScenarioContext';
+import { getRoomScenario, type RoomScenarioPack } from './scenarios';
 
 function handleMediaMore(action: string, room: ReturnType<typeof useRoomState>) {
   if (action === 'simulate-moderator-mute') {
@@ -56,18 +56,68 @@ function handleMediaMore(action: string, room: ReturnType<typeof useRoomState>) 
   room.showToast(action === 'devices' ? 'Testing devices…' : 'Connection details');
 }
 
-/** Room page — investigation + separate collaboration/media layer. */
+/** Room page — loads scenario pack from `/rooms/:roomId`. */
 export function RoomPage() {
-  const room = useRoomState();
-  const [attackerId, setAttackerId] = useState(ATTACKER_ENTITIES[0].id);
-  const [victimId, setVictimId] = useState(VICTIM_ENTITIES[0].id);
-  const [linkedAlerts, setLinkedAlerts] = useState(LINKED_INCIDENT_ALERTS);
-  const [contextCollapsed, setContextCollapsed] = useState(false);
+  const { roomId } = useParams<{ roomId: string }>();
+  const pack = useMemo(() => getRoomScenario(roomId), [roomId]);
+
+  if (!pack) {
+    return <Navigate to={routes.rooms} replace />;
+  }
+
+  return (
+    <RoomScenarioProvider value={pack}>
+      <RoomPageContent pack={pack} />
+    </RoomScenarioProvider>
+  );
+}
+
+function RoomPageContent({ pack }: { pack: RoomScenarioPack }) {
+  const room = useRoomState(pack);
+  const attackers = pack.attackerEntities;
+  const victims = pack.victimEntities;
+  const [attackerId, setAttackerId] = useState(attackers[0]?.id ?? '');
+  const [victimId, setVictimId] = useState(victims[0]?.id ?? '');
+  const [linkedAlerts, setLinkedAlerts] = useState(() => structuredClone(pack.linkedAlerts));
+
+  useEffect(() => {
+    setAttackerId(pack.attackerEntities[0]?.id ?? '');
+    setVictimId(pack.victimEntities[0]?.id ?? '');
+    setLinkedAlerts(structuredClone(pack.linkedAlerts));
+  }, [pack]);
+  const [contextCollapsed, setContextCollapsed] = useState(true);
   const [evidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
   const [affectedEntitiesOpen, setAffectedEntitiesOpen] = useState(false);
   const [attackMapOpen, setAttackMapOpen] = useState(false);
   const [workflowViewMode, setWorkflowViewMode] = useState<WorkflowViewMode>('canvas');
   const canvasMode = workflowViewMode === 'canvas';
+
+  const workflowSteps = useMemo(
+    () =>
+      room.roomWorkflow.steps.map((step) => ({
+        ...step,
+        skippable: room.phaseSkippable[step.id] ?? step.skippable ?? false,
+        status: room.skippedPhases.includes(step.id)
+          ? ('completed' as const)
+          : step.status,
+      })),
+    [room.phaseSkippable, room.roomWorkflow.steps, room.skippedPhases],
+  );
+
+  const phaseOptions = useMemo(
+    () => nistPhaseSelectOptions(room.roomWorkflow.steps),
+    [room.roomWorkflow.steps],
+  );
+
+  const assigneeOptions = useMemo(
+    () =>
+      room.participants.map((participant) => ({
+        value: participant.id,
+        label: participant.name,
+      })),
+    [room.participants],
+  );
+
   const { ref: roomRowRef, width: roomRowWidth } = useElementSize();
   const {
     leftWidth,
@@ -144,6 +194,9 @@ export function RoomPage() {
       minWidth={sidePanelMinWidth}
       maxWidth={sidePanelMaxWidth}
       resizeEdge="leading"
+      onToggleCollapse={room.toggleAside}
+      collapseLabel="Collapse collaboration panel"
+      expandLabel="Expand collaboration panel"
       data-testid="utility-panel-resize"
     >
       <Box
@@ -227,6 +280,8 @@ export function RoomPage() {
         onVictimChange={setVictimId}
         onEditIncident={() => room.roomAction('view-incident')}
         linkedAlerts={linkedAlerts}
+        attackerEntities={attackers}
+        victimEntities={victims}
         panelWidth={leftWidth}
         onPanelWidthChange={setLeftWidth}
         minPanelWidth={sidePanelMinWidth}
@@ -262,7 +317,7 @@ export function RoomPage() {
           }}
         >
           <ResponseWorkflow
-            steps={room.roomWorkflow.steps}
+            steps={workflowSteps}
             fetchStatus={room.roomWorkflow.status}
             workflowName={room.roomWorkflow.workflowName}
             workflowDescription={room.roomWorkflow.workflowDescription}
@@ -277,6 +332,32 @@ export function RoomPage() {
             questions={room.questions}
             onSubmitCollabAnswer={room.submitAnswer}
             onRecordDecision={room.recordDecision}
+            isCommander={room.isLocalCommander}
+            participants={room.participants}
+            commanderParticipantId={room.commanderParticipantId}
+            evidence={room.evidence}
+            commanderQuestions={room.commanderQuestions}
+            incidentTitle={room.roomSettings.title}
+            incidentDescription={room.roomSettings.description}
+            incidentSeverity={pack.incident.severity}
+            triageNotes={room.triageNotes}
+            onTriageNotesChange={room.setTriageNotes}
+            onOpenIncidentContext={() => setContextCollapsed((value) => !value)}
+            incidentContextOpen={!contextCollapsed}
+            onAddEvidence={room.openAddEvidence}
+            onRemoveEvidence={room.removeEvidence}
+            onAddCommanderQuestion={room.addCommanderQuestion}
+            onUpdateCommanderQuestion={room.updateCommanderQuestion}
+            onRemoveCommanderQuestion={room.removeCommanderQuestion}
+            onAnswerCommanderQuestion={room.answerCommanderQuestion}
+            onSetPhaseSkippable={room.setPhaseSkippableFlag}
+            onSkipPhase={room.skipPhase}
+            skippedPhases={room.skippedPhases}
+            assigneeOptions={assigneeOptions}
+            workItems={room.scenarioWorkItems}
+            collabThreads={room.scenarioCollabThreads}
+            completedPhaseIds={room.completedPhaseIds}
+            onCompletePhase={room.completePhase}
           />
         </Box>
         {canvasMode ? null : (
@@ -340,6 +421,7 @@ export function RoomPage() {
             <Box className="monosuite-room-body">
               <MobileRoomView
                 room={room}
+                pack={pack}
                 attackerId={attackerId}
                 victimId={victimId}
                 onAttackerChange={setAttackerId}
@@ -358,7 +440,6 @@ export function RoomPage() {
                 roomTitle={room.roomSettings.title}
                 roomDescription={room.roomSettings.description}
                 roomTags={room.roomSettings.tags}
-                roomSeverity={room.roomSettings.severity}
                 onRoomAction={room.roomAction}
                 onCloseRoom={room.closeRoom}
                 canEditRoomSettings={room.canEditRoomSettings}
@@ -395,6 +476,9 @@ export function RoomPage() {
         opened={room.manualIncidentOpen}
         onClose={() => room.setManualIncidentOpen(false)}
         linkedAlerts={linkedAlerts}
+        incident={pack.incident}
+        attackerEntities={attackers}
+        victimEntities={victims}
         onSave={(next) => {
           setLinkedAlerts(next);
           room.showToast('Incident saved');
@@ -426,6 +510,8 @@ export function RoomPage() {
       <AddEvidenceModal
         opened={room.evidenceOpen}
         initialKind={room.evidenceKind}
+        initialPhaseId={room.evidencePhaseId}
+        phaseOptions={phaseOptions}
         onClose={() => room.setEvidenceOpen(false)}
         onAdd={room.addEvidence}
       />
@@ -446,8 +532,8 @@ export function RoomPage() {
       <AttackMapModal
         opened={attackMapOpen}
         onClose={() => setAttackMapOpen(false)}
-        attacker={ATTACKER_ENTITIES.find((entity) => entity.id === attackerId) ?? ATTACKER_ENTITIES[0]}
-        victim={VICTIM_ENTITIES.find((entity) => entity.id === victimId) ?? VICTIM_ENTITIES[0]}
+        attacker={attackers.find((entity) => entity.id === attackerId) ?? attackers[0]}
+        victim={victims.find((entity) => entity.id === victimId) ?? victims[0]}
       />
 
       <TransferCommandModal

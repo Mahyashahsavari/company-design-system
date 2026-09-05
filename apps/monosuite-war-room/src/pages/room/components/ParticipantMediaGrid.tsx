@@ -26,7 +26,7 @@ import {
   IconWifiOff,
 } from '@tabler/icons-react';
 import { CURRENT_USER } from '../../../shared/constants';
-import { ASSIGNABLE_ROOM_ROLES, participantRoleLabel, isRoomCommander, type LivePerson, type Participant, type PinTarget } from '../data';
+import { ASSIGNABLE_ROOM_ROLES, participantRoleLabel, isRoomCommander, roomRoleColor, type LivePerson, type Participant, type PinTarget } from '../data';
 import type { MediaState } from '../hooks/useRoomState';
 
 export interface MediaParticipant {
@@ -451,7 +451,8 @@ export function ParticipantTile({
           {(size === 'primary' || size === 'stage' || size === 'featured') && (
             <Text
               size="10px"
-              c="var(--monosuite-color-chrome-text-muted)"
+              c={`var(--mantine-color-${roomRoleColor(person.role)}-filled)`}
+              fw={600}
               style={{ whiteSpace: 'nowrap' }}
             >
               {person.role}
@@ -630,6 +631,17 @@ function ParticipantMoreMenu({
             key={r.value}
             onClick={() => onSetRole(r.value)}
             disabled={assignableRole === r.value}
+            leftSection={
+              <Box
+                aria-hidden
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: `var(--mantine-color-${roomRoleColor(r.value)}-filled)`,
+                }}
+              />
+            }
           >
             {r.label}
           </Menu.Item>

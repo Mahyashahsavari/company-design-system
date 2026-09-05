@@ -35,6 +35,7 @@ import {
   INVITE_ROLE_OPTIONS,
   ROOM_ROLES,
   isValidInviteEmail,
+  roomRoleColor,
   type DirectoryUser,
   type ExternalGuestInvite,
   type MemberInvite,
@@ -458,13 +459,39 @@ function DirectoryPersonRow({
               allowDeselect={false}
               comboboxProps={{ width: 280, withinPortal: true }}
               onChange={(value) => value && onRoleChange(value as RoomRole)}
+              leftSection={
+                <Box
+                  aria-hidden
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: `var(--mantine-color-${roomRoleColor(role)}-filled)`,
+                  }}
+                />
+              }
               renderOption={({ option }) => (
-                <Stack gap={0}>
-                  <Text size="sm">{option.label}</Text>
-                  <Text size="xs" c="dimmed">
-                    {roleDescription(option.value as RoomRole)}
-                  </Text>
-                </Stack>
+                <Group gap="xs" wrap="nowrap" align="flex-start">
+                  <Box
+                    mt={6}
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      background: `var(--mantine-color-${roomRoleColor(option.value)}-filled)`,
+                    }}
+                  />
+                  <Stack gap={0}>
+                    <Text size="sm" c={roomRoleColor(option.value)} fw={600}>
+                      {option.label}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {roleDescription(option.value as RoomRole)}
+                    </Text>
+                  </Stack>
+                </Group>
               )}
             />
           </Box>
@@ -544,7 +571,7 @@ function GuestInviteCard({
           onChange={(event) => onChange({ email: event.currentTarget.value })}
           description="A room password will be emailed to this address."
         />
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c={roomRoleColor('Guest')} fw={600}>
           Role: Guest · view only
         </Text>
       </Stack>

@@ -30,11 +30,12 @@ export function App() {
       <RedirectRecovery />
       <Routes>
         <Route path={routes.rooms} element={<RoomsPage />} />
-        <Route path={routes.room} element={<RoomPage />} />
+        <Route path={routes.roomDetail} element={<RoomPage />} />
         <Route path={routes.createRoom} element={<CreateRoomPage />} />
         <Route path={routes.resources} element={<ResourcesPage />} />
         <Route path={routes.settings} element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to={routes.room} replace />} />
+        <Route path={routes.room} element={<Navigate to={routes.rooms} replace />} />
+        <Route path="*" element={<Navigate to={routes.rooms} replace />} />
       </Routes>
     </BrowserRouter>
   );

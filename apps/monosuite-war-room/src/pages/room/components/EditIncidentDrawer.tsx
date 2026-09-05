@@ -37,6 +37,7 @@ import {
   type LinkedIncidentAlert,
   type ThreatEntity,
 } from '../data';
+import type { ScenarioIncident } from '../scenarios';
 import { DiscardChangesModal } from '../../../shared/components/DiscardChangesModal';
 import { useDiscardGuard } from '../../../shared/hooks/useDiscardGuard';
 import { LinkedIncidentAlertEditor, pruneLinkedAlerts } from './LinkedIncidentAlertEditor';
@@ -46,6 +47,9 @@ interface EditIncidentDrawerProps {
   onClose: () => void;
   linkedAlerts: LinkedIncidentAlert[];
   onSave: (linkedAlerts: LinkedIncidentAlert[]) => void;
+  incident?: ScenarioIncident | typeof INCIDENT;
+  attackerEntities?: ThreatEntity[];
+  victimEntities?: ThreatEntity[];
 }
 
 interface CustomFieldRow {
@@ -151,12 +155,20 @@ function incidentFormSnapshot(value: {
   return JSON.stringify(value);
 }
 
-export function EditIncidentDrawer({ opened, onClose, linkedAlerts, onSave }: EditIncidentDrawerProps) {
-  const mappedLocked = INCIDENT.fromAdapter;
+export function EditIncidentDrawer({
+  opened,
+  onClose,
+  linkedAlerts,
+  onSave,
+  incident = INCIDENT,
+  attackerEntities = ATTACKER_ENTITIES,
+  victimEntities = VICTIM_ENTITIES,
+}: EditIncidentDrawerProps) {
+  const mappedLocked = incident.fromAdapter;
 
-  const [scenario, setScenario] = useState(INCIDENT.scenario);
-  const [killChain, setKillChain] = useState<string | null>(INCIDENT.killChain);
-  const [severity, setSeverity] = useState<string | null>(INCIDENT.severity);
+  const [scenario, setScenario] = useState(incident.scenario);
+  const [killChain, setKillChain] = useState<string | null>(incident.killChain);
+  const [severity, setSeverity] = useState<string | null>(incident.severity);
   const [tactic, setTactic] = useState<string | null>('credential-access');
   const [technique, setTechnique] = useState<string | null>('valid-accounts');
   const [subtechnique, setSubtechnique] = useState<string | null>('domain-accounts');
@@ -166,21 +178,21 @@ export function EditIncidentDrawer({ opened, onClose, linkedAlerts, onSave }: Ed
   const [entityTab, setEntityTab] = useState<string | null>('victim');
   const [linkedRows, setLinkedRows] = useState<LinkedIncidentAlert[]>(linkedAlerts);
   const [attackers, setAttackers] = useState<EntityDraft[]>(() =>
-    seedEntities(ATTACKER_ENTITIES, mappedLocked),
+    seedEntities(attackerEntities, mappedLocked),
   );
   const [victims, setVictims] = useState<EntityDraft[]>(() =>
-    seedEntities(VICTIM_ENTITIES, mappedLocked),
+    seedEntities(victimEntities, mappedLocked),
   );
   const [baseline, setBaseline] = useState('');
 
   useEffect(() => {
     if (!opened) return;
-    const nextAttackers = seedEntities(ATTACKER_ENTITIES, mappedLocked);
-    const nextVictims = seedEntities(VICTIM_ENTITIES, mappedLocked);
+    const nextAttackers = seedEntities(attackerEntities, mappedLocked);
+    const nextVictims = seedEntities(victimEntities, mappedLocked);
     const next = {
-      scenario: INCIDENT.scenario,
-      killChain: INCIDENT.killChain,
-      severity: INCIDENT.severity,
+      scenario: incident.scenario,
+      killChain: incident.killChain,
+      severity: incident.severity,
       tactic: 'credential-access' as string | null,
       technique: 'valid-accounts' as string | null,
       subtechnique: 'domain-accounts' as string | null,
@@ -205,7 +217,7 @@ export function EditIncidentDrawer({ opened, onClose, linkedAlerts, onSave }: Ed
     setAttackers(next.attackers);
     setVictims(next.victims);
     setBaseline(incidentFormSnapshot(next));
-  }, [opened, mappedLocked, linkedAlerts]);
+  }, [opened, mappedLocked, linkedAlerts, incident, attackerEntities, victimEntities]);
 
   const techniqueOptions = useMemo(() => {
     if (!tactic || !MITRE_MAP[tactic]) return [];
@@ -268,7 +280,7 @@ export function EditIncidentDrawer({ opened, onClose, linkedAlerts, onSave }: Ed
       <ScrollArea style={{ flex: 1 }} type="auto" px="md" py="md">
         <Stack gap="lg">
           {mappedLocked ? (
-            <Alert color="teal" variant="light" title={`From adapter · ${INCIDENT.source}`}>
+            <Alert color="teal" variant="light" title={`From adapter · ${incident.source}`}>
               Mapped incident fields are read-only. You can still add attackers or victims, and extra
               fields on each record.
             </Alert>

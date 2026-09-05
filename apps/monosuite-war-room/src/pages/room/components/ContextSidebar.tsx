@@ -11,13 +11,12 @@ import {
   Tabs,
   Text,
   Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import {
   IconArrowsExchange,
   IconActivity,
   IconDots,
-  IconLayoutSidebarRightCollapse,
-  IconLayoutSidebarRightExpand,
   IconMessage,
   IconMicrophone,
   IconMicrophoneOff,
@@ -35,6 +34,7 @@ import {
   ASSIGNABLE_ROOM_ROLES,
   participantRoleLabel,
   isRoomCommander,
+  roomRoleColor,
   type ContextTab,
   type EvidenceItem,
   type HistoryEntry,
@@ -83,7 +83,6 @@ export function ContextSidebar({
   onOpenEvidence,
   evidence,
   collapsed = false,
-  onExpand,
   participants,
   media,
   canManageParticipants,
@@ -104,73 +103,13 @@ export function ContextSidebar({
     return (
       <Stack gap={0} className="monosuite-context-rail-inner">
         <Box className="monosuite-context-rail-accent" aria-hidden />
-        <Stack
-          gap={6}
-          align="center"
-          py="sm"
-          px={4}
-          style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+        <UnstyledButton
+          className="monosuite-collapsed-rail-label monosuite-collapsed-rail-label--end"
+          onClick={onToggleCollapse}
+          aria-label="Expand collaboration panel"
         >
-          <Tooltip label="Expand utility panel" position="left" withArrow>
-            <ActionIcon
-              variant="light"
-              color="brand"
-              size="lg"
-              aria-label="Expand utility panel"
-              onClick={onToggleCollapse}
-            >
-              <IconLayoutSidebarRightExpand size={18} />
-            </ActionIcon>
-          </Tooltip>
-          <Box
-            my={2}
-            style={{ width: 24, height: 1, background: 'var(--monosuite-color-border)' }}
-          />
-          {RAIL_TABS.map((item) => {
-            const Icon = item.icon;
-            const active = tab === item.value;
-            return (
-              <Tooltip key={item.value} label={item.label} position="left" withArrow>
-                <ActionIcon
-                  variant={active ? 'light' : 'subtle'}
-                  color={active ? 'teal' : 'neutral'}
-                  size="lg"
-                  aria-label={item.label}
-                  aria-current={active ? 'true' : undefined}
-                  onClick={() => {
-                    onTabChange(item.value);
-                    onExpand?.();
-                  }}
-                  style={
-                    active
-                      ? {
-                          border:
-                            '1px solid color-mix(in srgb, var(--mantine-color-teal-filled) 35%, transparent)',
-                        }
-                      : undefined
-                  }
-                >
-                  <Icon size={18} />
-                </ActionIcon>
-              </Tooltip>
-            );
-          })}
-          <Box
-            my={4}
-            style={{ width: 24, height: 1, background: 'var(--monosuite-color-border)' }}
-          />
-          <Tooltip label={`Evidence · ${evidence.length}`} position="left" withArrow>
-            <ActionIcon
-              variant="subtle"
-              color="accent"
-              size="lg"
-              aria-label={`Open evidence (${evidence.length})`}
-              onClick={onOpenEvidence}
-            >
-              <IconPaperclip size={18} />
-            </ActionIcon>
-          </Tooltip>
-        </Stack>
+          <span className="monosuite-collapsed-rail-label-text">Collaboration</span>
+        </UnstyledButton>
       </Stack>
     );
   }
@@ -182,7 +121,6 @@ export function ContextSidebar({
         label={activeTabMeta?.label ?? 'Participants'}
         evidenceCount={evidence.length}
         onOpenEvidence={onOpenEvidence}
-        onCollapse={onToggleCollapse}
       />
 
       <Tabs
@@ -242,12 +180,10 @@ function ContextRailHeader({
   label,
   evidenceCount,
   onOpenEvidence,
-  onCollapse,
 }: {
   label: string;
   evidenceCount: number;
   onOpenEvidence: () => void;
-  onCollapse?: () => void;
 }) {
   return (
     <Group gap={8} wrap="nowrap" px="sm" py={8} style={{ flexShrink: 0 }}>
@@ -288,19 +224,6 @@ function ContextRailHeader({
           {evidenceCount}
         </Button>
       </Tooltip>
-      {onCollapse ? (
-        <Tooltip label="Compact utility panel" withArrow>
-          <ActionIcon
-            variant="subtle"
-            color="neutral"
-            size="sm"
-            aria-label="Compact utility panel"
-            onClick={onCollapse}
-          >
-            <IconLayoutSidebarRightCollapse size={16} />
-          </ActionIcon>
-        </Tooltip>
-      ) : null}
     </Group>
   );
 }
@@ -478,15 +401,21 @@ function ParticipantRow({
             </Badge>
           )}
         </Group>
-        <TruncatedTooltipText
-          size="xs"
-          c="dimmed"
-          tooltip={`${displayRole}${displayRole === 'Guest' ? ' · view only' : ''}${typing && !speaking ? ' · typing…' : ''}`}
-        >
-          {displayRole}
-          {displayRole === 'Guest' ? ' · view only' : ''}
-          {typing && !speaking ? ' · typing…' : ''}
-        </TruncatedTooltipText>
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Badge size="xs" variant="light" color={roomRoleColor(displayRole)} style={{ flexShrink: 0 }}>
+            {displayRole}
+          </Badge>
+          {displayRole === 'Guest' ? (
+            <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+              view only
+            </Text>
+          ) : null}
+          {typing && !speaking ? (
+            <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+              typing…
+            </Text>
+          ) : null}
+        </Group>
       </Stack>
 
       <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
@@ -543,6 +472,17 @@ function ParticipantRow({
                     key={r.value}
                     onClick={() => onSetRole?.(r.value)}
                     disabled={role === r.value}
+                    leftSection={
+                      <Box
+                        aria-hidden
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: `var(--mantine-color-${roomRoleColor(r.value)}-filled)`,
+                        }}
+                      />
+                    }
                   >
                     {r.label}
                   </Menu.Item>

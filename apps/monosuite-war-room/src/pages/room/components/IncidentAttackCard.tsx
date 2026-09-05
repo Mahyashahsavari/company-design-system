@@ -12,13 +12,13 @@ import {
 import {
   IconArrowDown,
   IconChevronDown,
-  IconLayoutSidebarLeftCollapse,
   IconPencil,
   IconRadar2,
   IconShield,
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import { INCIDENT, type LinkedIncidentAlert } from '../data';
+import type { LinkedIncidentAlert } from '../data';
+import { useRoomIncident } from '../RoomScenarioContext';
 import { SeverityIcon, severityColor } from '../severity';
 import { LinkedIncidentAlertList } from './LinkedIncidentAlertEditor';
 import { MetadataLabelValueRow } from './MetadataLabelValueRow';
@@ -29,16 +29,7 @@ interface IncidentAttackCardProps {
   linkedAlerts?: LinkedIncidentAlert[];
 }
 
-const INCIDENT_FIELDS = [
-  { label: 'Commander', value: INCIDENT.owner },
-  { label: 'Threat actor', value: INCIDENT.threatActor },
-  { label: 'Tactic', value: INCIDENT.mitreTactic },
-  { label: 'Source', value: INCIDENT.source },
-  { label: 'Occurred', value: INCIDENT.occurred },
-  { label: 'Detected', value: INCIDENT.detected },
-] as const;
-
-export const INCIDENT_FIELD_COUNT = INCIDENT_FIELDS.length;
+export const INCIDENT_FIELD_COUNT = 5;
 
 function FieldTable({
   fields,
@@ -81,11 +72,19 @@ export function IncidentAttackCard({
   previewCount: previewCountProp,
   linkedAlerts = [],
 }: IncidentAttackCardProps) {
+  const incident = useRoomIncident();
+  const incidentFields = [
+    { label: 'Threat actor', value: incident.threatActor },
+    { label: 'Tactic', value: incident.mitreTactic },
+    { label: 'Source', value: incident.source },
+    { label: 'Occurred', value: incident.occurred },
+    { label: 'Detected', value: incident.detected },
+  ] as const;
   const [expanded, setExpanded] = useState(false);
-  const staticPreviewCount = compact ? 2 : INCIDENT_FIELDS.length;
+  const staticPreviewCount = compact ? 2 : incidentFields.length;
   const previewCount = previewCountProp ?? staticPreviewCount;
-  const previewFields = INCIDENT_FIELDS.slice(0, previewCount);
-  const moreFields = INCIDENT_FIELDS.slice(previewCount);
+  const previewFields = incidentFields.slice(0, previewCount);
+  const moreFields = incidentFields.slice(previewCount);
   const hasMore = moreFields.length > 0;
 
   useEffect(() => {
@@ -96,20 +95,20 @@ export function IncidentAttackCard({
     <Stack gap={6} style={{ minWidth: 0 }}>
       <Group gap={6} wrap="wrap">
         <Badge size="xs" variant="outline" color="neutral" radius="sm">
-          {INCIDENT.id}
+          {incident.id}
         </Badge>
       </Group>
 
       <Text size="sm" fw={700} lh={1.3} lineClamp={compact ? 2 : undefined}>
-        {INCIDENT.title}
+        {incident.title}
       </Text>
 
       <Group gap={6} wrap="nowrap" align="flex-start">
         <Badge size="sm" variant="light" color="accent" radius="sm">
-          {INCIDENT.mitreId}
+          {incident.mitreId}
         </Badge>
         <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} lineClamp={2}>
-          {INCIDENT.mitreTechnique} · {INCIDENT.source}
+          {incident.mitreTechnique} · {incident.source}
         </Text>
       </Group>
     </Stack>
@@ -117,7 +116,7 @@ export function IncidentAttackCard({
 
   const moreDetails = (
     <Stack gap={0}>
-      <FieldTable fields={compact ? moreFields : INCIDENT_FIELDS} />
+      <FieldTable fields={compact ? moreFields : incidentFields} />
     </Stack>
   );
 
@@ -172,12 +171,12 @@ export function IncidentAttackCard({
             <Badge
               size="xs"
               variant="light"
-              color={severityColor(INCIDENT.severity)}
+              color={severityColor(incident.severity)}
               radius="sm"
-              leftSection={<SeverityIcon severity={INCIDENT.severity} size={11} />}
+              leftSection={<SeverityIcon severity={incident.severity} size={11} />}
               style={{ flexShrink: 0 }}
             >
-              {INCIDENT.severity}
+              {incident.severity}
             </Badge>
           </Group>
 
@@ -228,10 +227,8 @@ export function IncidentAttackCard({
 
 export function ThreatRailHeader({
   onEdit,
-  onCollapse,
 }: {
   onEdit?: () => void;
-  onCollapse?: () => void;
 }) {
   return (
     <Group gap={8} wrap="nowrap" justify="space-between" style={{ flexShrink: 0 }}>
@@ -255,35 +252,20 @@ export function ThreatRailHeader({
           Incident context
         </Text>
       </Group>
-      <Group gap={2} wrap="nowrap">
-        {onEdit ? (
-          <Tooltip label="Edit incident, attacker, and affected entities" withArrow>
-            <ActionIcon
-              variant="transparent"
-              color="accent"
-              size="sm"
-              aria-label="Edit incident context"
-              data-testid="edit-incident-button"
-              onClick={onEdit}
-            >
-              <IconPencil size={16} />
-            </ActionIcon>
-          </Tooltip>
-        ) : null}
-        {onCollapse ? (
-          <Tooltip label="Compact incident context" withArrow>
-            <ActionIcon
-              variant="subtle"
-              color="neutral"
-              size="sm"
-              aria-label="Compact incident context"
-              onClick={onCollapse}
-            >
-              <IconLayoutSidebarLeftCollapse size={16} />
-            </ActionIcon>
-          </Tooltip>
-        ) : null}
-      </Group>
+      {onEdit ? (
+        <Tooltip label="Edit incident, attacker, and affected entities" withArrow>
+          <ActionIcon
+            variant="transparent"
+            color="accent"
+            size="sm"
+            aria-label="Edit incident context"
+            data-testid="edit-incident-button"
+            onClick={onEdit}
+          >
+            <IconPencil size={16} />
+          </ActionIcon>
+        </Tooltip>
+      ) : null}
     </Group>
   );
 }

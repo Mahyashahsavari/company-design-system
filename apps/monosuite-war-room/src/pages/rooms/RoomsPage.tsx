@@ -1,7 +1,6 @@
 import {
   AppShell,
   Badge,
-  Box,
   Button,
   Group,
   Stack,
@@ -15,8 +14,7 @@ import { useNavigate } from 'react-router';
 import { AppChrome } from '../../shared/components/AppChrome';
 import { TruncatedTooltipText } from '../../shared/components/TruncatedTooltipText';
 import { routes } from '../../shared/routes';
-import { ROOM_SEVERITY_COLOR } from '../room/data';
-import { SeverityIcon, SeverityPip, severityCardStyle } from '../room/severity';
+import { ROOM_ROLE_COLOR, ROOM_ROLE_EMOJI } from '../room/data';
 import { ROOM_LIST, type RoomListItem, type RoomListStatus } from './data';
 
 const STATUS_COLOR: Record<RoomListStatus, 'success' | 'neutral'> = {
@@ -32,7 +30,7 @@ export function RoomsPage() {
       navigate(item.href);
       return;
     }
-    navigate(routes.room);
+    navigate(routes.rooms);
   };
 
   return (
@@ -48,7 +46,7 @@ export function RoomsPage() {
             <Stack gap={4}>
               <Title order={2}>Rooms</Title>
               <Text c="dimmed" size="sm">
-                Open and recently closed incident response rooms
+                Open and manage live incident response rooms
               </Text>
             </Stack>
             <Button
@@ -72,7 +70,6 @@ export function RoomsPage() {
                 <Table.Tr>
                   <Table.Th>Room</Table.Th>
                   <Table.Th>Status</Table.Th>
-                  <Table.Th>Severity</Table.Th>
                   <Table.Th>Phase</Table.Th>
                   <Table.Th>Commander</Table.Th>
                   <Table.Th>Updated</Table.Th>
@@ -89,38 +86,34 @@ export function RoomsPage() {
                     }}
                   >
                     <Table.Td>
-                      <Group gap={8} wrap="nowrap" align="flex-start">
-                        <Box mt={6}>
-                          <SeverityPip severity={item.severity} />
-                        </Box>
-                        <Stack gap={2} style={{ minWidth: 0 }}>
-                          <TruncatedTooltipText size="sm" fw={700} maw={360}>
-                            {item.title}
-                          </TruncatedTooltipText>
-                          <Text size="xs" c="dimmed">
-                            {item.incidentId} · {item.participantCount} participants
-                          </Text>
-                        </Stack>
-                      </Group>
+                      <Stack gap={2} style={{ minWidth: 0 }}>
+                        <TruncatedTooltipText size="sm" fw={700} maw={360}>
+                          {item.title}
+                        </TruncatedTooltipText>
+                        <Text size="xs" c="dimmed">
+                          {item.incidentId} · {item.participantCount} participants
+                        </Text>
+                      </Stack>
                     </Table.Td>
                     <Table.Td>
                       <StatusBadge status={item.status} />
                     </Table.Td>
                     <Table.Td>
-                      <Badge
-                        color={ROOM_SEVERITY_COLOR[item.severity]}
-                        variant="light"
-                        size="sm"
-                        leftSection={<SeverityIcon severity={item.severity} size={12} />}
-                      >
-                        {item.severity}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
                       <Text size="sm">{item.phase}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{item.commander}</Text>
+                      <Badge
+                        color={ROOM_ROLE_COLOR.Commander}
+                        variant="light"
+                        size="sm"
+                        leftSection={
+                          <Text component="span" size="xs" lh={1} aria-hidden>
+                            {ROOM_ROLE_EMOJI.Commander}
+                          </Text>
+                        }
+                      >
+                        {item.commander}
+                      </Badge>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm" c="dimmed">
@@ -177,20 +170,30 @@ function RoomCard({ item, onOpen }: { item: RoomListItem; onOpen: () => void }) 
         borderRadius: 'var(--mantine-radius-md)',
         textAlign: 'start',
         opacity: interactive ? 1 : 0.78,
-        ...severityCardStyle(item.severity),
+        border: '1px solid var(--monosuite-color-border)',
+        background: 'var(--monosuite-color-surface)',
       }}
     >
       <Group justify="space-between" wrap="nowrap" gap="sm" mb={8}>
         <StatusBadge status={item.status} />
-        <Badge color={ROOM_SEVERITY_COLOR[item.severity]} variant="light" size="sm" leftSection={<SeverityIcon severity={item.severity} size={12} />}>
-          {item.severity}
+        <Badge
+          color={ROOM_ROLE_COLOR.Commander}
+          variant="light"
+          size="sm"
+          leftSection={
+            <Text component="span" size="xs" lh={1} aria-hidden>
+              {ROOM_ROLE_EMOJI.Commander}
+            </Text>
+          }
+        >
+          {item.commander}
         </Badge>
       </Group>
       <TruncatedTooltipText size="sm" fw={700}>
         {item.title}
       </TruncatedTooltipText>
       <Text size="xs" c="dimmed" mt={4}>
-        {item.incidentId} · {item.phase} · {item.commander}
+        {item.incidentId} · {item.phase}
       </Text>
       <Text size="xs" c="dimmed">
         {item.participantCount} participants · {item.updatedLabel}

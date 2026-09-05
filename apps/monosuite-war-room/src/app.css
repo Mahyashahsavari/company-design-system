@@ -89,13 +89,110 @@ body {
   min-width: 0;
   height: 100%;
   gap: 8px;
+  overflow: visible;
 }
 
-.monosuite-room-side-resize--leading {
-  margin-right: 0;
-  margin-left: 6px;
-  position: relative;
-  z-index: 2;
+.monosuite-room-side-resize--leading,
+.monosuite-room-side-resize--trailing {
+  margin: 0;
+}
+
+/* Resize hit areas above/below the toggle — never covers the button. */
+.monosuite-room-side-resize-seg {
+  position: absolute;
+  width: 10px;
+  z-index: 4;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.monosuite-room-side-resize-seg--trailing {
+  right: 0;
+  transform: translateX(50%);
+}
+
+.monosuite-room-side-resize-seg--leading {
+  left: 0;
+  transform: translateX(-50%);
+}
+
+.monosuite-room-side-resize-seg--top {
+  top: 0;
+  bottom: calc(50% + 22px);
+}
+
+.monosuite-room-side-resize-seg--bottom {
+  top: calc(50% + 22px);
+  bottom: 0;
+}
+
+.monosuite-room-side-resize-seg::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: min(56px, 40%);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: var(--monosuite-color-border);
+  transition: background 120ms ease, height 120ms ease;
+}
+
+.monosuite-room-side-resize-seg:hover::after,
+.monosuite-room-side-resize-seg[data-dragging='true']::after {
+  height: min(72px, 50%);
+  background: color-mix(in srgb, var(--mantine-color-teal-filled) 55%, var(--monosuite-color-border));
+}
+
+/* Centered on the panel edge facing the room (half outside, half on the border). */
+.monosuite-room-side-toggle-wrap {
+  position: absolute;
+  top: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  pointer-events: auto;
+}
+
+.monosuite-room-side-toggle-wrap--trailing {
+  right: 0;
+  transform: translate(50%, -50%);
+}
+
+.monosuite-room-side-toggle-wrap--leading {
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.monosuite-room-side-toggle-wrap .monosuite-room-side-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--monosuite-color-border);
+  background: var(--monosuite-color-surface);
+  color: var(--mantine-color-dimmed);
+  box-shadow: var(--mantine-shadow-sm);
+  cursor: pointer;
+}
+
+.monosuite-room-side-toggle-wrap .monosuite-room-side-toggle-btn:hover {
+  background: var(--monosuite-color-surface-raised);
+  color: var(--mantine-color-brand-filled);
+}
+
+.monosuite-room-side-toggle-wrap .monosuite-room-side-toggle-btn:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-filled);
+  outline-offset: 2px;
 }
 
 .monosuite-room-collab-split-resize {
@@ -109,6 +206,8 @@ body {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .monosuite-room-panel {
@@ -119,14 +218,20 @@ body {
   overflow: hidden;
 }
 
-.monosuite-room-utility-panel {
+.monosuite-room-utility-panel,
+.monosuite-room-context-panel {
+  position: relative;
+  z-index: 5;
   flex-shrink: 0;
   height: 100%;
   min-height: 0;
   min-width: 0;
+  overflow: visible;
+}
+
+.monosuite-room-utility-panel {
   display: flex;
   flex-direction: row;
-  overflow: visible;
 }
 
 .monosuite-workflow {
@@ -437,8 +542,12 @@ body {
   height: 100%;
 }
 
-.monosuite-workflow--fill .monosuite-workflow-header {
+.monosuite-workflow-header {
   flex-shrink: 0;
+}
+
+.monosuite-workflow--fill .monosuite-workflow-header {
+  margin-bottom: 6px;
 }
 
 .monosuite-workflow-canvas-shell--fill {
@@ -480,7 +589,7 @@ body {
 
 .monosuite-workflow-canvas-shell--fill .monosuite-workflow-canvas-stage {
   position: absolute;
-  top: 36px;
+  top: 0;
   right: 0;
   bottom: 0;
   left: 0;
@@ -516,10 +625,22 @@ body {
 
 .monosuite-workflow-canvas-flow .react-flow__node {
   overflow: visible;
+  z-index: 5 !important;
 }
 
 .monosuite-workflow-canvas-flow .react-flow__edges {
   overflow: visible;
+  z-index: 1;
+}
+
+.monosuite-workflow-canvas-flow .react-flow__edge {
+  pointer-events: stroke;
+  z-index: 1;
+}
+
+.monosuite-workflow-canvas-flow .react-flow__edge-path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .monosuite-workflow-canvas-flow .react-flow__controls {
@@ -529,20 +650,61 @@ body {
   box-shadow: var(--mantine-shadow-xs);
 }
 
-.monosuite-workflow-canvas-shell--fill .react-flow__controls {
-  /* Sit above the floating media dock instead of leaving a canvas gap. */
-  bottom: calc(var(--room-canvas-dock-safe, 0px) * 0.55 + 10px) !important;
-}
-
 .monosuite-workflow-canvas-flow .react-flow__controls-button {
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  padding: 4px;
   background: var(--monosuite-color-surface);
   border-bottom: 1px solid var(--monosuite-color-border);
   color: var(--monosuite-color-text);
   fill: var(--monosuite-color-text);
 }
 
+.monosuite-workflow-canvas-flow .react-flow__controls-button svg {
+  max-width: 12px;
+  max-height: 12px;
+}
+
 .monosuite-workflow-canvas-flow .react-flow__panel {
   margin: 10px;
+}
+
+/* Reset + zoom as one stack — exact 4px gap, dock-aware on fill layout. */
+.monosuite-workflow-canvas-flow .monosuite-workflow-canvas-control-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin: 10px !important;
+}
+
+.monosuite-workflow-canvas-shell--fill .monosuite-workflow-canvas-control-stack {
+  bottom: calc(var(--room-canvas-dock-safe, 0px) * 0.55 + 10px) !important;
+  margin: 0 0 0 10px !important;
+}
+
+.monosuite-workflow-canvas-controls-inline.react-flow__controls,
+.monosuite-workflow-canvas-reset-wrap.react-flow__controls {
+  position: relative !important;
+  inset: auto !important;
+  margin: 0 !important;
+}
+
+.monosuite-workflow-canvas-reset-wrap .react-flow__controls-button {
+  border-bottom: none;
+  /* RF control chrome uses filled path glyphs; Tabler icons are stroke-only. */
+  fill: none;
+}
+
+/* Override RF `.react-flow__controls-button svg { fill: currentColor; max: 12px }` */
+.monosuite-workflow-canvas-reset-wrap .react-flow__controls-button svg {
+  max-width: 16px;
+  max-height: 16px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
 }
 
 .monosuite-workflow-canvas-continue {
@@ -554,10 +716,6 @@ body {
   border: 1px solid var(--monosuite-color-border);
   background: var(--monosuite-color-surface);
   box-shadow: var(--mantine-shadow-xs);
-}
-
-.monosuite-workflow-canvas-reset {
-  display: inline-flex;
 }
 
 .monosuite-workflow-canvas-node {
@@ -576,12 +734,15 @@ body {
 }
 
 .monosuite-workflow-canvas-node--phase {
-  width: 168px;
-  min-width: 168px;
-  max-width: 168px;
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  box-sizing: border-box;
   background: var(--monosuite-color-surface-raised);
   border-radius: var(--mantine-radius-sm);
   opacity: 0.72;
+  /* Keep measured height stable so React Flow layout clearance stays valid. */
+  min-height: 148px;
 }
 
 .monosuite-workflow-canvas-shell[data-focus-phase] .monosuite-workflow-canvas-node--phase {
@@ -589,9 +750,9 @@ body {
 }
 
 .monosuite-workflow-canvas-node--phase[data-expanded='true'] {
-  width: 188px;
-  min-width: 188px;
-  max-width: 188px;
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
   opacity: 1 !important;
   box-shadow: var(--mantine-shadow-md);
   z-index: 2;
@@ -605,6 +766,7 @@ body {
 .monosuite-workflow-canvas-node--phase[data-expanded='true'][data-status='done'] {
   box-shadow:
     inset 0 3px 0 var(--mantine-color-success-filled),
+    0 0 0 2px color-mix(in srgb, var(--mantine-color-success-filled) 35%, transparent),
     var(--mantine-shadow-sm);
 }
 
@@ -617,6 +779,7 @@ body {
 .monosuite-workflow-canvas-node--phase[data-expanded='true'][data-status='active'] {
   box-shadow:
     inset 0 3px 0 var(--mantine-color-teal-filled),
+    0 0 0 2px color-mix(in srgb, var(--mantine-color-teal-filled) 40%, transparent),
     var(--mantine-shadow-sm);
 }
 
@@ -624,6 +787,24 @@ body {
 .monosuite-workflow-canvas-node--phase[data-status='queued'] {
   box-shadow: inset 0 3px 0 var(--monosuite-color-border);
   opacity: 0.78;
+}
+
+.monosuite-workflow-canvas-node--phase[data-expanded='true'][data-status='locked'],
+.monosuite-workflow-canvas-node--phase[data-expanded='true'][data-status='queued'] {
+  box-shadow:
+    inset 0 3px 0 var(--monosuite-color-border),
+    0 0 0 2px color-mix(in srgb, var(--mantine-color-teal-filled) 28%, transparent),
+    var(--mantine-shadow-sm);
+}
+
+.monosuite-workflow-canvas-phase-evidence {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--monosuite-color-border);
 }
 
 .monosuite-workflow-canvas-node--work {
@@ -649,6 +830,11 @@ body {
   background: color-mix(in srgb, var(--mantine-color-teal-filled) 5%, var(--monosuite-color-surface));
 }
 
+.monosuite-workflow-canvas-node--work[data-role='responder'] {
+  border-left: 4px solid var(--mantine-color-teal-filled);
+  background: color-mix(in srgb, var(--mantine-color-teal-filled) 4%, var(--monosuite-color-surface));
+}
+
 .monosuite-workflow-canvas-node--work[data-role='generated'] {
   border-left: 4px solid var(--mantine-color-success-filled);
   background: color-mix(in srgb, var(--mantine-color-success-filled) 6%, var(--monosuite-color-surface));
@@ -661,6 +847,30 @@ body {
   min-width: 204px;
   max-width: 204px;
   border-radius: var(--mantine-radius-md);
+}
+
+.monosuite-workflow-canvas-node--evidence,
+.monosuite-workflow-canvas-node--triage,
+.monosuite-workflow-canvas-node--commander {
+  width: 204px;
+  min-width: 204px;
+  max-width: 204px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--monosuite-color-surface);
+}
+
+.monosuite-workflow-canvas-node--evidence {
+  border: 1px solid color-mix(in srgb, var(--mantine-color-neutral-filled) 28%, var(--monosuite-color-border));
+}
+
+.monosuite-workflow-canvas-node--triage {
+  border: 1px solid color-mix(in srgb, var(--mantine-color-warning-filled) 35%, var(--monosuite-color-border));
+  background: color-mix(in srgb, var(--mantine-color-warning-filled) 6%, var(--monosuite-color-surface));
+}
+
+.monosuite-workflow-canvas-node--commander {
+  border: 1px solid color-mix(in srgb, var(--mantine-color-brand-filled) 40%, var(--monosuite-color-border));
+  background: color-mix(in srgb, var(--mantine-color-brand-filled) 8%, var(--monosuite-color-surface));
 }
 
 .monosuite-workflow-canvas-node--collab[data-kind='question'] {
@@ -716,7 +926,6 @@ body {
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--mantine-color-teal-filled) 40%, transparent),
     var(--mantine-shadow-md);
-  border-width: 2px;
   font-weight: 700;
 }
 
@@ -962,6 +1171,49 @@ body {
   flex: 1;
 }
 
+.monosuite-collapsed-rail-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding-block: 12px;
+  border: none;
+  border-radius: var(--mantine-radius-md);
+  background: transparent;
+  color: var(--monosuite-color-text);
+  cursor: pointer;
+}
+
+.monosuite-collapsed-rail-label:hover {
+  background: color-mix(in srgb, var(--mantine-color-brand-filled) 10%, transparent);
+}
+
+.monosuite-collapsed-rail-label:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-filled);
+  outline-offset: -2px;
+}
+
+.monosuite-collapsed-rail-label-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.monosuite-collapsed-rail-label--end .monosuite-collapsed-rail-label-text {
+  transform: none;
+}
+
 .monosuite-context-rail-footer {
   flex-shrink: 0;
   border-top: 1px solid var(--monosuite-color-border);
@@ -1053,19 +1305,39 @@ body {
 }
 
 .monosuite-threat-rail-resize {
-  width: 6px;
+  width: 12px;
   flex-shrink: 0;
   cursor: col-resize;
   touch-action: none;
   align-self: stretch;
-  margin-right: 6px;
+  position: relative;
+  margin-right: 0;
   border-radius: 999px;
+  background: transparent;
+}
+
+.monosuite-threat-rail-resize::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 56px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
   background: var(--monosuite-color-border);
+  transition: background 120ms ease, height 120ms ease;
+}
+
+.monosuite-threat-rail-resize:hover::after,
+.monosuite-threat-rail-resize[data-dragging='true']::after {
+  height: 72px;
+  background: color-mix(in srgb, var(--mantine-color-teal-filled) 55%, var(--monosuite-color-border));
 }
 
 .monosuite-threat-rail-resize:hover,
 .monosuite-threat-rail-resize[data-dragging='true'] {
-  background: color-mix(in srgb, var(--mantine-color-teal-filled) 45%, var(--monosuite-color-border));
+  background: transparent;
 }
 
 .monosuite-threat-rail-chain {

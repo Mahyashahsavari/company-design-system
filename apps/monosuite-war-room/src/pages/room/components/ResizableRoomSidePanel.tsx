@@ -1,4 +1,8 @@
-import { Box } from '@mantine/core';
+import { Box, Tooltip } from '@mantine/core';
+import {
+  IconChevronLeft,
+  IconChevronRight,
+} from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ROOM_NAV_RAIL_WIDTH, ROOM_SIDE_PANEL_MIN_WIDTH } from '../../../shared/constants';
 
@@ -14,6 +18,10 @@ interface ResizableRoomSidePanelProps {
   minWidth?: number;
   maxWidth?: number;
   resizeEdge?: 'leading' | 'trailing';
+  /** Collapse / expand control centered on the panel edge facing the room. */
+  onToggleCollapse?: () => void;
+  collapseLabel?: string;
+  expandLabel?: string;
   'data-testid'?: string;
 }
 
@@ -32,6 +40,9 @@ export function ResizableRoomSidePanel({
   minWidth = ROOM_SIDE_PANEL_MIN_WIDTH,
   maxWidth = Number.POSITIVE_INFINITY,
   resizeEdge = 'trailing',
+  onToggleCollapse,
+  collapseLabel = 'Collapse panel',
+  expandLabel = 'Expand panel',
   'data-testid': dataTestId,
 }: ResizableRoomSidePanelProps) {
   const isControlled = controlledWidth !== undefined;
@@ -65,6 +76,7 @@ export function ResizableRoomSidePanel({
   const onPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       event.preventDefault();
+      event.stopPropagation();
       setDragging(true);
       dragStart.current = { x: event.clientX, width: resolvedWidth };
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -99,21 +111,59 @@ export function ResizableRoomSidePanel({
   }, [commitWidth, dragging, resizeEdge]);
 
   const panelWidth = collapsed ? ROOM_NAV_RAIL_WIDTH : resolvedWidth;
+  const toggleLabel = collapsed ? expandLabel : collapseLabel;
+  const ToggleIcon =
+    resizeEdge === 'trailing'
+      ? collapsed
+        ? IconChevronRight
+        : IconChevronLeft
+      : collapsed
+        ? IconChevronLeft
+        : IconChevronRight;
 
-  const resizeHandle = (
+  const resizeSegments = !collapsed ? (
+    <>
+      <Box
+        className={`monosuite-room-side-resize-seg monosuite-room-side-resize-seg--${resizeEdge} monosuite-room-side-resize-seg--top`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        aria-valuenow={resolvedWidth}
+        aria-valuemin={minWidth}
+        aria-valuemax={Number.isFinite(maxWidth) ? maxWidth : undefined}
+        data-dragging={dragging ? 'true' : undefined}
+        data-testid={dataTestId}
+        onPointerDown={onPointerDown}
+      />
+      <Box
+        className={`monosuite-room-side-resize-seg monosuite-room-side-resize-seg--${resizeEdge} monosuite-room-side-resize-seg--bottom`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        data-dragging={dragging ? 'true' : undefined}
+        onPointerDown={onPointerDown}
+      />
+    </>
+  ) : null;
+
+  const toggleControl = onToggleCollapse ? (
     <Box
-      className={`monosuite-threat-rail-resize monosuite-room-side-resize monosuite-room-side-resize--${resizeEdge}`}
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize panel"
-      aria-valuenow={resolvedWidth}
-      aria-valuemin={minWidth}
-      aria-valuemax={Number.isFinite(maxWidth) ? maxWidth : undefined}
-      data-dragging={dragging ? 'true' : undefined}
-      data-testid={dataTestId}
-      onPointerDown={onPointerDown}
-    />
-  );
+      className={`monosuite-room-side-toggle-wrap monosuite-room-side-toggle-wrap--${resizeEdge}`}
+      data-collapsed={collapsed ? 'true' : undefined}
+    >
+      <Tooltip label={toggleLabel} position={resizeEdge === 'trailing' ? 'right' : 'left'} withArrow>
+        <button
+          type="button"
+          className="monosuite-room-side-toggle-btn"
+          aria-label={toggleLabel}
+          aria-expanded={!collapsed}
+          onClick={() => onToggleCollapse()}
+        >
+          <ToggleIcon size={14} stroke={2.25} aria-hidden />
+        </button>
+      </Tooltip>
+    </Box>
+  ) : null;
 
   return (
     <Box
@@ -125,14 +175,25 @@ export function ResizableRoomSidePanel({
         width: panelWidth,
         minWidth: 0,
         minHeight: 0,
-        transition: collapsed ? 'width 160ms ease' : undefined,
+        position: 'relative',
+        overflow: 'visible',
       }}
     >
-      {resizeEdge === 'leading' && !collapsed ? resizeHandle : null}
-      <Box style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box
+        style={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         {children}
       </Box>
-      {resizeEdge === 'trailing' && !collapsed ? resizeHandle : null}
+      {resizeSegments}
+      {toggleControl}
     </Box>
   );
 }

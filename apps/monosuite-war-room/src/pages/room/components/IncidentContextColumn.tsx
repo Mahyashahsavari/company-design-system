@@ -1,20 +1,17 @@
-import { ActionIcon, Badge, Box, Button, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { Badge, Box, Button, Group, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
 import { useMemo } from 'react';
 import {
   IconBoxMultiple,
-  IconLayoutSidebarLeftExpand,
-  IconRadar2,
   IconRoute2,
-  IconShield,
 } from '@tabler/icons-react';
 import {
   ASSETS,
   ATTACKER_ENTITIES,
-  INCIDENT,
   VICTIM_ENTITIES,
   entityFields,
   type LinkedIncidentAlert,
+  type ThreatEntity,
 } from '../data';
 import { ROOM_SIDE_PANEL_DEFAULT_WIDTH } from '../../../shared/constants';
 import { useThreatRailFieldBudget } from '../hooks/useThreatRailFieldBudget';
@@ -37,6 +34,8 @@ interface IncidentContextColumnProps {
   onVictimChange: (id: string) => void;
   onEditIncident?: () => void;
   linkedAlerts?: LinkedIncidentAlert[];
+  attackerEntities?: ThreatEntity[];
+  victimEntities?: ThreatEntity[];
   /** Standard side panel width unless the user resizes the rail. */
   panelWidth?: number;
   onPanelWidthChange?: (width: number) => void;
@@ -60,6 +59,8 @@ export function IncidentContextColumn({
   onVictimChange,
   onEditIncident,
   linkedAlerts = [],
+  attackerEntities = ATTACKER_ENTITIES,
+  victimEntities = VICTIM_ENTITIES,
   panelWidth,
   onPanelWidthChange,
   minPanelWidth,
@@ -74,12 +75,12 @@ export function IncidentContextColumn({
   const { ref: scrollRef, height: scrollHeight } = useElementSize();
 
   const attacker = useMemo(
-    () => ATTACKER_ENTITIES.find((entity) => entity.id === attackerId) ?? ATTACKER_ENTITIES[0],
-    [attackerId],
+    () => attackerEntities.find((entity) => entity.id === attackerId) ?? attackerEntities[0],
+    [attackerEntities, attackerId],
   );
   const victim = useMemo(
-    () => VICTIM_ENTITIES.find((entity) => entity.id === victimId) ?? VICTIM_ENTITIES[0],
-    [victimId],
+    () => victimEntities.find((entity) => entity.id === victimId) ?? victimEntities[0],
+    [victimEntities, victimId],
   );
 
   const fieldTotals = useMemo(
@@ -104,11 +105,7 @@ export function IncidentContextColumn({
   const compact = collapsed && !fullWidth;
 
   const railBody = compact ? (
-    <CompactIncidentContextRail
-      onExpand={onToggleCollapse}
-      onOpenAffectedEntities={onOpenAffectedEntities}
-      onOpenAttackMap={onOpenAttackMap}
-    />
+    <CompactIncidentContextRail onExpand={onToggleCollapse} />
   ) : (
     <Stack
       gap={0}
@@ -142,10 +139,7 @@ export function IncidentContextColumn({
       />
 
       <Box px={4} pt={6} pb={4} style={{ flexShrink: 0 }}>
-        <ThreatRailHeader
-          onEdit={onEditIncident}
-          onCollapse={fullWidth ? undefined : onToggleCollapse}
-        />
+        <ThreatRailHeader onEdit={onEditIncident} />
       </Box>
 
       <ContextQuickActions
@@ -191,7 +185,7 @@ export function IncidentContextColumn({
 
           <ThreatEntityPanel
             kind="attacker"
-            entities={ATTACKER_ENTITIES}
+            entities={attackerEntities}
             selectedId={attackerId}
             onSelect={onAttackerChange}
             railNode
@@ -203,7 +197,7 @@ export function IncidentContextColumn({
 
           <ThreatEntityPanel
             kind="victim"
-            entities={VICTIM_ENTITIES}
+            entities={victimEntities}
             selectedId={victimId}
             onSelect={onVictimChange}
             railNode
@@ -232,6 +226,9 @@ export function IncidentContextColumn({
       minWidth={minPanelWidth}
       maxWidth={maxPanelWidth}
       resizeEdge="trailing"
+      onToggleCollapse={onToggleCollapse}
+      collapseLabel="Collapse incident context"
+      expandLabel="Expand incident context"
       data-testid="attack-chain-resize"
     >
       {railBody}
@@ -239,25 +236,13 @@ export function IncidentContextColumn({
   );
 }
 
-function CompactIncidentContextRail({
-  onExpand,
-  onOpenAffectedEntities,
-  onOpenAttackMap,
-}: {
-  onExpand?: () => void;
-  onOpenAffectedEntities?: () => void;
-  onOpenAttackMap?: () => void;
-}) {
+function CompactIncidentContextRail({ onExpand }: { onExpand?: () => void }) {
   return (
-    <Stack
-      gap={8}
-      align="center"
+    <Box
       h="100%"
-      py="xs"
-      px={4}
       style={{
         position: 'relative',
-        overflow: 'hidden auto',
+        overflow: 'hidden',
         borderRadius: 'var(--mantine-radius-md)',
         background: 'var(--monosuite-color-surface)',
         border: '1px solid var(--monosuite-color-border)',
@@ -274,52 +259,14 @@ function CompactIncidentContextRail({
             'linear-gradient(90deg, var(--mantine-color-accent-filled), var(--mantine-color-danger-filled), var(--mantine-color-teal-filled))',
         }}
       />
-      <Tooltip label="Expand incident context" position="right" withArrow>
-        <ActionIcon
-          mt={4}
-          variant="light"
-          color="brand"
-          size="lg"
-          aria-label="Expand incident context"
-          onClick={onExpand}
-        >
-          <IconLayoutSidebarLeftExpand size={18} />
-        </ActionIcon>
-      </Tooltip>
-      <Box my={2} style={{ width: 24, height: 1, background: 'var(--monosuite-color-border)' }} />
-      <Tooltip label={`${INCIDENT.id} · ${INCIDENT.severity}`} position="right" withArrow>
-        <ActionIcon variant="subtle" color="accent" size="lg" aria-label="Incident summary">
-          <IconShield size={18} />
-        </ActionIcon>
-      </Tooltip>
-      <Tooltip label={`${ATTACKER_ENTITIES.length} attacker entities`} position="right" withArrow>
-        <ActionIcon variant="subtle" color="danger" size="lg" aria-label="Attacker entities">
-          <IconRadar2 size={18} />
-        </ActionIcon>
-      </Tooltip>
-      <Tooltip label={`${ASSETS.length} affected entities`} position="right" withArrow>
-        <ActionIcon
-          variant="subtle"
-          color="teal"
-          size="lg"
-          aria-label="Open affected entities"
-          onClick={onOpenAffectedEntities}
-        >
-          <IconBoxMultiple size={18} />
-        </ActionIcon>
-      </Tooltip>
-      <Tooltip label="Open attack map" position="right" withArrow>
-        <ActionIcon
-          variant="subtle"
-          color="accent"
-          size="lg"
-          aria-label="Open attack map"
-          onClick={onOpenAttackMap}
-        >
-          <IconRoute2 size={18} />
-        </ActionIcon>
-      </Tooltip>
-    </Stack>
+      <UnstyledButton
+        className="monosuite-collapsed-rail-label"
+        onClick={onExpand}
+        aria-label="Expand incident context"
+      >
+        <span className="monosuite-collapsed-rail-label-text">Incident context</span>
+      </UnstyledButton>
+    </Box>
   );
 }
 

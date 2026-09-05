@@ -1,6 +1,7 @@
 import { Box, Group, Stack, Text } from '@mantine/core';
 import { IconArrowRight, IconTarget, IconUser } from '@tabler/icons-react';
-import { INCIDENT, type ThreatEntity } from '../data';
+import type { ThreatEntity } from '../data';
+import { useRoomIncident } from '../RoomScenarioContext';
 
 interface ThreatRelationshipProps {
   attacker: ThreatEntity;
@@ -15,10 +16,11 @@ export function ThreatRelationship({
   attackerCount,
   victimCount,
 }: ThreatRelationshipProps) {
+  const incident = useRoomIncident();
   const inspecting = attackerCount > 1 || victimCount > 1;
   const attackerMeta =
-    attacker.fields.find((field) => field.label === 'Threat Actor')?.value ?? INCIDENT.threatActor;
-  const technique = INCIDENT.scenario;
+    attacker.fields.find((field) => field.label === 'Threat Actor')?.value ?? incident.threatActor;
+  const technique = incident.scenario;
 
   return (
     <>
@@ -102,7 +104,7 @@ export function ThreatRelationship({
             {technique}
           </Text>
           <Text size="xs" c="dimmed" ff="monospace" ta="center">
-            {INCIDENT.mitreId}
+            {incident.mitreId}
           </Text>
         </Stack>
 

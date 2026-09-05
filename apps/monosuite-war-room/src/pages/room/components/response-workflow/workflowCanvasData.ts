@@ -1,6 +1,8 @@
 import type { WorkflowStep } from '../../data';
+import type { AssignableTaskRole, TaskSelectionMode } from '../../data';
+import { TASK_ROLE_LABEL } from '../../taskQuorum';
 
-export type WorkflowWorkRole = 'owner' | 'admin' | 'investigator' | 'generated';
+export type WorkflowWorkRole = AssignableTaskRole;
 export type WorkflowWorkAnswerType = 'select' | 'textarea' | 'generated';
 
 export interface WorkflowWorkItem {
@@ -15,6 +17,8 @@ export interface WorkflowWorkItem {
   answerType: WorkflowWorkAnswerType;
   answerLabel?: string;
   options?: string[];
+  selectionMode?: TaskSelectionMode;
+  allowOther?: boolean;
   /** Work item ids that must be answered first. */
   dependsOn?: string[];
   meta: string;
@@ -27,7 +31,7 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
     phaseId: 'investigation',
     title: 'Confirm business impact',
     role: 'owner',
-    roleLabel: 'Asset Owner',
+    roleLabel: TASK_ROLE_LABEL.owner,
     required: true,
     question:
       'How much service interruption can the business accept while workstation-114 is isolated?',
@@ -38,6 +42,8 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
       'No interruption approved',
       'Business approval is still required',
     ],
+    selectionMode: 'single',
+    allowOther: true,
     meta: 'Required · Q-03',
   },
   {
@@ -45,12 +51,14 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
     phaseId: 'investigation',
     title: 'Select isolation method',
     role: 'admin',
-    roleLabel: 'Asset Admin',
+    roleLabel: TASK_ROLE_LABEL.admin,
     required: true,
     question: 'Which containment method can be applied within the approved interruption window?',
     answerType: 'select',
     answerLabel: 'Isolation method',
     options: ['EDR network isolation', 'Switch port shutdown', 'Firewall containment rule'],
+    selectionMode: 'multi',
+    allowOther: true,
     dependsOn: ['owner-impact'],
     meta: 'After Asset Owner response',
   },
@@ -59,7 +67,7 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
     phaseId: 'investigation',
     title: 'Validate active C2',
     role: 'investigator',
-    roleLabel: 'Investigator',
+    roleLabel: TASK_ROLE_LABEL.investigator,
     required: false,
     question: 'Is outbound command-and-control traffic still active from the affected segment?',
     answerType: 'textarea',
@@ -67,13 +75,28 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
     meta: 'Optional · Q-04',
   },
   {
+    id: 'responder-scope',
+    phaseId: 'investigation',
+    title: 'Confirm affected accounts',
+    role: 'responder',
+    roleLabel: TASK_ROLE_LABEL.responder,
+    required: true,
+    question: 'Which accounts show suspicious authentication tied to this burst?',
+    answerType: 'select',
+    answerLabel: 'Affected accounts',
+    options: ['svc-finance-batch', 'j.martinez', 'Shared helpdesk mailbox'],
+    selectionMode: 'multi',
+    allowOther: true,
+    meta: 'Required · all Responders',
+  },
+  {
     id: 'generated-containment',
     phaseId: 'containment',
     title: 'Apply selected isolation',
     role: 'generated',
-    roleLabel: 'Generated action',
+    roleLabel: TASK_ROLE_LABEL.generated,
     required: true,
-    question: 'Execute the containment action generated from the confirmed Investigation responses.',
+    question: 'Execute the containment action generated from the confirmed Investigation answers.',
     answerType: 'generated',
     meta: 'Created from Investigation answers',
   },
@@ -81,23 +104,34 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
 
 export const PHASE_GUIDANCE: Record<string, string> = {
   detected:
-    'Initial incident intake is complete. The alert and source context are preserved as the starting record.',
+    'Review the discovered incident before continuing. Severity and intake are already recorded — open Incident Context when you need full detail.',
   detection:
     'Initial incident intake is complete. The alert and source context are preserved as the starting record.',
   triage:
-    'The incident was validated, severity was assigned, and the response room was activated.',
+    'Severity is already assigned from the discovered incident. Capture optional triage notes, then continue into Investigation.',
   investigation:
     'Confirm the affected scope, business impact, and whether containment can proceed safely. Required work is assigned in dependency order.',
   containment: 'Tasks in this phase are generated from the confirmed Investigation answers.',
-  recovery: 'Recovery remains locked until containment outcomes are confirmed.',
+  eradication:
+    'Remove attacker artifacts, persistence, and compromised access after containment holds the threat.',
+  recovery: 'Restore services safely and confirm monitoring coverage after eradication.',
+  'lessons-learned':
+    'Capture what worked, what failed, and follow-up actions so the next response improves.',
   prepare: 'Preparation phase is complete for this playbook.',
   identify: 'Identification outcomes are recorded.',
   respond: 'Response actions are in progress.',
   review: 'Post-incident review awaits prior phase completion.',
 };
 
-export function workItemsForPhase(phaseId: string): WorkflowWorkItem[] {
-  return WORKFLOW_CANVAS_WORK.filter((item) => item.phaseId === phaseId);
+export function nistPhaseSelectOptions(steps: WorkflowStep[]): { value: string; label: string }[] {
+  return steps.map((step) => ({ value: step.id, label: step.label }));
+}
+
+export function workItemsForPhase(
+  phaseId: string,
+  catalog: WorkflowWorkItem[] = WORKFLOW_CANVAS_WORK,
+): WorkflowWorkItem[] {
+  return catalog.filter((item) => item.phaseId === phaseId);
 }
 
 /** Topic threads for Investigation collaboration — Q → F → D narrative paths. */
@@ -136,8 +170,11 @@ export const COLLAB_THREADS: CollabThreadDef[] = [
   },
 ];
 
-export function threadsForPhase(phaseId: string): CollabThreadDef[] {
-  return COLLAB_THREADS.filter((thread) => thread.phaseId === phaseId);
+export function threadsForPhase(
+  phaseId: string,
+  catalog: CollabThreadDef[] = COLLAB_THREADS,
+): CollabThreadDef[] {
+  return catalog.filter((thread) => thread.phaseId === phaseId);
 }
 
 export function mapStepStatusToCanvas(

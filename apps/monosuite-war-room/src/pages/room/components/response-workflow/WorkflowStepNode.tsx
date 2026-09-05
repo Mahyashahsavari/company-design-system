@@ -1,9 +1,11 @@
 import { Badge, Group, Indicator, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core';
 import {
   IconBellRinging,
+  IconBug,
   IconCheck,
   IconFilter,
   IconHeartbeat,
+  IconSchool,
   IconSearch,
   IconShieldLock,
 } from '@tabler/icons-react';
@@ -15,6 +17,8 @@ const ICONS = {
   search: IconSearch,
   shield: IconShieldLock,
   heartbeat: IconHeartbeat,
+  bug: IconBug,
+  school: IconSchool,
 } as const;
 
 const STATUS_LABEL: Record<WorkflowStep['status'], string> = {

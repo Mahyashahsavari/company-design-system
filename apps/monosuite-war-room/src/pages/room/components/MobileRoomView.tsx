@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Box, UnstyledButton } from '@mantine/core';
 import type { LinkedIncidentAlert } from '../data';
 import type { RoomState } from '../hooks/useRoomState';
+import type { RoomScenarioPack } from '../scenarios';
 import { ContextSidebar } from './ContextSidebar';
 import { IncidentContextColumn } from './IncidentContextColumn';
 import { InvestigationWorkspace } from './InvestigationWorkspace';
 import { ResponseWorkflow, type WorkflowViewMode } from './response-workflow';
 import { RoomCommandHeader } from './RoomCommandHeader';
-import type { ReactNode } from 'react';
 
 type MobileRoomTab = 'incident' | 'investigate' | 'room';
 
@@ -19,6 +19,7 @@ const MOBILE_TABS: { value: MobileRoomTab; label: string }[] = [
 
 interface MobileRoomViewProps {
   room: RoomState;
+  pack: RoomScenarioPack;
   attackerId: string;
   victimId: string;
   onAttackerChange: (id: string) => void;
@@ -34,6 +35,7 @@ interface MobileRoomViewProps {
 /** Phone layout: one pane at a time so the room stays reachable below 768px. */
 export function MobileRoomView({
   room,
+  pack,
   attackerId,
   victimId,
   onAttackerChange,
@@ -56,7 +58,6 @@ export function MobileRoomView({
         roomTitle={room.roomSettings.title}
         roomDescription={room.roomSettings.description}
         roomTags={room.roomSettings.tags}
-        roomSeverity={room.roomSettings.severity}
         onRoomAction={room.roomAction}
         onCloseRoom={room.closeRoom}
         canEditRoomSettings={room.canEditRoomSettings}
@@ -84,7 +85,11 @@ export function MobileRoomView({
         }}
       >
         <ResponseWorkflow
-          steps={room.roomWorkflow.steps}
+          steps={room.roomWorkflow.steps.map((step) => ({
+            ...step,
+            skippable: room.phaseSkippable[step.id] ?? step.skippable ?? false,
+            status: room.skippedPhases.includes(step.id) ? ('completed' as const) : step.status,
+          }))}
           fetchStatus={room.roomWorkflow.status}
           workflowName={room.roomWorkflow.workflowName}
           workflowDescription={room.roomWorkflow.workflowDescription}
@@ -99,6 +104,37 @@ export function MobileRoomView({
           questions={room.questions}
           onSubmitCollabAnswer={room.submitAnswer}
           onRecordDecision={room.recordDecision}
+          isCommander={room.isLocalCommander}
+          participants={room.participants}
+          commanderParticipantId={room.commanderParticipantId}
+          evidence={room.evidence}
+          commanderQuestions={room.commanderQuestions}
+          incidentTitle={room.roomSettings.title}
+          incidentDescription={room.roomSettings.description}
+          incidentSeverity={pack.incident.severity}
+          triageNotes={room.triageNotes}
+          onTriageNotesChange={room.setTriageNotes}
+          onOpenIncidentContext={() =>
+            setTab((current) => (current === 'incident' ? 'investigate' : 'incident'))
+          }
+          incidentContextOpen={tab === 'incident'}
+          onAddEvidence={room.openAddEvidence}
+          onRemoveEvidence={room.removeEvidence}
+          onAddCommanderQuestion={room.addCommanderQuestion}
+          onUpdateCommanderQuestion={room.updateCommanderQuestion}
+          onRemoveCommanderQuestion={room.removeCommanderQuestion}
+          onAnswerCommanderQuestion={room.answerCommanderQuestion}
+          onSetPhaseSkippable={room.setPhaseSkippableFlag}
+          onSkipPhase={room.skipPhase}
+          skippedPhases={room.skippedPhases}
+          assigneeOptions={room.participants.map((participant) => ({
+            value: participant.id,
+            label: participant.name,
+          }))}
+          workItems={room.scenarioWorkItems}
+          collabThreads={room.scenarioCollabThreads}
+          completedPhaseIds={room.completedPhaseIds}
+          onCompletePhase={room.completePhase}
         />
       </Box>
 
@@ -138,6 +174,8 @@ export function MobileRoomView({
             onVictimChange={onVictimChange}
             onEditIncident={onEditIncident}
             linkedAlerts={linkedAlerts}
+            attackerEntities={pack.attackerEntities}
+            victimEntities={pack.victimEntities}
             onOpenAffectedEntities={onOpenAffectedEntities}
             onOpenAttackMap={onOpenAttackMap}
           />

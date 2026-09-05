@@ -6,6 +6,18 @@ export type AssetSeverity = 'critical' | 'high' | 'medium' | 'low';
 export type WorkspaceTab = 'questions' | 'findings' | 'decisions';
 export type ContextTab = 'participants' | 'chat' | 'activity';
 
+/** Canvas work roles + room Responder as assignable task targets. */
+export type AssignableTaskRole = 'owner' | 'admin' | 'investigator' | 'generated' | 'responder';
+export type TaskSelectionMode = 'single' | 'multi';
+
+export interface TaskPersonAnswer {
+  participantId: string;
+  participantName: string;
+  values: string[];
+  otherText?: string;
+  answeredAt: string;
+}
+
 export interface ContextEntityField {
   label: string;
   value: string;
@@ -93,13 +105,46 @@ export interface EvidenceItem {
   url?: string;
   note?: string;
   source?: LinkedSourceRecord;
+  /** NIST / playbook phase this evidence belongs to. */
+  phaseId?: string;
 }
 
 export type EvidenceDraft =
-  | { kind: 'file'; name: string; type: string; sizeBytes: number }
-  | { kind: 'link'; name: string; url: string }
-  | { kind: 'note'; name: string; note: string }
-  | { kind: 'source'; preview: SourceRecordPreview };
+  | { kind: 'file'; name: string; type: string; sizeBytes: number; phaseId?: string }
+  | { kind: 'link'; name: string; url: string; phaseId?: string }
+  | { kind: 'note'; name: string; note: string; phaseId?: string }
+  | { kind: 'source'; preview: SourceRecordPreview; phaseId?: string };
+
+/** Commander-authored question attached to a workflow phase (prototype). */
+export type CommanderAssignee =
+  | { type: 'person'; id: string; name: string }
+  | { type: 'role'; role: AssignableTaskRole };
+
+export interface CommanderQuestion {
+  id: string;
+  phaseId: string;
+  title: string;
+  /** @deprecated Prefer `assignee`; kept for older call sites during migration. */
+  assigneeId: string;
+  assigneeName: string;
+  assignee: CommanderAssignee;
+  required: boolean;
+  answerType: 'textarea' | 'select';
+  options?: string[];
+  selectionMode?: TaskSelectionMode;
+  allowOther?: boolean;
+  roleAnswers?: TaskPersonAnswer[];
+  /** @deprecated Prefer roleAnswers */
+  answer?: string;
+  createdBy: string;
+}
+
+/** Phases where Commander cannot add custom questions. */
+export const COMMANDER_QUESTION_BLOCKED_PHASES = new Set(['detected', 'triage']);
+
+export function canAddCommanderQuestion(phaseId: string): boolean {
+  return !COMMANDER_QUESTION_BLOCKED_PHASES.has(phaseId);
+}
 
 export function evidenceFileType(fileName: string): string {
   const extension = fileName.split('.').pop()?.trim().toUpperCase();
@@ -159,7 +204,9 @@ export interface WorkflowStep {
   status: WorkflowStatus;
   owner: string;
   time: string;
-  icon: 'bell' | 'filter' | 'search' | 'shield' | 'heartbeat';
+  icon: 'bell' | 'filter' | 'search' | 'shield' | 'heartbeat' | 'bug' | 'school';
+  /** When true, participants may skip this phase without completing required work. */
+  skippable?: boolean;
   /** NIST / playbook phase — color encodes lifecycle, not progress. */
   phase: WorkflowPhase;
 }
@@ -197,8 +244,16 @@ export interface Question {
   participantCount: number;
   answers?: Answer[];
   discussion?: Answer[];
+  /** Legacy single decision — prefer roleAnswers for quorum. */
   decision?: DecisionRecord | null;
   options?: string[];
+  assigneeRole?: AssignableTaskRole;
+  roleLabel?: string;
+  selectionMode?: TaskSelectionMode;
+  allowOther?: boolean;
+  /** Required assignees must each submit before the item is complete. */
+  requiredForPhase?: boolean;
+  roleAnswers?: TaskPersonAnswer[];
 }
 
 export interface HistoryEntry {
@@ -232,7 +287,8 @@ export type RoomRole = 'Commander' | 'Responder' | 'Viewer' | 'Guest';
 /** Commander is assigned via commanderParticipantId — not the role dropdown. */
 export type AssignableRoomRole = Exclude<RoomRole, 'Commander'>;
 
-export const DEFAULT_COMMANDER_PARTICIPANT_ID = 'sarah';
+/** Prototype: local user is Commander so phase/question controls are testable. */
+export const DEFAULT_COMMANDER_PARTICIPANT_ID = 'harriette';
 
 export const ROOM_ROLES: { value: RoomRole; label: string; description: string }[] = [
   {
@@ -266,6 +322,26 @@ export const INVITE_ROLE_OPTIONS = ASSIGNABLE_ROOM_ROLES.map((role) => ({
   value: role.value,
   label: role.label,
 }));
+
+/** Room RBAC → Mantine semantic colour — use everywhere a role is shown. */
+export const ROOM_ROLE_COLOR: Record<RoomRole, 'warning' | 'teal' | 'accent' | 'neutral'> = {
+  Commander: 'warning',
+  Responder: 'teal',
+  Viewer: 'accent',
+  Guest: 'neutral',
+};
+
+/** Coloured emoji for Commander chrome (header badge, etc.). */
+export const ROOM_ROLE_EMOJI: Partial<Record<RoomRole, string>> = {
+  Commander: '👑',
+};
+
+export function roomRoleColor(role: string): 'warning' | 'teal' | 'accent' | 'neutral' {
+  if (role === 'Commander' || role === 'Responder' || role === 'Viewer' || role === 'Guest') {
+    return ROOM_ROLE_COLOR[role];
+  }
+  return 'neutral';
+}
 
 export function isRoomCommander(participantId: string, commanderParticipantId: string): boolean {
   return participantId === commanderParticipantId;
@@ -437,6 +513,7 @@ const NIST_800_61_STEPS: WorkflowStep[] = [
     owner: 'Splunk',
     time: '21:47',
     icon: 'bell',
+    skippable: false,
     phase: {
       id: 'detection-analysis',
       label: 'Detection & Analysis',
@@ -451,6 +528,7 @@ const NIST_800_61_STEPS: WorkflowStep[] = [
     owner: 'Sarah Johnson',
     time: '21:50',
     icon: 'filter',
+    skippable: false,
     phase: {
       id: 'detection-analysis',
       label: 'Detection & Analysis',
@@ -465,6 +543,7 @@ const NIST_800_61_STEPS: WorkflowStep[] = [
     owner: 'Mike Chen',
     time: '21:55',
     icon: 'search',
+    skippable: false,
     phase: {
       id: 'detection-analysis',
       label: 'Detection & Analysis',
@@ -479,10 +558,26 @@ const NIST_800_61_STEPS: WorkflowStep[] = [
     owner: '—',
     time: '—',
     icon: 'shield',
+    skippable: false,
     phase: {
       id: 'containment-recovery',
       label: 'Containment, Eradication & Recovery',
       stage: 'Containment',
+      color: 'danger',
+    },
+  },
+  {
+    id: 'eradication',
+    label: 'Eradication',
+    status: 'pending',
+    owner: '—',
+    time: '—',
+    icon: 'bug',
+    skippable: false,
+    phase: {
+      id: 'containment-recovery',
+      label: 'Containment, Eradication & Recovery',
+      stage: 'Eradication',
       color: 'danger',
     },
   },
@@ -493,11 +588,27 @@ const NIST_800_61_STEPS: WorkflowStep[] = [
     owner: '—',
     time: '—',
     icon: 'heartbeat',
+    skippable: false,
     phase: {
       id: 'containment-recovery',
       label: 'Containment, Eradication & Recovery',
       stage: 'Recovery',
       color: 'success',
+    },
+  },
+  {
+    id: 'lessons-learned',
+    label: 'Lessons Learned',
+    status: 'pending',
+    owner: '—',
+    time: '—',
+    icon: 'school',
+    skippable: true,
+    phase: {
+      id: 'post-incident',
+      label: 'Post-Incident Activity',
+      stage: 'Lessons Learned',
+      color: 'accent',
     },
   },
 ];
@@ -615,7 +726,6 @@ export const ROOM_TAG_SUGGESTIONS = [
 export interface RoomSettingsDraft {
   title: string;
   description: string;
-  severity: RoomSeverity;
   workflow: string;
   tags: string[];
   incidentReferences: string[];
@@ -627,7 +737,6 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettingsDraft = {
   title: INCIDENT.title,
   description:
     'Suspicious authentication burst from 185.23.45.10 against workstation-114. Room opened to coordinate investigation and containment.',
-  severity: INCIDENT.severity,
   workflow: 'nist-800-61',
   tags: ['Lateral Movement', 'FIN7', 'Credential Access', 'Ransomware', 'C2', 'Containment'],
   incidentReferences: [],
@@ -676,6 +785,8 @@ export const INITIAL_QUESTIONS: Question[] = [
     status: 'open',
     answerCount: 3,
     participantCount: 2,
+    assigneeRole: 'investigator',
+    roleLabel: 'Investigator',
     answers: [
       {
         id: 'a1-sarah',
@@ -717,6 +828,8 @@ export const INITIAL_QUESTIONS: Question[] = [
     status: 'open',
     answerCount: 1,
     participantCount: 3,
+    assigneeRole: 'investigator',
+    roleLabel: 'Investigator',
     answers: [
       {
         id: 'a4-alex',
@@ -738,6 +851,8 @@ export const INITIAL_QUESTIONS: Question[] = [
     status: 'open',
     answerCount: 0,
     participantCount: 2,
+    assigneeRole: 'investigator',
+    roleLabel: 'Investigator',
     discussion: [
       {
         id: 'd5-david',
@@ -754,6 +869,12 @@ export const INITIAL_QUESTIONS: Question[] = [
     participantCount: 3,
     decision: null,
     options: ['Disable account', 'Keep account active', 'Investigate further'],
+    assigneeRole: 'responder',
+    roleLabel: 'Responder',
+    selectionMode: 'single',
+    allowOther: true,
+    requiredForPhase: true,
+    roleAnswers: [],
   },
   {
     id: 6,
@@ -774,6 +895,19 @@ export const INITIAL_QUESTIONS: Question[] = [
       at: '12:51',
     },
     options: ['Isolate now', 'Isolate after backup window', 'Monitor only'],
+    assigneeRole: 'responder',
+    roleLabel: 'Responder',
+    selectionMode: 'multi',
+    allowOther: true,
+    requiredForPhase: true,
+    roleAnswers: [
+      {
+        participantId: 'sarah',
+        participantName: 'Sarah Johnson',
+        values: ['Isolate after backup window'],
+        answeredAt: '12:51',
+      },
+    ],
   },
   {
     id: 3,
@@ -781,6 +915,8 @@ export const INITIAL_QUESTIONS: Question[] = [
     status: 'answered',
     answerCount: 2,
     participantCount: 2,
+    assigneeRole: 'investigator',
+    roleLabel: 'Investigator',
     answers: [
       {
         id: 'a3-mike',
@@ -1333,6 +1469,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     sizeBytes: 184_320,
     by: 'Mike Chen',
     time: '12:48',
+    phaseId: 'investigation',
   },
   {
     id: 'e2',
@@ -1342,6 +1479,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     sizeBytes: 1_048_576,
     by: 'Sarah Johnson',
     time: '12:49',
+    phaseId: 'detected',
   },
   {
     id: 'e3',
@@ -1351,6 +1489,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     url: 'https://www.virustotal.com/gui/ip-address/185.23.45.10',
     by: 'Mike Chen',
     time: '12:50',
+    phaseId: 'investigation',
   },
   {
     id: 'e4',
@@ -1360,6 +1499,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     sizeBytes: 2_621_440,
     by: 'Alex Smith',
     time: '12:51',
+    phaseId: 'containment',
   },
   {
     id: 'e5',
@@ -1369,6 +1509,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     note: 'Failed logons clustered 21:42–21:47 UTC against svc-backup. Correlate with Splunk alert SPL-8847291 before containment.',
     by: 'Harriette Spoonlicker',
     time: '12:53',
+    phaseId: 'triage',
   },
   {
     id: 'e6',
@@ -1377,6 +1518,7 @@ export const EVIDENCE_ITEMS: EvidenceItem[] = [
     type: 'ALERT',
     by: 'Sarah Johnson',
     time: '12:47',
+    phaseId: 'detected',
     source: {
       adapterId: 'splunk',
       adapter: 'Splunk',

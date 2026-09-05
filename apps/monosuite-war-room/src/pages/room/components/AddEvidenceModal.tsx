@@ -44,6 +44,9 @@ import { SourceRecordPreviewCard } from './SourceRecordPreviewCard';
 interface AddEvidenceModalProps {
   opened: boolean;
   initialKind?: EvidenceKind;
+  /** Prefill / lock related workflow phase. */
+  initialPhaseId?: string | null;
+  phaseOptions?: { value: string; label: string }[];
   onClose: () => void;
   onAdd: (drafts: EvidenceDraft[]) => void;
 }
@@ -57,6 +60,8 @@ interface PickedFile {
 export function AddEvidenceModal({
   opened,
   initialKind = 'file',
+  initialPhaseId = null,
+  phaseOptions = [],
   onClose,
   onAdd,
 }: AddEvidenceModalProps) {
@@ -66,6 +71,7 @@ export function AddEvidenceModal({
   const [linkTitle, setLinkTitle] = useState('');
   const [noteTitle, setNoteTitle] = useState('');
   const [noteBody, setNoteBody] = useState('');
+  const [phaseId, setPhaseId] = useState<string | null>(initialPhaseId);
   const [adapterId, setAdapterId] = useState(CONNECTED_SOURCES[0]?.id ?? '');
   const [recordType, setRecordType] = useState(
     () => getAdapterRecordTypes(CONNECTED_SOURCES[0]?.id ?? '')[0]?.value ?? '',
@@ -84,6 +90,7 @@ export function AddEvidenceModal({
     setLinkTitle('');
     setNoteTitle('');
     setNoteBody('');
+    setPhaseId(initialPhaseId ?? phaseOptions[0]?.value ?? null);
     setAdapterId(CONNECTED_SOURCES[0]?.id ?? '');
     setRecordType(getAdapterRecordTypes(CONNECTED_SOURCES[0]?.id ?? '')[0]?.value ?? '');
     setRecordQuery('');
@@ -91,7 +98,7 @@ export function AddEvidenceModal({
     setAttempted(false);
     setDropActive(false);
     resetRef.current?.();
-  }, [opened, initialKind]);
+  }, [opened, initialKind, initialPhaseId, phaseOptions]);
 
   const addFiles = (picked: File[] | File | null) => {
     const next = Array.isArray(picked) ? picked : picked ? [picked] : [];
@@ -118,6 +125,8 @@ export function AddEvidenceModal({
         ? 'Required'
         : undefined;
   const noteError = attempted && !noteBody.trim() ? 'Required' : undefined;
+  const phaseError =
+    attempted && phaseOptions.length > 0 && !phaseId ? 'Select a related phase' : undefined;
   const sourceResults = searchSourceRecords(adapterId, recordType, recordQuery);
   const sourceSelectionError =
     attempted && tab === 'source' && !selectedSource ? 'Select a source record to preview and link' : undefined;
@@ -125,47 +134,54 @@ export function AddEvidenceModal({
   const dirty =
     files.length > 0 ||
     Boolean(url.trim() || linkTitle.trim() || noteTitle.trim() || noteBody.trim()) ||
-    Boolean(selectedSource || recordQuery.trim());
+    Boolean(selectedSource || recordQuery.trim()) ||
+    Boolean(phaseId && phaseId !== (initialPhaseId ?? phaseOptions[0]?.value ?? null));
 
   const { requestClose, confirming, discard, keepEditing } = useDiscardGuard(opened, dirty, onClose);
 
+  const withPhase = <T extends EvidenceDraft>(draft: T): T =>
+    ({ ...draft, phaseId: phaseId ?? undefined }) as T;
+
   const submit = () => {
     setAttempted(true);
+    if (phaseOptions.length > 0 && !phaseId) return;
     if (tab === 'file' && files.length > 0) {
       onAdd(
-        files.map((file) => ({
-          kind: 'file' as const,
-          name: file.name,
-          type: evidenceFileType(file.name),
-          sizeBytes: file.size,
-        })),
+        files.map((file) =>
+          withPhase({
+            kind: 'file' as const,
+            name: file.name,
+            type: evidenceFileType(file.name),
+            sizeBytes: file.size,
+          }),
+        ),
       );
       return;
     }
     if (tab === 'link' && isValidHttpUrl(url)) {
       const trimmed = url.trim();
       onAdd([
-        {
+        withPhase({
           kind: 'link',
           name: linkTitle.trim() || hostnameFromUrl(trimmed),
           url: trimmed,
-        },
+        }),
       ]);
       return;
     }
     if (tab === 'note' && noteBody.trim()) {
       const body = noteBody.trim();
       onAdd([
-        {
+        withPhase({
           kind: 'note',
           name: noteTitle.trim() || body.slice(0, 48),
           note: body,
-        },
+        }),
       ]);
       return;
     }
     if (tab === 'source' && selectedSource) {
-      onAdd([{ kind: 'source', preview: selectedSource }]);
+      onAdd([withPhase({ kind: 'source', preview: selectedSource })]);
     }
   };
 
@@ -218,6 +234,18 @@ export function AddEvidenceModal({
         }
       >
         <Stack gap="md">
+          {phaseOptions.length > 0 ? (
+            <Select
+              label="Related phase"
+              placeholder="Select phase"
+              data={phaseOptions}
+              value={phaseId}
+              onChange={setPhaseId}
+              error={phaseError}
+              allowDeselect={false}
+              searchable
+            />
+          ) : null}
           <Tabs value={tab} onChange={(value) => value && setTab(value as EvidenceKind)}>
             <Tabs.List>
               <Tabs.Tab value="file" leftSection={<IconUpload size={16} />}>

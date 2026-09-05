@@ -67,9 +67,9 @@ export function InvestigationWorkspace({
     submitDiscussion,
     updateDiscussion,
     deleteDiscussion,
-    selectedDecision,
-    setSelectedDecision,
     recordDecision,
+    participants,
+    commanderParticipantId,
     history,
     typingVisible,
   } = room;
@@ -200,7 +200,8 @@ export function InvestigationWorkspace({
                   expanded={expandedQuestion === q.id}
                   answering={answeringQuestion === q.id}
                   discussionOpen={discussionOpen === q.id}
-                  selectedDecision={selectedDecision[q.id]}
+                  participants={participants}
+                  commanderParticipantId={commanderParticipantId}
                   onToggle={() => toggleQuestion(q.id)}
                   onStartAnswer={() => startAddAnswer(q.id)}
                   onCancelAnswer={cancelAddAnswer}
@@ -211,10 +212,7 @@ export function InvestigationWorkspace({
                   onSubmitComment={(text) => submitDiscussion(q.id, text)}
                   onUpdateComment={(commentId, text) => updateDiscussion(q.id, commentId, text)}
                   onDeleteComment={(commentId) => deleteDiscussion(q.id, commentId)}
-                  onSelectDecision={(choice) =>
-                    setSelectedDecision((prev) => ({ ...prev, [q.id]: choice }))
-                  }
-                  onRecordDecision={() => recordDecision(q.id)}
+                  onRecordDecision={(values, otherText) => recordDecision(q.id, values, otherText)}
                 />
               ))
             )}

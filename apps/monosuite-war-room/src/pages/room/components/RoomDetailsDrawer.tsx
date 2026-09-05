@@ -11,13 +11,11 @@ import {
 } from '@mantine/core';
 import { IconAlignLeft, IconInfoCircle, IconSettings, IconTags } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import { ROOM_SEVERITY_COLOR, type RoomSeverity } from '../data';
 
 interface RoomDetailsDrawerProps {
   opened: boolean;
   onClose: () => void;
   roomTitle: string;
-  roomSeverity: RoomSeverity;
   description: string;
   tags: string[];
   canEditRoomSettings?: boolean;
@@ -70,7 +68,6 @@ export function RoomDetailsDrawer({
   opened,
   onClose,
   roomTitle,
-  roomSeverity,
   description,
   tags,
   canEditRoomSettings = false,
@@ -123,9 +120,6 @@ export function RoomDetailsDrawer({
           {roomTitle}
         </Text>
         <Group gap={6} mt={6}>
-          <Badge color={ROOM_SEVERITY_COLOR[roomSeverity]} size="sm" variant="light">
-            {roomSeverity}
-          </Badge>
           <Badge color="neutral" variant="outline" size="sm">
             View only
           </Badge>

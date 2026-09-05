@@ -5,6 +5,7 @@ import {
   type RoomWorkflowDefinition,
   type WorkflowStep,
 } from '../data';
+import { applyWorkflowStepStatuses, getRoomScenario } from '../scenarios';
 
 export type RoomWorkflowFetchStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -17,6 +18,7 @@ interface RoomWorkflowState {
   workflowDescription: string;
   errorMessage: string | null;
   retry: () => void;
+  setStepStatuses: (updater: (steps: WorkflowStep[]) => WorkflowStep[]) => void;
 }
 
 async function mockFetchRoomWorkflow(workflowId: string): Promise<RoomWorkflowDefinition | null> {
@@ -29,11 +31,7 @@ async function mockFetchRoomWorkflow(workflowId: string): Promise<RoomWorkflowDe
   }
 
   const definition = getWorkflowDefinition(workflowId);
-  if (!definition) {
-    return null;
-  }
-
-  if (definition.steps.length === 0) {
+  if (!definition || definition.steps.length === 0) {
     return null;
   }
 
@@ -41,9 +39,10 @@ async function mockFetchRoomWorkflow(workflowId: string): Promise<RoomWorkflowDe
 }
 
 /** Loads workflow phases for the room's selected playbook (mock API). */
-export function useRoomWorkflow(workflowId: string): RoomWorkflowState {
+export function useRoomWorkflow(workflowId: string, scenarioId?: string): RoomWorkflowState {
   const [status, setStatus] = useState<RoomWorkflowFetchStatus>('loading');
   const [definition, setDefinition] = useState<RoomWorkflowDefinition | null>(null);
+  const [stepsOverride, setStepsOverride] = useState<WorkflowStep[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fetchToken, setFetchToken] = useState(0);
 
@@ -52,6 +51,7 @@ export function useRoomWorkflow(workflowId: string): RoomWorkflowState {
 
     setStatus('loading');
     setDefinition(null);
+    setStepsOverride(null);
     setErrorMessage(null);
 
     void (async () => {
@@ -64,7 +64,14 @@ export function useRoomWorkflow(workflowId: string): RoomWorkflowState {
           return;
         }
 
-        setDefinition(result);
+        const overrides = scenarioId
+          ? getRoomScenario(scenarioId)?.workflowStepStatuses
+          : undefined;
+        const withStatuses = overrides
+          ? { ...result, steps: applyWorkflowStepStatuses(result.steps, overrides) }
+          : result;
+
+        setDefinition(withStatuses);
         setStatus('ready');
       } catch (error) {
         if (cancelled) return;
@@ -78,18 +85,29 @@ export function useRoomWorkflow(workflowId: string): RoomWorkflowState {
     return () => {
       cancelled = true;
     };
-  }, [workflowId, fetchToken]);
+  }, [workflowId, fetchToken, scenarioId]);
 
   const retry = useCallback(() => {
     setFetchToken((token) => token + 1);
   }, []);
 
+  const setStepStatuses = useCallback(
+    (updater: (steps: WorkflowStep[]) => WorkflowStep[]) => {
+      setStepsOverride((current) => {
+        const base = current ?? definition?.steps ?? [];
+        return updater(base);
+      });
+    },
+    [definition?.steps],
+  );
+
   return {
     status,
-    steps: definition?.steps ?? [],
+    steps: stepsOverride ?? definition?.steps ?? [],
     workflowName: definition?.label ?? getWorkflowOptionLabel(workflowId),
     workflowDescription: definition?.description ?? '',
     errorMessage,
     retry,
+    setStepStatuses,
   };
 }
