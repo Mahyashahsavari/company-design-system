@@ -483,11 +483,11 @@ export const LINK_SOURCE_OPTIONS = [
 export const ROOM_SEVERITY_OPTIONS = ['Critical', 'High', 'Medium', 'Low'] as const;
 export type RoomSeverity = (typeof ROOM_SEVERITY_OPTIONS)[number];
 
-/** Incident severity → Mantine semantic colour. High is warning so it does not collide with Critical. */
-export const ROOM_SEVERITY_COLOR: Record<RoomSeverity, 'danger' | 'warning' | 'accent' | 'neutral'> = {
+/** Incident severity → Mantine semantic colour (attack / IR heat, not calm cyan). */
+export const ROOM_SEVERITY_COLOR: Record<RoomSeverity, 'danger' | 'warning' | 'neutral'> = {
   Critical: 'danger',
   High: 'warning',
-  Medium: 'accent',
+  Medium: 'warning',
   Low: 'neutral',
 };
 

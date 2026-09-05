@@ -1,5 +1,5 @@
 import { Box } from '@mantine/core';
-import { IconAlertCircle, IconAlertTriangle, IconShieldCheck } from '@tabler/icons-react';
+import { IconAlertTriangle, IconShieldCheck } from '@tabler/icons-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { ROOM_SEVERITY_COLOR, type RoomSeverity } from './data';
 
@@ -34,12 +34,12 @@ export function SeverityIcon({
 }) {
   const color = severityFill(severity);
   if (severity === 'Critical' || severity === 'High') {
-    return <IconAlertTriangle size={size} color={color} aria-hidden />;
+    return <IconAlertTriangle size={size} color={color} aria-hidden style={{ display: 'block' }} />;
   }
   if (severity === 'Medium') {
-    return <IconAlertCircle size={size} color={color} aria-hidden />;
+    return <IconAlertTriangle size={size} color={color} aria-hidden style={{ display: 'block' }} />;
   }
-  return <IconShieldCheck size={size} color={color} aria-hidden />;
+  return <IconShieldCheck size={size} color={color} aria-hidden style={{ display: 'block' }} />;
 }
 
 export function SeverityMark({

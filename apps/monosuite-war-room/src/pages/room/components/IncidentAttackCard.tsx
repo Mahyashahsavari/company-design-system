@@ -173,6 +173,7 @@ export function IncidentAttackCard({
               variant="light"
               color={severityColor(incident.severity)}
               radius="sm"
+              className="monosuite-badge-with-icon"
               leftSection={<SeverityIcon severity={incident.severity} size={11} />}
               style={{ flexShrink: 0 }}
             >

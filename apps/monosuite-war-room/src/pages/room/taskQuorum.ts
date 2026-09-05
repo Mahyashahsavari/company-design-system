@@ -60,6 +60,13 @@ export const PARTICIPANT_WORK_ROLES: Record<string, AssignableTaskRole[]> = {
 
 export const OTHER_OPTION_VALUE = 'Other';
 
+/**
+ * Temporary demo override: local Commander can answer any role/person task and
+ * their answer alone completes quorum so the full NIST walk is self-serve.
+ * Remove when real multi-role participation is wired.
+ */
+export const DEMO_COMMANDER_FULL_ACCESS = true;
+
 export function formatTaskAnswerDisplay(answer: TaskPersonAnswer): string {
   const parts = answer.values.map((value) =>
     value === OTHER_OPTION_VALUE && answer.otherText?.trim()
@@ -134,6 +141,13 @@ export function peopleForTaskRole(
 
   if (role === 'generated') return [];
 
+  if (
+    DEMO_COMMANDER_FULL_ACCESS &&
+    isRoomCommander(CURRENT_USER.id, commanderParticipantId)
+  ) {
+    return roster.filter((person) => person.id === CURRENT_USER.id);
+  }
+
   if (role === 'responder') {
     return roster.filter((person) => {
       const roomRole = roomRoleForPerson(person.id, participants, commanderParticipantId);
@@ -150,6 +164,15 @@ export function peopleForPersonAssignee(
   participants: Participant[],
   commanderParticipantId: string,
 ): TaskRolePerson[] {
+  if (
+    DEMO_COMMANDER_FULL_ACCESS &&
+    isRoomCommander(CURRENT_USER.id, commanderParticipantId)
+  ) {
+    return rosterPeople(participants, commanderParticipantId).filter(
+      (person) => person.id === CURRENT_USER.id,
+    );
+  }
+
   const roster = rosterPeople(participants, commanderParticipantId);
   const match = roster.find((person) => person.id === assigneeId);
   if (match) return [match];

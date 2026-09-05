@@ -23,6 +23,7 @@ import {
   IconLock,
   IconMessageQuestion,
   IconRadio,
+  IconRoute2,
   IconScale,
   IconSearch,
   IconShieldCheck,
@@ -103,6 +104,7 @@ import {
   TriageSeverityCard,
   commanderNodeId,
 } from './workflowCanvasPhaseExtras';
+import { ResponseJourneyView } from './ResponseJourneyView';
 
 interface WorkflowCanvasViewProps {
   steps: WorkflowStep[];
@@ -438,6 +440,7 @@ function WorkFlowCard({ data }: NodeProps<WorkFlowNode>) {
           size="xs"
           variant="filled"
           color={roleColor(data.role)}
+          className="monosuite-badge-with-icon"
           leftSection={<Icon size={11} />}
         >
           {data.roleLabel}
@@ -516,13 +519,14 @@ function CollabFlowCard({ data }: NodeProps<CollabFlowNode>) {
         {data.threadLabel}
       </Text>
       <Box className="monosuite-workflow-canvas-node-kind">
-        <Badge size="xs" variant="filled" color={color} leftSection={<Icon size={11} />}>
+        <Badge size="xs" variant="filled" color={color} className="monosuite-badge-with-icon" leftSection={<Icon size={11} />}>
           {data.code}
         </Badge>
         <Badge
           size="xs"
           variant={data.focus ? 'filled' : 'light'}
           color={statusColor}
+          className="monosuite-badge-with-icon"
           leftSection={data.blocked ? <IconLock size={10} /> : undefined}
         >
           {data.blocked ? 'Blocked' : data.focus ? 'Your turn' : data.statusLabel}
@@ -692,21 +696,21 @@ function roleColor(role: WorkflowWorkRole): string {
 function PhaseStatusChip({ status }: { status: CanvasPhaseStatus }) {
   if (status === 'done') {
     return (
-      <Badge size="xs" variant="light" color="success" leftSection={<IconCheck size={10} />}>
+      <Badge size="xs" variant="light" color="success" className="monosuite-badge-with-icon" leftSection={<IconCheck size={10} />}>
         Done
       </Badge>
     );
   }
   if (status === 'active') {
     return (
-      <Badge size="xs" variant="filled" color="teal" leftSection={<IconRadio size={10} />}>
+      <Badge size="xs" variant="filled" color="teal" className="monosuite-badge-with-icon" leftSection={<IconRadio size={10} />}>
         Active
       </Badge>
     );
   }
   if (status === 'locked') {
     return (
-      <Badge size="xs" variant="light" color="neutral" leftSection={<IconLock size={10} />}>
+      <Badge size="xs" variant="light" color="neutral" className="monosuite-badge-with-icon" leftSection={<IconLock size={10} />}>
         Locked
       </Badge>
     );
@@ -728,7 +732,7 @@ function WorkStatusChip({ status }: { status: WorkRuntimeStatus }) {
   }
   if (status === 'blocked') {
     return (
-      <Badge size="xs" variant="light" color="warning" leftSection={<IconLock size={10} />}>
+      <Badge size="xs" variant="light" color="warning" className="monosuite-badge-with-icon" leftSection={<IconLock size={10} />}>
         Blocked
       </Badge>
     );
@@ -1797,17 +1801,36 @@ export function WorkflowCanvasView({
   const [draft, setDraft] = useState('');
   const [choiceValues, setChoiceValues] = useState<string[]>([]);
   const [choiceOther, setChoiceOther] = useState('');
-  const [expandedPhaseId, setExpandedPhaseId] = useState<string | null>(() => {
-    const current = steps.find((step) => step.status === 'current');
-    return current?.id ?? steps[0]?.id ?? null;
-  });
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    const current = steps.find((step) => step.status === 'current');
-    return current?.id ?? steps[0]?.id ?? null;
-  });
+  const [expandedPhaseId, setExpandedPhaseId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [localCompleted, setLocalCompleted] = useState<string[]>([]);
   const completedPhaseIds = completedPhaseIdsProp ?? localCompleted;
   const investigationComplete = completedPhaseIds.includes('investigation');
+  const allPhasesDone = useMemo(
+    () =>
+      steps.length > 0 &&
+      steps.every(
+        (step) =>
+          completedPhaseIds.includes(step.id) ||
+          step.status === 'completed' ||
+          skippedPhases.includes(step.id),
+      ),
+    [completedPhaseIds, skippedPhases, steps],
+  );
+  /** When false and all phases done, show the response journey instead of the live canvas. */
+  const [preferCanvasAfterComplete, setPreferCanvasAfterComplete] = useState(false);
+  const wasAllPhasesDoneRef = useRef(false);
+  const showResponseJourney = allPhasesDone && !preferCanvasAfterComplete;
+
+  useEffect(() => {
+    if (allPhasesDone && !wasAllPhasesDoneRef.current) {
+      setPreferCanvasAfterComplete(false);
+      setExpandedPhaseId(null);
+      setSelectedId(null);
+    }
+    wasAllPhasesDoneRef.current = allPhasesDone;
+  }, [allPhasesDone]);
+
   const [toast, setToast] = useState<string | null>(null);
   const [nodes, setNodes] = useState<CanvasNode[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -1827,13 +1850,6 @@ export function WorkflowCanvasView({
     setChoiceValues([]);
     setChoiceOther('');
   }, []);
-
-  // Keep focus on the workflow's current phase when steps change.
-  useEffect(() => {
-    const current = steps.find((step) => step.status === 'current');
-    if (!current) return;
-    setExpandedPhaseId((prev) => (prev === current.id ? prev : current.id));
-  }, [steps]);
 
   const phaseGaps = useCallback(
     (phaseId: string) => {
@@ -1936,6 +1952,14 @@ export function WorkflowCanvasView({
     setLayoutEpoch((value) => value + 1);
   }, [expandedPhaseId]);
 
+  // After the playbook spine loads, fit the full phase overview (not a single phase).
+  const stepIdsKey = steps.map((step) => step.id).join('|');
+  useEffect(() => {
+    if (!stepIdsKey) return;
+    forceDefaultLayoutRef.current = true;
+    setLayoutEpoch((value) => value + 1);
+  }, [stepIdsKey]);
+
   // Refit when custom questions are added or removed under the focused phase.
   useEffect(() => {
     setLayoutEpoch((value) => value + 1);
@@ -1962,7 +1986,7 @@ export function WorkflowCanvasView({
   }, [graph]);
 
   useEffect(() => {
-    if (layoutEpoch === 0 || !flowInstance || !expandedPhaseId) return;
+    if (layoutEpoch === 0 || !flowInstance) return;
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -2223,12 +2247,34 @@ export function WorkflowCanvasView({
     if (gaps.length > 0) return;
 
     onCompletePhase?.(phaseId);
+    const nextCompleted = completedPhaseIds.includes(phaseId)
+      ? completedPhaseIds
+      : [...completedPhaseIds, phaseId];
     setLocalCompleted((current) =>
       current.includes(phaseId) ? current : [...current, phaseId],
     );
 
     const index = steps.findIndex((step) => step.id === phaseId);
     const nextStep = index >= 0 ? steps[index + 1] : undefined;
+    const workflowDone =
+      steps.length > 0 &&
+      steps.every((step) => {
+        if (step.id === phaseId) return true;
+        return (
+          nextCompleted.includes(step.id) ||
+          step.status === 'completed' ||
+          skippedPhases.includes(step.id)
+        );
+      });
+
+    if (workflowDone) {
+      setPreferCanvasAfterComplete(false);
+      setExpandedPhaseId(null);
+      setSelectedId(null);
+      showToast('Response complete · Journey ready');
+      return;
+    }
+
     const focusId = nextStep?.id ?? phaseId;
     setExpandedPhaseId(focusId);
     setSelectedId(focusId);
@@ -2245,12 +2291,49 @@ export function WorkflowCanvasView({
     (item) => item.role === 'admin' && item.phaseId === 'investigation',
   )?.id;
 
+  if (showResponseJourney) {
+    return (
+      <Box
+        className={`monosuite-workflow-canvas-shell${fillHeight ? ' monosuite-workflow-canvas-shell--fill' : ''}`}
+        aria-label="Completed response journey"
+      >
+        <ResponseJourneyView
+          steps={steps}
+          answers={answers}
+          questions={questions}
+          workCatalog={workCatalog}
+          threadCatalog={threadCatalog}
+          commanderQuestions={commanderQuestions}
+          triageNotes={triageNotes}
+          incidentTitle={incidentTitle}
+          incidentDescription={incidentDescription}
+          incidentSeverity={incidentSeverity}
+          evidence={evidence}
+          onEdit={() => setPreferCanvasAfterComplete(true)}
+        />
+      </Box>
+    );
+  }
+
   return (
     <Box
       className={`monosuite-workflow-canvas-shell${fillHeight ? ' monosuite-workflow-canvas-shell--fill' : ''}`}
       data-focus-phase={expandedPhaseId ?? undefined}
       aria-label="Response workflow canvas"
     >
+      {allPhasesDone ? (
+        <Group className="monosuite-workflow-canvas-toolbar" justify="flex-end" gap="xs" mb={6}>
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="teal"
+            leftSection={<IconRoute2 size={14} />}
+            onClick={() => setPreferCanvasAfterComplete(false)}
+          >
+            View response flow
+          </Button>
+        </Group>
+      ) : null}
       <Box className="monosuite-workflow-canvas-stage">
         <Box ref={flowContainerRef} className="monosuite-workflow-canvas-flow">
           <ReactFlow

@@ -124,7 +124,10 @@ export const CURRENT_USER = {
   id: 'harriette',
   name: 'Harriette Spoonlicker',
   initials: 'HS',
-  /** Assignable room role — commander is tracked separately via commanderParticipantId. */
+  /**
+   * Assignable room role — commander is tracked separately via commanderParticipantId.
+   * Demo rooms set the local user as Commander so presentation walks stay self-serve.
+   */
   roomRole: 'Responder' as const,
   /** Mock RBAC — enables participant management controls in the room. */
   canManageParticipants: true,

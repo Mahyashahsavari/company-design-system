@@ -118,32 +118,42 @@ export function TriageSeverityCard({
   severity: RoomSeverity;
   selected?: boolean;
 }) {
+  const tone = ROOM_SEVERITY_COLOR[severity];
   return (
     <Paper
       className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--triage"
       data-selected={selected ? 'true' : undefined}
+      data-severity={severity}
       withBorder
       radius="md"
       p="sm"
+      style={{
+        borderColor: `color-mix(in srgb, var(--mantine-color-${tone}-filled) 42%, var(--monosuite-color-border))`,
+        background: `linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--mantine-color-${tone}-filled) 12%, var(--monosuite-color-surface)),
+          var(--monosuite-color-surface)
+        )`,
+      }}
     >
-      <Group gap="xs" wrap="nowrap" mb={6}>
+      <Group gap="xs" wrap="nowrap" mb={6} align="center">
         <ThemeIcon
           variant="light"
-          color={ROOM_SEVERITY_COLOR[severity]}
+          color={tone}
           size="sm"
           radius="sm"
           aria-hidden
         >
           <IconAlertTriangle size={14} />
         </ThemeIcon>
-        <Badge size="xs" variant="light" color={ROOM_SEVERITY_COLOR[severity]}>
+        <Badge size="xs" variant="light" color={tone} className="monosuite-badge-with-icon">
           Severity
         </Badge>
       </Group>
       <Text size="md" fw={700} lh={1.3}>
         Incident severity
       </Text>
-      <Badge mt={8} color={ROOM_SEVERITY_COLOR[severity]} variant="filled">
+      <Badge mt={8} color={tone} variant="filled" className="monosuite-badge-with-icon">
         {severity}
       </Badge>
     </Paper>

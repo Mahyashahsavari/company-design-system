@@ -52,6 +52,7 @@ import {
   TASK_ROLE_LABEL,
   taskQuorumStatus,
   upsertPersonAnswer,
+  DEMO_COMMANDER_FULL_ACCESS,
 } from '../taskQuorum';
 
 /** Mock — active room with elapsed seed; scheduled rooms hide operational time. */
@@ -1226,7 +1227,8 @@ export function useRoomState(pack?: RoomScenarioPack | null) {
       : null;
   }, [activeParticipants, commanderParticipantId]);
 
-  const isLocalCommander = commanderParticipantId === CURRENT_USER.id;
+  const isLocalCommander =
+    DEMO_COMMANDER_FULL_ACCESS || commanderParticipantId === CURRENT_USER.id;
 
   const canTransferCommand = canManageParticipants || isLocalCommander;
 
