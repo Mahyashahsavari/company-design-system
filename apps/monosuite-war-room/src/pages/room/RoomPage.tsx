@@ -31,6 +31,7 @@ import { RoomSettingsModal } from './components/RoomSettingsModal';
 import { ResizableRoomSidePanel } from './components/ResizableRoomSidePanel';
 import { ResizableSplitPane } from './components/ResizableSplitPane';
 import { ResponseWorkflow } from './components/response-workflow';
+import type { WorkflowViewMode } from './components/response-workflow';
 import { RoomCommandHeader } from './components/RoomCommandHeader';
 import {
   ATTACKER_ENTITIES,
@@ -65,6 +66,8 @@ export function RoomPage() {
   const [evidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
   const [affectedEntitiesOpen, setAffectedEntitiesOpen] = useState(false);
   const [attackMapOpen, setAttackMapOpen] = useState(false);
+  const [workflowViewMode, setWorkflowViewMode] = useState<WorkflowViewMode>('canvas');
+  const canvasMode = workflowViewMode === 'canvas';
   const { ref: roomRowRef, width: roomRowWidth } = useElementSize();
   const {
     leftWidth,
@@ -245,7 +248,19 @@ export function RoomPage() {
           position: 'relative',
         }}
       >
-        <Box style={{ flexShrink: 0 }}>
+        <Box
+          className={canvasMode ? 'monosuite-room-canvas-host' : undefined}
+          style={{
+            flexShrink: canvasMode ? 1 : 0,
+            flex: canvasMode ? '1 1 0%' : undefined,
+            minHeight: canvasMode ? 0 : undefined,
+            display: canvasMode ? 'flex' : undefined,
+            flexDirection: canvasMode ? 'column' : undefined,
+            overflow: canvasMode ? 'hidden' : undefined,
+            ['--room-canvas-dock-safe' as string]:
+              canvasMode && showDockedFloat ? `${ROOM_MEDIA_DOCK_SAFE_ZONE}px` : '0px',
+          }}
+        >
           <ResponseWorkflow
             steps={room.roomWorkflow.steps}
             fetchStatus={room.roomWorkflow.status}
@@ -257,15 +272,22 @@ export function RoomPage() {
               room.canEditRoomSettings ? () => room.setRoomSettingsOpen(true) : undefined
             }
             density={denseRoom ? 'strip' : 'cards'}
+            viewMode={workflowViewMode}
+            onViewModeChange={setWorkflowViewMode}
+            questions={room.questions}
+            onSubmitCollabAnswer={room.submitAnswer}
+            onRecordDecision={room.recordDecision}
           />
         </Box>
-        <InvestigationWorkspace
-          room={room}
-          dockSafeZone={showDockedFloat}
-          dockSafeZoneHeight={
-            denseRoom ? ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE : ROOM_MEDIA_DOCK_SAFE_ZONE
-          }
-        />
+        {canvasMode ? null : (
+          <InvestigationWorkspace
+            room={room}
+            dockSafeZone={showDockedFloat}
+            dockSafeZoneHeight={
+              denseRoom ? ROOM_MEDIA_DOCK_SAFE_ZONE_DENSE : ROOM_MEDIA_DOCK_SAFE_ZONE
+            }
+          />
+        )}
         {showDockedFloat ? (
           <Box
             className="monosuite-live-float-anchor"
@@ -274,7 +296,7 @@ export function RoomPage() {
               left: '50%',
               transform: 'translateX(-50%)',
               bottom: ROOM_MEDIA_DOCK_GUTTER + 8,
-              zIndex: 10,
+              zIndex: 30,
               pointerEvents: 'none',
             }}
           >

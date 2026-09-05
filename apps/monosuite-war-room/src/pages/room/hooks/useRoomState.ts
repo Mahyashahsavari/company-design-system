@@ -424,8 +424,8 @@ export function useRoomState() {
   }, []);
 
   const recordDecision = useCallback(
-    (id: number) => {
-      const choice = selectedDecision[id];
+    (id: number, choiceOverride?: string) => {
+      const choice = choiceOverride ?? selectedDecision[id];
       if (!choice) return;
       setQuestions((prev) =>
         prev.map((q) =>

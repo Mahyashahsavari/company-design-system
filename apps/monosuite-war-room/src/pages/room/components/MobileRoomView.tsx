@@ -5,7 +5,7 @@ import type { RoomState } from '../hooks/useRoomState';
 import { ContextSidebar } from './ContextSidebar';
 import { IncidentContextColumn } from './IncidentContextColumn';
 import { InvestigationWorkspace } from './InvestigationWorkspace';
-import { ResponseWorkflow } from './response-workflow';
+import { ResponseWorkflow, type WorkflowViewMode } from './response-workflow';
 import { RoomCommandHeader } from './RoomCommandHeader';
 import type { ReactNode } from 'react';
 
@@ -46,6 +46,8 @@ export function MobileRoomView({
   onOpenEvidence,
 }: MobileRoomViewProps) {
   const [tab, setTab] = useState<MobileRoomTab>('incident');
+  const [workflowViewMode, setWorkflowViewMode] = useState<WorkflowViewMode>('canvas');
+  const canvasMode = workflowViewMode === 'canvas';
 
   return (
     <Box className="monosuite-room-mobile" data-testid="mobile-room-view">
@@ -67,7 +69,20 @@ export function MobileRoomView({
         onTransferCommand={room.openTransferCommand}
       />
 
-      <Box px="xs" pt="md" pb="sm" style={{ flexShrink: 0 }}>
+      <Box
+        px="xs"
+        pt="md"
+        pb="sm"
+        style={{
+          flexShrink: canvasMode ? 1 : 0,
+          flex: canvasMode ? '1 1 0' : undefined,
+          minHeight: canvasMode ? 0 : undefined,
+          height: canvasMode ? '100%' : undefined,
+          display: canvasMode ? 'flex' : undefined,
+          flexDirection: 'column',
+          overflow: canvasMode ? 'hidden' : undefined,
+        }}
+      >
         <ResponseWorkflow
           steps={room.roomWorkflow.steps}
           fetchStatus={room.roomWorkflow.status}
@@ -79,6 +94,11 @@ export function MobileRoomView({
             room.canEditRoomSettings ? () => room.setRoomSettingsOpen(true) : undefined
           }
           density="focus"
+          viewMode={workflowViewMode}
+          onViewModeChange={setWorkflowViewMode}
+          questions={room.questions}
+          onSubmitCollabAnswer={room.submitAnswer}
+          onRecordDecision={room.recordDecision}
         />
       </Box>
 
@@ -106,7 +126,7 @@ export function MobileRoomView({
       </Box>
 
       <Box className="monosuite-room-mobile-body">
-        {tab === 'investigate' ? (
+        {tab === 'investigate' && !canvasMode ? (
           <InvestigationWorkspace room={room} dockSafeZone={false} />
         ) : null}
         {tab === 'incident' ? (

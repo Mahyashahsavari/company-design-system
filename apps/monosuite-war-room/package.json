@@ -2,7 +2,7 @@
   "name": "monosuite-war-room",
   "version": "0.0.0",
   "private": true,
-  "description": "MonoSuite War Room — Incident Decision & Response Center (Room View).",
+  "description": "MonoSuite War Room - Incident Decision and Response Center (Room View).",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,6 +18,7 @@
     "@monosuite/ui": "*",
     "@monosuite/utils": "*",
     "@tabler/icons-react": "^3.46.0",
+    "@xyflow/react": "^12.11.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.3.0"

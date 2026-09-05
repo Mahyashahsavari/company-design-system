@@ -9,11 +9,20 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { IconAlertCircle, IconCheck, IconChevronRight, IconRefresh } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconChevronRight,
+  IconRefresh,
+  IconRoute2,
+  IconTopologyStar,
+} from '@tabler/icons-react';
 import { TruncatedTooltipText } from '../../../../shared/components/TruncatedTooltipText';
 import type { RoomWorkflowFetchStatus } from '../../hooks/useRoomWorkflow';
-import type { WorkflowPhaseColor, WorkflowStep } from '../../data';
+import type { Question, WorkflowPhaseColor, WorkflowStep } from '../../data';
+import { WorkflowCanvasView } from './WorkflowCanvasView';
 import { WorkflowInfoLabel } from './WorkflowInfoLabel';
+import type { WorkflowViewMode } from './types';
 
 export interface ResponseWorkflowProps {
   steps: WorkflowStep[];
@@ -25,7 +34,16 @@ export interface ResponseWorkflowProps {
   onOpenSettings?: () => void;
   /** Strip is a single-row stepper for short desktops. Focus peeks prev/current/next on phones. */
   density?: 'cards' | 'strip' | 'focus';
+  viewMode?: WorkflowViewMode;
+  onViewModeChange?: (mode: WorkflowViewMode) => void;
+  questions?: Question[];
+  onSubmitCollabAnswer?: (questionId: number, text: string) => void;
+  onRecordDecision?: (questionId: number, choice: string) => void;
 }
+
+export type { WorkflowViewMode } from './types';
+
+type InternalViewMode = WorkflowViewMode;
 
 const STATUS_LABEL: Record<WorkflowStep['status'], string> = {
   completed: 'Done',
@@ -47,9 +65,23 @@ export function ResponseWorkflow({
   onRetry,
   onOpenSettings,
   density = 'cards',
+  viewMode: viewModeProp,
+  onViewModeChange,
+  questions = [],
+  onSubmitCollabAnswer,
+  onRecordDecision,
 }: ResponseWorkflowProps) {
   const strip = density === 'strip';
   const focus = density === 'focus';
+  const [internalViewMode, setInternalViewMode] = useState<InternalViewMode>('canvas');
+  const viewMode = viewModeProp ?? internalViewMode;
+
+  const setViewMode = (mode: InternalViewMode) => {
+    if (viewModeProp == null) {
+      setInternalViewMode(mode);
+    }
+    onViewModeChange?.(mode);
+  };
 
   const currentIndex = Math.max(
     0,
@@ -60,6 +92,32 @@ export function ResponseWorkflow({
   useEffect(() => {
     setFocusedIndex(currentIndex);
   }, [currentIndex, steps]);
+
+  const viewToggle =
+    fetchStatus === 'ready' ? (
+      <Group gap={6} wrap="nowrap">
+        <Button
+          size="compact-xs"
+          variant={viewMode === 'current' ? 'filled' : 'light'}
+          color="neutral"
+          leftSection={<IconRoute2 size={13} />}
+          onClick={() => setViewMode('current')}
+          aria-pressed={viewMode === 'current'}
+        >
+          Current
+        </Button>
+        <Button
+          size="compact-xs"
+          variant={viewMode === 'canvas' ? 'filled' : 'light'}
+          color="teal"
+          leftSection={<IconTopologyStar size={13} />}
+          onClick={() => setViewMode('canvas')}
+          aria-pressed={viewMode === 'canvas'}
+        >
+          Canvas
+        </Button>
+      </Group>
+    ) : null;
 
   if (fetchStatus === 'loading') {
     return (
@@ -98,6 +156,26 @@ export function ResponseWorkflow({
     );
   }
 
+  if (viewMode === 'canvas') {
+    return (
+      <WorkflowShell density="cards" ariaLabel="Response workflow canvas" fill>
+        <WorkflowHeader
+          workflowName={workflowName}
+          workflowDescription={workflowDescription}
+          trailing={viewToggle}
+        />
+        <WorkflowCanvasView
+          steps={steps}
+          workflowName={workflowName}
+          questions={questions}
+          onSubmitCollabAnswer={onSubmitCollabAnswer}
+          onRecordDecision={onRecordDecision}
+          fillHeight
+        />
+      </WorkflowShell>
+    );
+  }
+
   const completedCount = steps.filter((s) => s.status === 'completed').length;
   const progress =
     steps.length > 0
@@ -117,6 +195,7 @@ export function ResponseWorkflow({
         <WorkflowHeader
           workflowName={workflowName}
           workflowDescription={workflowDescription}
+          trailing={viewToggle}
         />
         <Box className="monosuite-workflow-focus-track" aria-label="Previous, current, and next workflow steps">
           {prevStep ? (
@@ -171,7 +250,12 @@ export function ResponseWorkflow({
       <WorkflowHeader
         workflowName={workflowName}
         workflowDescription={workflowDescription}
-        trailing={strip ? null : <PhaseKey steps={steps} />}
+        trailing={
+          <Group gap="xs" wrap="nowrap">
+            {viewToggle}
+            {strip ? null : <PhaseKey steps={steps} />}
+          </Group>
+        }
       />
 
       <Box className="monosuite-workflow-shell" style={{ position: 'relative', width: '100%' }}>
@@ -198,18 +282,22 @@ function WorkflowShell({
   density,
   ariaLabel,
   children,
+  fill = false,
 }: {
   density: 'cards' | 'strip' | 'focus';
   ariaLabel: string;
   children: ReactNode;
+  fill?: boolean;
 }) {
   const strip = density === 'strip';
   const focus = density === 'focus';
 
   return (
     <Box
-      className={`monosuite-workflow${strip ? ' monosuite-workflow--strip' : ''}${focus ? ' monosuite-workflow--focus' : ''}`}
+      className={`monosuite-workflow${strip ? ' monosuite-workflow--strip' : ''}${focus ? ' monosuite-workflow--focus' : ''}${fill ? ' monosuite-workflow--fill' : ''}`}
       aria-label={ariaLabel}
+      h={fill ? '100%' : undefined}
+      style={fill ? { display: 'flex', flexDirection: 'column', minHeight: 0 } : undefined}
     >
       {children}
     </Box>
@@ -226,7 +314,13 @@ function WorkflowHeader({
   trailing?: ReactNode | null;
 }) {
   return (
-    <Group justify="space-between" mb={6} wrap="nowrap" gap="xs">
+    <Group
+      className="monosuite-workflow-header"
+      justify="space-between"
+      mb={6}
+      wrap="nowrap"
+      gap="xs"
+    >
       <Box style={{ minWidth: 0, flex: 1 }}>
         <WorkflowInfoLabel workflowName={workflowName} workflowDescription={workflowDescription} />
       </Box>
