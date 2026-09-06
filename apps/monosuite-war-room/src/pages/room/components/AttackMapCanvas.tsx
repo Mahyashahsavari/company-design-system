@@ -9,10 +9,8 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
-  type Edge,
-  type Node,
-  type NodeChange,
 } from '@xyflow/react';
+import type { Edge, Node, NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,13 +21,12 @@ import {
   nodeMatchesQuery,
   toggleAttackMapBranch,
   visibleAttackMapNodeIds,
-  type AttackMapEdgeModel,
-  type AttackMapNodeModel,
 } from './attackMapGraph';
-import { attackMapEdgeTypes, attackMapNodeTypes, type AttackMapFlowNodeData } from './AttackMapNodes';
-import type { ThreatEntity } from '../data';
+import type { AttackMapEdgeModel, AttackMapNodeModel } from './attackMapGraph';
+import { attackMapEdgeTypes, attackMapNodeTypes } from './AttackMapNodes';
+import type { AttackMapFlowNodeData } from './AttackMapNodes';
+import type { ThreatEntity, INCIDENT } from '../data';
 import type { ScenarioIncident } from '../scenarios';
-import { INCIDENT } from '../data';
 
 type IncidentLike = ScenarioIncident | typeof INCIDENT;
 

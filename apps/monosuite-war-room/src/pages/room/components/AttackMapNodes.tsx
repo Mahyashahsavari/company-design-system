@@ -7,19 +7,11 @@ import {
   Text,
   UnstyledButton,
 } from '@mantine/core';
-import {
-  BaseEdge,
-  Handle,
-  Position,
-  type EdgeProps,
-  type NodeProps,
-} from '@xyflow/react';
+import { BaseEdge, Handle, Position } from '@xyflow/react';
+import type { EdgeProps, NodeProps } from '@xyflow/react';
 import { memo } from 'react';
-import {
-  attackMapNodeRadius,
-  attackMapTone,
-  type AttackMapNodeModel,
-} from './attackMapGraph';
+import { attackMapNodeRadius, attackMapTone } from './attackMapGraph';
+import type { AttackMapNodeModel } from './attackMapGraph';
 
 export type AttackMapFlowNodeData = {
   model: AttackMapNodeModel;

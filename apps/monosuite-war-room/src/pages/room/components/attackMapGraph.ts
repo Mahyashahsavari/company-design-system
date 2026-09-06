@@ -1,11 +1,6 @@
-import {
-  CONNECTED_SOURCES,
-  SOURCE_RECORD_CATALOG,
-  type ThreatEntity,
-  type ContextEntityField,
-} from '../data';
+import { CONNECTED_SOURCES, SOURCE_RECORD_CATALOG } from '../data';
+import type { ThreatEntity, ContextEntityField, INCIDENT } from '../data';
 import type { ScenarioIncident } from '../scenarios';
-import { INCIDENT } from '../data';
 
 export type AttackMapNodeKind = 'incident' | 'group' | 'entity' | 'attr';
 export type AttackMapRole = 'attacker' | 'victim' | null;
