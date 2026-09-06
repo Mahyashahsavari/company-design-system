@@ -1774,6 +1774,8 @@ body {
 
 .monosuite-attack-map-canvas .react-flow__edge-path {
   stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0.7;
 }
 
 .monosuite-attack-map-controls.react-flow__controls {

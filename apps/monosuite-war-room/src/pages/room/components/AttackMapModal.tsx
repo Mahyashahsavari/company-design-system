@@ -82,7 +82,12 @@ export function AttackMapModal({ opened, onClose, attackers, victims }: AttackMa
             className="monosuite-attack-map-canvas-host"
             data-fullscreen={fullscreen ? 'true' : 'false'}
           >
-            <AttackMapCanvas incident={incident} attackers={attackers} victims={victims} />
+            <AttackMapCanvas
+              incident={incident}
+              attackers={attackers}
+              victims={victims}
+              fullscreen={fullscreen}
+            />
           </div>
         ) : null}
       </Stack>

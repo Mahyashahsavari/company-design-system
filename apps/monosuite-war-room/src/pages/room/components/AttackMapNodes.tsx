@@ -7,7 +7,13 @@ import {
   Text,
   UnstyledButton,
 } from '@mantine/core';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import {
+  BaseEdge,
+  Handle,
+  Position,
+  type EdgeProps,
+  type NodeProps,
+} from '@xyflow/react';
 import { memo } from 'react';
 import {
   attackMapNodeRadius,
@@ -88,6 +94,31 @@ const centerHandleStyle = {
   top: '50%',
   transform: 'translate(-50%, -50%)',
 } as const;
+
+/**
+ * Gentle center-to-center curve (prototype Q path) — avoids RF default bezier
+ * “hook / turn-back” when handles sit in the middle of circular nodes.
+ */
+function AttackMapEdgeView({ id, sourceX, sourceY, targetX, targetY, style }: EdgeProps) {
+  const mx = (sourceX + targetX) / 2;
+  const my = (sourceY + targetY) / 2;
+  const curve = 0.12;
+  const cx = mx - (targetY - sourceY) * curve;
+  const cy = my + (targetX - sourceX) * curve;
+  const path = `M ${sourceX},${sourceY} Q ${cx},${cy} ${targetX},${targetY}`;
+
+  return (
+    <BaseEdge
+      id={id}
+      path={path}
+      style={{
+        ...style,
+        strokeWidth: style?.strokeWidth ?? 0.7,
+        fill: 'none',
+      }}
+    />
+  );
+}
 
 function AttackMapNodeView({ data, selected }: NodeProps) {
   const payload = data as AttackMapFlowNodeData;
@@ -188,4 +219,8 @@ function AttackMapNodeView({ data, selected }: NodeProps) {
 
 export const attackMapNodeTypes = {
   attackMap: memo(AttackMapNodeView),
+};
+
+export const attackMapEdgeTypes = {
+  attackMap: memo(AttackMapEdgeView),
 };

@@ -26,7 +26,7 @@ import {
   type AttackMapEdgeModel,
   type AttackMapNodeModel,
 } from './attackMapGraph';
-import { attackMapNodeTypes, type AttackMapFlowNodeData } from './AttackMapNodes';
+import { attackMapEdgeTypes, attackMapNodeTypes, type AttackMapFlowNodeData } from './AttackMapNodes';
 import type { ThreatEntity } from '../data';
 import type { ScenarioIncident } from '../scenarios';
 import { INCIDENT } from '../data';
@@ -45,6 +45,72 @@ interface AttackMapCanvasProps {
   incident: IncidentLike;
   attackers: ThreatEntity[];
   victims: ThreatEntity[];
+  fullscreen?: boolean;
+}
+
+function nodeVisualPad(kind: AttackMapNodeModel['kind']) {
+  if (kind === 'incident') return 36;
+  if (kind === 'group') return 28;
+  if (kind === 'entity') return 26;
+  return 22;
+}
+
+/** Shrink world coords toward origin so fitView needs less zoom-out. Returns scale used. */
+function compactPositionsIntoView(
+  positions: Map<string, { x: number; y: number }>,
+  sim: Map<string, SimNode>,
+  modelsById: Map<string, AttackMapNodeModel>,
+  visible: Set<string>,
+  width: number,
+  height: number,
+): number {
+  const padX = 52;
+  const padY = 60;
+  const ids = [...visible].filter((id) => positions.has(id));
+  if (ids.length === 0) return 1;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  ids.forEach((id) => {
+    const p = positions.get(id)!;
+    const pad = nodeVisualPad(modelsById.get(id)?.kind ?? 'attr');
+    minX = Math.min(minX, p.x - pad);
+    maxX = Math.max(maxX, p.x + pad);
+    minY = Math.min(minY, p.y - pad);
+    maxY = Math.max(maxY, p.y + pad + 18);
+  });
+
+  const bw = Math.max(maxX - minX, 1);
+  const bh = Math.max(maxY - minY, 1);
+  const scale = Math.min(1, (width - padX * 2) / bw, (height - padY * 2) / bh);
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+
+  ids.forEach((id) => {
+    const p = positions.get(id)!;
+    // Keep graph centered on world origin (0,0) — viewport/fitView handles screen centering
+    const next = {
+      x: (p.x - midX) * scale,
+      y: (p.y - midY) * scale,
+    };
+    positions.set(id, next);
+    const body = sim.get(id);
+    if (body) {
+      body.x = next.x;
+      body.y = next.y;
+      body.vx = 0;
+      body.vy = 0;
+    }
+  });
+
+  return scale;
+}
+
+function densityScale(visibleCount: number) {
+  return Math.min(1, Math.max(0.45, 26 / Math.sqrt(Math.max(visibleCount, 1))));
 }
 
 function toFlowNodes(
@@ -86,67 +152,83 @@ function toFlowEdges(edgeModels: AttackMapEdgeModel[], visible: Set<string>): Ed
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      type: 'default',
+      type: 'attackMap',
       animated: false,
       markerEnd: undefined,
       markerStart: undefined,
       style: {
         stroke: edge.adapter
-          ? 'color-mix(in srgb, var(--monosuite-color-border) 70%, var(--mantine-color-neutral-6))'
+          ? 'color-mix(in srgb, var(--monosuite-color-border) 65%, var(--mantine-color-neutral-6))'
           : 'var(--monosuite-color-border)',
-        strokeWidth: 1,
-        strokeDasharray: edge.adapter ? '3 3' : undefined,
+        strokeWidth: 0.7,
+        strokeDasharray: edge.adapter ? '2.5 2.5' : undefined,
       },
     }));
 }
 
-function restLength(a: AttackMapNodeModel, b: AttackMapNodeModel) {
-  if (a.kind === 'incident' && b.kind === 'group') return 200;
-  if (b.kind === 'incident' && a.kind === 'group') return 200;
-  if (a.kind === 'incident' || b.kind === 'incident') return 88;
-  if (a.kind === 'group' || b.kind === 'group') return 88;
-  return 48;
+function restLength(a: AttackMapNodeModel, b: AttackMapNodeModel, density = 1) {
+  let base = 48;
+  if (a.kind === 'incident' && b.kind === 'group') base = 200;
+  else if (b.kind === 'incident' && a.kind === 'group') base = 200;
+  else if (a.kind === 'incident' || b.kind === 'incident') base = 88;
+  else if (a.kind === 'group' || b.kind === 'group') base = 88;
+  return base * density;
 }
 
 const LAYOUT_ANCHORS = new Set(['incident', 'group-attackers', 'group-victims']);
 
-function sideGapForWidth(width: number) {
-  return Math.max(160, Math.min(240, width * 0.28));
-}
+/** Stable world gap — independent of canvas pixel size so fitView can center correctly. */
+const WORLD_SIDE_GAP = 200;
 
-function layoutAnchors(cx: number, cy: number, sideGap: number) {
+function layoutAnchors(sideGap = WORLD_SIDE_GAP) {
   return {
-    incident: { x: cx, y: cy },
-    'group-attackers': { x: cx - sideGap, y: cy },
-    'group-victims': { x: cx + sideGap, y: cy },
+    incident: { x: 0, y: 0 },
+    'group-attackers': { x: -sideGap, y: 0 },
+    'group-victims': { x: sideGap, y: 0 },
   } as const;
 }
 
-/** Incident center · Attackers left · Victims right. */
-function seedPositions(
-  models: AttackMapNodeModel[],
-  width: number,
-  height: number,
-): Map<string, { x: number; y: number }> {
+/** Shift entire layout so incident sits at world origin (0,0). */
+function normalizeToWorldOrigin(
+  positions: Map<string, { x: number; y: number }>,
+  sim: Map<string, SimNode>,
+) {
+  const incident = positions.get('incident');
+  if (!incident) return;
+  if (Math.abs(incident.x) < 0.5 && Math.abs(incident.y) < 0.5) return;
+  const dx = -incident.x;
+  const dy = -incident.y;
+  positions.forEach((pos, id) => {
+    const next = { x: pos.x + dx, y: pos.y + dy };
+    positions.set(id, next);
+    const body = sim.get(id);
+    if (body) {
+      body.x = next.x;
+      body.y = next.y;
+      body.vx = 0;
+      body.vy = 0;
+    }
+  });
+}
+
+/** Incident at (0,0) · Attackers left · Victims right (world space). */
+function seedPositions(models: AttackMapNodeModel[]): Map<string, { x: number; y: number }> {
   const map = new Map<string, { x: number; y: number }>();
-  const cx = width / 2;
-  const cy = height / 2;
-  const sideGap = sideGapForWidth(width);
   const byId = new Map(models.map((model) => [model.id, model]));
-  const anchors = layoutAnchors(cx, cy, sideGap);
+  const sideGap = WORLD_SIDE_GAP;
+  const anchors = layoutAnchors(sideGap);
 
   Object.entries(anchors).forEach(([id, pos]) => map.set(id, { ...pos }));
 
   const incident = byId.get('incident');
   const attrChildren = (incident?.childIds ?? []).filter((id) => byId.get(id)?.kind === 'attr');
   attrChildren.forEach((id, index, arr) => {
-    // Arc above/below center so sides stay clear for attacker/victim columns
     const t = arr.length <= 1 ? 0 : index / (arr.length - 1);
     const angle = -Math.PI * 0.75 + t * Math.PI * 1.5;
     const ring = 78;
     map.set(id, {
-      x: cx + Math.cos(angle) * ring,
-      y: cy + Math.sin(angle) * ring,
+      x: Math.cos(angle) * ring,
+      y: Math.sin(angle) * ring,
     });
   });
 
@@ -179,16 +261,21 @@ function seedPositions(
     if (map.has(model.id)) return;
     const parentPos = model.parentId ? map.get(model.parentId) : null;
     map.set(model.id, {
-      x: (parentPos?.x ?? cx) + (Math.random() - 0.5) * 40,
-      y: (parentPos?.y ?? cy) + (Math.random() - 0.5) * 40,
+      x: (parentPos?.x ?? 0) + (Math.random() - 0.5) * 40,
+      y: (parentPos?.y ?? 0) + (Math.random() - 0.5) * 40,
     });
   });
 
   return map;
 }
 
-function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasProps) {
-  const { getViewport, setViewport } = useReactFlow();
+function AttackMapCanvasInner({
+  incident,
+  attackers,
+  victims,
+  fullscreen = false,
+}: AttackMapCanvasProps) {
+  const { fitView, setCenter } = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [fetchRound, setFetchRound] = useState(0);
@@ -213,16 +300,130 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
   const alphaRef = useRef(1);
   const pinnedRef = useRef<Set<string>>(new Set());
   const rafRef = useRef<number | null>(null);
+  const fitTimerRef = useRef<number | null>(null);
+  const modelsByIdRef = useRef(new Map<string, AttackMapNodeModel>());
+  const layoutFactorRef = useRef(1);
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const visible = useMemo(() => visibleAttackMapNodeIds(models), [models]);
+  modelsByIdRef.current = new Map(models.map((model) => [model.id, model]));
 
-  const onToggle = useCallback((id: string) => {
-    setModels((current) => toggleAttackMapBranch(current, id));
-    alphaRef.current = 1;
-  }, []);
+  const syncNodePositions = useCallback(() => {
+    setNodes((current) =>
+      current.map((node) => {
+        const pos = positionsRef.current.get(node.id);
+        return pos ? { ...node, position: { x: pos.x, y: pos.y } } : node;
+      }),
+    );
+  }, [setNodes]);
+
+  /** Fit graph into the current canvas — world stays at (0,0), viewport moves. */
+  const runFitView = useCallback(
+    (animate = true) => {
+      normalizeToWorldOrigin(positionsRef.current, simRef.current);
+      const density = densityScale(visible.size) * layoutFactorRef.current;
+      const anchors = layoutAnchors(WORLD_SIDE_GAP * density);
+      (Object.keys(anchors) as Array<keyof typeof anchors>).forEach((id) => {
+        const pos = anchors[id];
+        positionsRef.current.set(id, { ...pos });
+        const body = simRef.current.get(id);
+        if (body) {
+          body.x = pos.x;
+          body.y = pos.y;
+          body.vx = 0;
+          body.vy = 0;
+          body.fixed = true;
+        }
+      });
+      syncNodePositions();
+      alphaRef.current = Math.min(alphaRef.current, 0.35);
+
+      // Wait for modal/fullscreen layout, then fit
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          void fitView({
+            padding: 0.22,
+            duration: animate ? 280 : 0,
+            includeHiddenNodes: false,
+          });
+        });
+      });
+    },
+    [fitView, syncNodePositions, visible.size],
+  );
+
+  const frameGraph = useCallback(
+    (
+      animate: boolean,
+      options?: { tighten?: boolean; resetFactor?: boolean; mode?: 'compact' | 'fitView' },
+    ) => {
+      const width = wrapRef.current?.clientWidth ?? 900;
+      const height = wrapRef.current?.clientHeight ?? 560;
+      if (width < 40 || height < 40) return;
+
+      if (options?.resetFactor) layoutFactorRef.current = 1;
+
+      const mode = options?.mode ?? 'fitView';
+
+      if (mode === 'compact') {
+        normalizeToWorldOrigin(positionsRef.current, simRef.current);
+        const scale = compactPositionsIntoView(
+          positionsRef.current,
+          simRef.current,
+          modelsByIdRef.current,
+          visible,
+          width,
+          height,
+        );
+        if (options?.tighten && scale < 0.985) {
+          layoutFactorRef.current = Math.min(1, Math.max(0.4, layoutFactorRef.current * scale));
+        }
+        alphaRef.current = 0.28;
+        syncNodePositions();
+        requestAnimationFrame(() => {
+          void fitView({
+            padding: 0.2,
+            duration: animate ? 260 : 0,
+            maxZoom: 1,
+            minZoom: 0.55,
+          });
+        });
+        return;
+      }
+
+      runFitView(animate);
+    },
+    [visible, syncNodePositions, fitView, runFitView],
+  );
+
+  const scheduleFrame = useCallback(
+    (
+      delayMs = 320,
+      animate = true,
+      options?: { tighten?: boolean; resetFactor?: boolean; mode?: 'compact' | 'fitView' },
+    ) => {
+      if (fitTimerRef.current != null) window.clearTimeout(fitTimerRef.current);
+      fitTimerRef.current = window.setTimeout(() => {
+        fitTimerRef.current = null;
+        frameGraph(animate, options);
+      }, delayMs);
+    },
+    [frameGraph],
+  );
+
+  const onToggle = useCallback(
+    (id: string) => {
+      setModels((current) => toggleAttackMapBranch(current, id));
+      alphaRef.current = 1;
+      scheduleFrame(420, true, {
+        tighten: true,
+        mode: fullscreen ? 'fitView' : 'compact',
+      });
+    },
+    [scheduleFrame, fullscreen],
+  );
 
   const rebuildFlow = useCallback(() => {
     const nextNodes = toFlowNodes(models, positionsRef.current, visible, query, onToggle);
@@ -233,10 +434,8 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
 
   // Seed / sync simulation bodies when model set changes
   useEffect(() => {
-    const width = wrapRef.current?.clientWidth ?? 900;
-    const height = wrapRef.current?.clientHeight ?? 560;
     if (positionsRef.current.size === 0) {
-      positionsRef.current = seedPositions(models, width, height);
+      positionsRef.current = seedPositions(models);
     }
 
     const sim = simRef.current;
@@ -258,8 +457,8 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
               y: parentPos.y + (Math.random() - 0.5) * 48,
             }
           : {
-              x: width / 2 + (Math.random() - 0.5) * 80,
-              y: height / 2 + (Math.random() - 0.5) * 80,
+              x: (Math.random() - 0.5) * 80,
+              y: (Math.random() - 0.5) * 80,
             });
       positionsRef.current.set(model.id, seeded);
       sim.set(model.id, {
@@ -276,25 +475,23 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
       if (!liveIds.has(id)) sim.delete(id);
     });
 
+    normalizeToWorldOrigin(positionsRef.current, sim);
     alphaRef.current = Math.max(alphaRef.current, 0.85);
     rebuildFlow();
   }, [models, rebuildFlow]);
 
-  // Force tick — mirrors the prototype (strong charge, soft springs, never fully cools)
+  // Force tick — world origin (0,0); viewport/fitView handles screen centering
   useEffect(() => {
     const tick = () => {
       const sim = simRef.current;
       const bodies = [...sim.values()].filter((node) => visible.has(node.id));
       const alpha = alphaRef.current;
-      const width = wrapRef.current?.clientWidth ?? 900;
-      const height = wrapRef.current?.clientHeight ?? 560;
-      const originX = width / 2;
-      const originY = height / 2;
 
       if (bodies.length > 0) {
         const byId = sim;
-        const sideGap = sideGapForWidth(width);
-        const anchors = layoutAnchors(originX, originY, sideGap);
+        const density = densityScale(bodies.length) * layoutFactorRef.current;
+        const sideGap = WORLD_SIDE_GAP * density;
+        const anchors = layoutAnchors(sideGap);
         (Object.keys(anchors) as Array<keyof typeof anchors>).forEach((id) => {
           const body = byId.get(id);
           if (!body) return;
@@ -320,7 +517,7 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
               dist2 = 1;
             }
             const dist = Math.sqrt(dist2);
-            const strength = a.kind === 'attr' && b.kind === 'attr' ? 900 : 4200;
+            const strength = (a.kind === 'attr' && b.kind === 'attr' ? 900 : 4200) * density;
             const force = (strength / dist2) * alpha;
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
@@ -343,7 +540,7 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 0.1);
-          const ideal = restLength(a, b);
+          const ideal = restLength(a, b, density);
           const force = (dist - ideal) * 0.035 * alpha;
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
@@ -372,15 +569,14 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
             return;
           }
 
-          // Keep attacker/victim columns on their sides
           if (node.role === 'attacker') {
-            node.vx -= (node.x - (originX - sideGap)) * 0.004 * alpha;
+            node.vx -= (node.x - -sideGap) * 0.004 * alpha;
           } else if (node.role === 'victim') {
-            node.vx -= (node.x - (originX + sideGap)) * 0.004 * alpha;
+            node.vx -= (node.x - sideGap) * 0.004 * alpha;
           } else {
-            node.vx -= (node.x - originX) * 0.0016 * alpha;
+            node.vx -= node.x * 0.0016 * alpha;
           }
-          node.vy -= (node.y - originY) * 0.0012 * alpha;
+          node.vy -= node.y * 0.0012 * alpha;
           node.vx *= 0.82;
           node.vy *= 0.82;
           node.x += Math.max(-14, Math.min(14, node.vx));
@@ -469,11 +665,19 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
   const handleExpandAll = () => {
     setModels((current) => expandAllAttackMap(current));
     alphaRef.current = 1;
+    scheduleFrame(480, true, {
+      tighten: true,
+      mode: fullscreen ? 'fitView' : 'compact',
+    });
   };
 
   const handleCollapse = () => {
     setModels((current) => collapseAttackMapToCore(current));
     alphaRef.current = 1;
+    scheduleFrame(360, true, {
+      resetFactor: true,
+      mode: fullscreen ? 'fitView' : 'compact',
+    });
   };
 
   const handleAdapterFetch = () => {
@@ -482,7 +686,44 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
     setModels(result.nodes);
     setEdgeModels(result.edges);
     alphaRef.current = 1;
+    scheduleFrame(480, true, {
+      tighten: true,
+      mode: fullscreen ? 'fitView' : 'compact',
+    });
   };
+
+  const handleFit = () => {
+    runFitView(true);
+  };
+
+  // Fullscreen / resize: refit after layout settles (world origin stays put)
+  useEffect(() => {
+    scheduleFrame(fullscreen ? 320 : 200, true, { resetFactor: true, mode: 'fitView' });
+  }, [fullscreen, scheduleFrame]);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let resizeTimer: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        scheduleFrame(80, false, { mode: 'fitView' });
+      }, 80);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+    };
+  }, [scheduleFrame]);
+
+  useEffect(
+    () => () => {
+      if (fitTimerRef.current != null) window.clearTimeout(fitTimerRef.current);
+    },
+    [],
+  );
 
   // Focus first search match
   useEffect(() => {
@@ -492,16 +733,8 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
     if (!match) return;
     const pos = positionsRef.current.get(match.id);
     if (!pos) return;
-    const viewport = getViewport();
-    void setViewport(
-      {
-        x: -pos.x * viewport.zoom + (wrapRef.current?.clientWidth ?? 0) / 2,
-        y: -pos.y * viewport.zoom + (wrapRef.current?.clientHeight ?? 0) / 2,
-        zoom: Math.max(viewport.zoom, 0.9),
-      },
-      { duration: 220 },
-    );
-  }, [query, models, visible, getViewport, setViewport]);
+    void setCenter(pos.x, pos.y, { duration: 220, zoom: 1 });
+  }, [query, models, visible, setCenter]);
 
   return (
     <Box ref={wrapRef} className="monosuite-attack-map-canvas" data-testid="attack-map-canvas">
@@ -511,17 +744,18 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={attackMapNodeTypes}
+        edgeTypes={attackMapEdgeTypes}
         nodeOrigin={[0.5, 0.5]}
         fitView
-        fitViewOptions={{ padding: 0.24 }}
+        fitViewOptions={{ padding: 0.22 }}
         minZoom={0.35}
-        maxZoom={2.2}
+        maxZoom={2}
         proOptions={{ hideAttribution: true }}
         nodesConnectable={false}
         elementsSelectable
         panOnScroll
         zoomOnScroll
-        defaultEdgeOptions={{ type: 'default' }}
+        defaultEdgeOptions={{ type: 'attackMap' }}
         elevateNodesOnSelect={false}
       >
         <Background
@@ -531,7 +765,12 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
           size={1.1}
           color="color-mix(in srgb, var(--monosuite-color-border) 55%, transparent)"
         />
-        <Controls position="top-right" showInteractive={false} className="monosuite-attack-map-controls" />
+        <Controls
+          position="top-right"
+          showInteractive={false}
+          showFitView={false}
+          className="monosuite-attack-map-controls"
+        />
         <Panel position="top-left" className="monosuite-attack-map-toolbar">
           <Group gap={6} wrap="wrap">
             <TextInput
@@ -551,6 +790,9 @@ function AttackMapCanvasInner({ incident, attackers, victims }: AttackMapCanvasP
             </Button>
             <Button size="compact-xs" variant="default" onClick={handleCollapse}>
               Collapse to core
+            </Button>
+            <Button size="compact-xs" variant="default" onClick={handleFit}>
+              Fit view
             </Button>
           </Group>
         </Panel>
