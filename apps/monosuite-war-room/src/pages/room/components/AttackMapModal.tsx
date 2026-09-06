@@ -1,115 +1,91 @@
-import { Badge, Box, Group, Modal, Paper, Stack, Text } from '@mantine/core';
-import { IconArrowRight, IconFingerprint, IconRoute2 } from '@tabler/icons-react';
+import { ActionIcon, Badge, CloseButton, Group, Modal, Stack, Text, Tooltip } from '@mantine/core';
+import { IconMaximize, IconMaximizeOff, IconRoute2 } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 import type { ThreatEntity } from '../data';
 import { useRoomIncident } from '../RoomScenarioContext';
+import { AttackMapCanvas } from './AttackMapCanvas';
 
 interface AttackMapModalProps {
   opened: boolean;
   onClose: () => void;
-  attacker: ThreatEntity;
-  victim: ThreatEntity;
+  attackers: ThreatEntity[];
+  victims: ThreatEntity[];
 }
 
-/** Evidence-aware relationship map. It is deliberately labelled as a hypothesis until confirmed. */
-export function AttackMapModal({ opened, onClose, attacker, victim }: AttackMapModalProps) {
+/** Evidence-aware attack graph — force layout with adapter provenance. */
+export function AttackMapModal({ opened, onClose, attackers, victims }: AttackMapModalProps) {
   const incident = useRoomIncident();
+  const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!opened) setFullscreen(false);
+  }, [opened]);
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
+      fullScreen={fullscreen}
+      withCloseButton={false}
       title={
-        <Group gap="xs" wrap="nowrap">
-          <IconRoute2 size={19} color="var(--mantine-color-accent-filled)" />
-          <Text fw={800}>Attack map</Text>
-          <Badge color="warning" variant="light">
-            Hypothesis · unconfirmed
-          </Badge>
+        <Group gap="xs" wrap="nowrap" justify="space-between" style={{ flex: 1, minWidth: 0, width: '100%' }}>
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+            <IconRoute2 size={19} color="var(--mantine-color-warning-filled)" />
+            <Text fw={800}>Attack map</Text>
+            <Badge color="warning" variant="light" visibleFrom="xs">
+              Hypothesis · unconfirmed
+            </Badge>
+            <Text size="xs" c="dimmed" ff="monospace" visibleFrom="sm">
+              {incident.id}
+            </Text>
+          </Group>
+          <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+            <Tooltip label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} withArrow>
+              <ActionIcon
+                variant="subtle"
+                color="neutral"
+                size="md"
+                aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                aria-pressed={fullscreen}
+                data-testid="attack-map-fullscreen"
+                onClick={() => setFullscreen((value) => !value)}
+              >
+                {fullscreen ? <IconMaximizeOff size={16} /> : <IconMaximize size={16} />}
+              </ActionIcon>
+            </Tooltip>
+            <CloseButton aria-label="Close attack map" onClick={onClose} />
+          </Group>
         </Group>
       }
-      size="min(1080px, calc(100vw - 32px))"
+      size="min(1180px, calc(100vw - 24px))"
       centered
       overlayProps={{ backgroundOpacity: 0.38, blur: 2 }}
+      classNames={{
+        content: 'monosuite-attack-map-modal',
+        header: 'monosuite-attack-map-modal-header',
+        body: 'monosuite-attack-map-modal-body',
+      }}
+      styles={{
+        content: fullscreen
+          ? { height: '100dvh', maxHeight: '100dvh', display: 'flex', flexDirection: 'column' }
+          : { maxHeight: 'min(900px, calc(100dvh - 24px))' },
+        title: { flex: 1, marginRight: 0, width: '100%' },
+      }}
     >
-      <Stack gap="md">
-        <Paper withBorder radius="sm" p="sm" bg="var(--monosuite-color-surface-sunken)">
-          <Text size="xs" c="dimmed">
-            Relationships are assembled from room context. Every link must retain its evidence source and
-            confidence; the map is not treated as fact until confirmed.
-          </Text>
-        </Paper>
-
-        <Box className="monosuite-attack-map">
-          <AttackNode tone="danger" eyebrow="Threat origin" title={attacker.identifier} detail={`${incident.source} · observed`} />
-          <AttackEdge label="Valid credentials" source={`${incident.source} · linked alert`} />
-          <AttackNode tone="warning" eyebrow="Identity" title={incident.threatActor} detail="Inferred · needs confirmation" />
-          <AttackEdge label="Remote service" source={`${incident.mitreId} · ${incident.mitreTechnique}`} />
-          <AttackNode
-            tone="teal"
-            eyebrow="Impacted entity"
-            title={victim.identifier}
-            detail={`${victim.secondaryIdentifier ?? 'Asset'} · room context`}
-          />
-        </Box>
-
-        <Group gap="xs" wrap="wrap">
-          <Badge variant="outline" color="neutral">
-            Technique · {incident.mitreId}
-          </Badge>
-          <Badge variant="outline" color="neutral">
-            Tactic · {incident.mitreTactic}
-          </Badge>
-          <Badge variant="outline" color="neutral">
-            Source · {incident.source}
-          </Badge>
-        </Group>
+      <Stack gap="sm" className="monosuite-attack-map-modal-stack">
+        <Text size="xs" c="dimmed">
+          Hover a node for details. Click a node to expand or collapse its branch. Adapter edges stay
+          dashed.
+        </Text>
+        {opened ? (
+          <div
+            className="monosuite-attack-map-canvas-host"
+            data-fullscreen={fullscreen ? 'true' : 'false'}
+          >
+            <AttackMapCanvas incident={incident} attackers={attackers} victims={victims} />
+          </div>
+        ) : null}
       </Stack>
     </Modal>
-  );
-}
-
-function AttackNode({
-  tone,
-  eyebrow,
-  title,
-  detail,
-}: {
-  tone: 'danger' | 'warning' | 'teal';
-  eyebrow: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <Paper className="monosuite-attack-map-node" data-tone={tone} withBorder radius="md" p="md">
-      <Group gap="sm" wrap="nowrap">
-        <Box className="monosuite-attack-map-node-icon" data-tone={tone}>
-          <IconFingerprint size={20} />
-        </Box>
-        <Stack gap={1} style={{ minWidth: 0 }}>
-          <Text size="10px" fw={800} tt="uppercase" c={tone} style={{ letterSpacing: '0.08em' }}>
-            {eyebrow}
-          </Text>
-          <Text size="sm" fw={800} ff="monospace" truncate>
-            {title}
-          </Text>
-          <Text size="xs" c="dimmed" truncate>
-            {detail}
-          </Text>
-        </Stack>
-      </Group>
-    </Paper>
-  );
-}
-
-function AttackEdge({ label, source }: { label: string; source: string }) {
-  return (
-    <Stack className="monosuite-attack-map-edge" gap={3} align="center">
-      <IconArrowRight size={22} color="var(--mantine-color-dimmed)" />
-      <Text size="10px" fw={700}>
-        {label}
-      </Text>
-      <Text size="9px" c="dimmed" ta="center">
-        {source}
-      </Text>
-    </Stack>
   );
 }

@@ -532,8 +532,8 @@ function RoomPageContent({ pack }: { pack: RoomScenarioPack }) {
       <AttackMapModal
         opened={attackMapOpen}
         onClose={() => setAttackMapOpen(false)}
-        attacker={attackers.find((entity) => entity.id === attackerId) ?? attackers[0]}
-        victim={victims.find((entity) => entity.id === victimId) ?? victims[0]}
+        attackers={attackers}
+        victims={victims}
       />
 
       <TransferCommandModal
