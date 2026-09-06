@@ -44,6 +44,8 @@ export function investigationBoard(prefix: string, copy: {
   responderOpts: string[];
 }): WorkflowWorkItem[] {
   const ownerId = `${prefix}-owner-impact`;
+  const adminId = `${prefix}-admin-isolation`;
+  const investigatorId = `${prefix}-investigator-note`;
   return [
     {
       id: ownerId,
@@ -61,7 +63,7 @@ export function investigationBoard(prefix: string, copy: {
       meta: 'Required · impact',
     },
     {
-      id: `${prefix}-admin-isolation`,
+      id: adminId,
       phaseId: 'investigation',
       title: 'Select isolation method',
       role: 'admin',
@@ -77,16 +79,17 @@ export function investigationBoard(prefix: string, copy: {
       meta: 'After Asset Owner response',
     },
     {
-      id: `${prefix}-investigator-note`,
+      id: investigatorId,
       phaseId: 'investigation',
       title: 'Record investigation note',
       role: 'investigator',
       roleLabel: TASK_ROLE_LABEL.investigator,
-      required: false,
+      required: true,
       question: copy.investigatorQ,
       answerType: 'textarea',
       answerLabel: 'Investigation note',
-      meta: 'Optional',
+      dependsOn: [adminId],
+      meta: 'After Asset Admin response',
     },
     {
       id: `${prefix}-responder-scope`,
@@ -101,7 +104,8 @@ export function investigationBoard(prefix: string, copy: {
       options: copy.responderOpts,
       selectionMode: 'multi',
       allowOther: true,
-      meta: 'Required · all Responders',
+      dependsOn: [investigatorId],
+      meta: 'After Investigator response',
     },
   ];
 }

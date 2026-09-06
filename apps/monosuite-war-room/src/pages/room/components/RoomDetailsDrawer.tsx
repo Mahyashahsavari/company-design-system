@@ -9,8 +9,17 @@ import {
   Text,
   ThemeIcon,
 } from '@mantine/core';
-import { IconAlignLeft, IconInfoCircle, IconSettings, IconTags } from '@tabler/icons-react';
+import { IconAlignLeft, IconEye, IconInfoCircle, IconSettings, IconTags } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import {
+  papOption,
+  tlpOption,
+  visibilityOption,
+  type PapLevel,
+  type RoomTlpPolicy,
+  type RoomVisibility,
+} from '../roomPolicy';
+import { PapMark, TlpMark } from './ProtocolMark';
 
 interface RoomDetailsDrawerProps {
   opened: boolean;
@@ -18,6 +27,9 @@ interface RoomDetailsDrawerProps {
   roomTitle: string;
   description: string;
   tags: string[];
+  visibility: RoomVisibility;
+  tlp: RoomTlpPolicy;
+  pap: PapLevel;
   canEditRoomSettings?: boolean;
   onEditRoomSettings?: () => void;
 }
@@ -63,13 +75,16 @@ function DetailSection({
   );
 }
 
-/** Read-only room description and tags — editing stays in Room Settings. */
+/** Read-only room description, sharing policy, and tags — editing stays in Room Settings. */
 export function RoomDetailsDrawer({
   opened,
   onClose,
   roomTitle,
   description,
   tags,
+  visibility,
+  tlp,
+  pap,
   canEditRoomSettings = false,
   onEditRoomSettings,
 }: RoomDetailsDrawerProps) {
@@ -146,6 +161,40 @@ export function RoomDetailsDrawer({
             )}
           </DetailSection>
 
+          <DetailSection title="Sharing policy" icon={IconEye}>
+            <Stack gap="sm">
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  Room visibility
+                </Text>
+                <Text size="sm" fw={600}>
+                  {visibilityOption(visibility).label}
+                </Text>
+                <Text size="xs" c="dimmed" lh={1.4}>
+                  {visibilityOption(visibility).description}
+                </Text>
+              </Stack>
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  TLP · {tlpOption(tlp.level).label}
+                </Text>
+                <TlpMark policy={tlp} size="sm" />
+                <Text size="xs" c="dimmed" lh={1.4}>
+                  {tlpOption(tlp.level).description}
+                </Text>
+              </Stack>
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  PAP · {papOption(pap).label}
+                </Text>
+                <PapMark level={pap} size="sm" />
+                <Text size="xs" c="dimmed" lh={1.4}>
+                  {papOption(pap).description}
+                </Text>
+              </Stack>
+            </Stack>
+          </DetailSection>
+
           <DetailSection title="Tags" icon={IconTags} count={tags.length}>
             {hasTags ? (
               <Group gap={6}>
@@ -175,7 +224,7 @@ export function RoomDetailsDrawer({
           }}
         >
           <Text size="xs" c="dimmed" mb="xs">
-            Changes to description and tags are made in Room Settings.
+            Changes to description, tags, and sharing policy are made in Room Settings.
           </Text>
           <Button
             variant="light"

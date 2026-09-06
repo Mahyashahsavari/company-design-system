@@ -440,6 +440,9 @@ function RoomPageContent({ pack }: { pack: RoomScenarioPack }) {
                 roomTitle={room.roomSettings.title}
                 roomDescription={room.roomSettings.description}
                 roomTags={room.roomSettings.tags}
+                visibility={room.roomSettings.visibility}
+                tlp={room.roomSettings.tlp}
+                pap={room.roomSettings.pap}
                 onRoomAction={room.roomAction}
                 onCloseRoom={room.closeRoom}
                 canEditRoomSettings={room.canEditRoomSettings}

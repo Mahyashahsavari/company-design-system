@@ -68,11 +68,12 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
     title: 'Validate active C2',
     role: 'investigator',
     roleLabel: TASK_ROLE_LABEL.investigator,
-    required: false,
+    required: true,
     question: 'Is outbound command-and-control traffic still active from the affected segment?',
     answerType: 'textarea',
     answerLabel: 'Investigation note',
-    meta: 'Optional · Q-04',
+    dependsOn: ['admin-isolation'],
+    meta: 'After Asset Admin response',
   },
   {
     id: 'responder-scope',
@@ -87,7 +88,8 @@ export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
     options: ['svc-finance-batch', 'j.martinez', 'Shared helpdesk mailbox'],
     selectionMode: 'multi',
     allowOther: true,
-    meta: 'Required · all Responders',
+    dependsOn: ['investigator-c2'],
+    meta: 'After Investigator response',
   },
   {
     id: 'generated-containment',
@@ -110,7 +112,7 @@ export const PHASE_GUIDANCE: Record<string, string> = {
   triage:
     'Severity is already assigned from the discovered incident. Capture optional triage notes, then continue into Investigation.',
   investigation:
-    'Confirm the affected scope, business impact, and whether containment can proceed safely. Required work is assigned in dependency order.',
+    'Confirm impact, isolation method, investigation notes, then affected scope — one role at a time, in order.',
   containment: 'Tasks in this phase are generated from the confirmed Investigation answers.',
   eradication:
     'Remove attacker artifacts, persistence, and compromised access after containment holds the threat.',
@@ -144,10 +146,11 @@ export interface CollabThreadDef {
 }
 
 /**
- * Parallel investigation threads (real war-room practice):
+ * Investigation collaboration threads (sequential across the room):
  * - Attack vector → TI finding → account decision
- * - Lateral movement (parallel fact-finding)
+ * - Lateral movement
  * - C2 confirmation → isolation decision
+ * Only one thread item is active at a time (after role work unlocks collab).
  */
 export const COLLAB_THREADS: CollabThreadDef[] = [
   {

@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Group,
+  Indicator,
   Paper,
   Progress,
   ScrollArea,
@@ -49,7 +50,7 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { CURRENT_USER } from '../../../../shared/constants';
 import type {
   CommanderAssignee,
@@ -79,6 +80,8 @@ import {
   workItemQuorum,
   type WorkAnswersState,
 } from '../../workAnswers';
+import { phaseSequenceBlocker, resolveRoomTurnAttention, type RoomTurnAttention } from '../../roomTurn';
+import { RoomTurnAttentionBar } from '../RoomTurnAttentionBar';
 import { isChoiceAnswerValid, TaskChoiceControl } from '../TaskChoiceControl';
 import { TaskQuorumProgress } from '../TaskQuorumProgress';
 import {
@@ -169,6 +172,8 @@ interface PhaseNodeData {
   expanded: boolean;
   evidenceCount: number;
   phaseId: string;
+  awaitingTurn: boolean;
+  awaitingTone: 'teal' | 'warning';
   [key: string]: unknown;
 }
 
@@ -179,6 +184,8 @@ interface WorkNodeData {
   meta: string;
   status: WorkRuntimeStatus;
   selected: boolean;
+  awaitingTurn: boolean;
+  awaitingTone: 'teal' | 'warning';
   [key: string]: unknown;
 }
 
@@ -199,6 +206,8 @@ interface CollabNodeData {
   assigneeLabel: string;
   /** Short action cue when this item is the active turn. */
   actionHint: string | null;
+  awaitingTurn: boolean;
+  awaitingTone: 'teal' | 'warning';
   [key: string]: unknown;
 }
 
@@ -276,8 +285,8 @@ const PHASE_GAP_X = 48;
 const PHASE_ORIGIN_X = 24;
 const NODE_MOVE_TRANSITION = 'box-shadow 280ms ease, opacity 220ms ease';
 
-/** How many work-item rows the investigation board uses. */
-const INVESTIGATION_WORK_ROWS = 2;
+/** How many work-item rows the investigation board uses (sequential vertical stack). */
+const INVESTIGATION_WORK_ROWS = 4;
 
 /** Left-edge stride between phase cards; scales slightly with phase count. */
 function phaseSlotWidth(stepCount: number): number {
@@ -371,47 +380,96 @@ function phaseColumns(
   return columns;
 }
 
+function TurnAwaitingIndicator({
+  active,
+  tone,
+  label = true,
+  children,
+}: {
+  active: boolean;
+  tone: 'teal' | 'warning';
+  label?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Indicator
+      inline
+      processing={active}
+      disabled={!active}
+      color={tone}
+      size={active && label ? 22 : 14}
+      offset={4}
+      position="top-end"
+      zIndex={20}
+      withBorder
+      label={active && label ? 'Now' : undefined}
+      styles={
+        active
+          ? {
+              indicator: {
+                fontSize: 9,
+                fontWeight: 800,
+                minWidth: active && label ? 32 : 14,
+                height: active && label ? 18 : 14,
+                paddingInline: active && label ? 5 : 0,
+                boxShadow:
+                  tone === 'warning'
+                    ? '0 0 0 2px var(--mantine-color-warning-filled)'
+                    : '0 0 0 2px var(--mantine-color-teal-filled)',
+              },
+            }
+          : undefined
+      }
+    >
+      {children}
+    </Indicator>
+  );
+}
+
 function PhaseFlowCard({ data }: NodeProps<PhaseFlowNode>) {
   return (
-    <Paper
-      className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--phase"
-      data-status={data.status}
-      data-selected={data.selected ? 'true' : undefined}
-      data-expanded={data.expanded ? 'true' : 'false'}
-      withBorder
-      radius="sm"
-      p="sm"
-    >
-      <Handle type="target" position={Position.Top} id="top" className="monosuite-workflow-canvas-handle" />
-      <Handle type="target" position={Position.Left} id="left" className="monosuite-workflow-canvas-handle" />
-      <Group justify="space-between" gap={6} wrap="nowrap" mb={6}>
-        <Text size="10px" fw={800} c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {data.number}
+    <TurnAwaitingIndicator active={data.awaitingTurn} tone={data.awaitingTone} label={false}>
+      <Paper
+        className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--phase"
+        data-status={data.status}
+        data-selected={data.selected ? 'true' : undefined}
+        data-expanded={data.expanded ? 'true' : 'false'}
+        data-awaiting-turn={data.awaitingTurn ? 'true' : undefined}
+        withBorder
+        radius="sm"
+        p="sm"
+      >
+        <Handle type="target" position={Position.Top} id="top" className="monosuite-workflow-canvas-handle" />
+        <Handle type="target" position={Position.Left} id="left" className="monosuite-workflow-canvas-handle" />
+        <Group justify="space-between" gap={6} wrap="nowrap" mb={6}>
+          <Text size="10px" fw={800} c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {data.number}
+          </Text>
+          <PhaseStatusChip status={data.status} />
+        </Group>
+        <Text size="md" fw={700} lh={1.3} lineClamp={2}>
+          {data.label}
         </Text>
-        <PhaseStatusChip status={data.status} />
-      </Group>
-      <Text size="md" fw={700} lh={1.3} lineClamp={2}>
-        {data.label}
-      </Text>
-      <Text size="xs" c="dimmed" mt={4} lineClamp={2}>
-        {data.meta}
-      </Text>
-      <Box className="monosuite-workflow-canvas-phase-evidence" aria-hidden>
-        <Text size="10px" c="dimmed" fw={700} tt="uppercase" lts="0.04em">
-          Evidence
+        <Text size="xs" c="dimmed" mt={4} lineClamp={2}>
+          {data.meta}
         </Text>
-        <Text size="xs" fw={700}>
-          {data.evidenceCount}
-        </Text>
-      </Box>
-      <Handle type="source" position={Position.Right} id="right" className="monosuite-workflow-canvas-handle" />
-      <Handle
-        type="source"
-        id="bottom"
-        position={Position.Bottom}
-        className="monosuite-workflow-canvas-handle"
-      />
-    </Paper>
+        <Box className="monosuite-workflow-canvas-phase-evidence" aria-hidden>
+          <Text size="10px" c="dimmed" fw={700} tt="uppercase" lts="0.04em">
+            Evidence
+          </Text>
+          <Text size="xs" fw={700}>
+            {data.evidenceCount}
+          </Text>
+        </Box>
+        <Handle type="source" position={Position.Right} id="right" className="monosuite-workflow-canvas-handle" />
+        <Handle
+          type="source"
+          id="bottom"
+          position={Position.Bottom}
+          className="monosuite-workflow-canvas-handle"
+        />
+      </Paper>
+    </TurnAwaitingIndicator>
   );
 }
 
@@ -419,57 +477,65 @@ function WorkFlowCard({ data }: NodeProps<WorkFlowNode>) {
   const Icon = ROLE_ICON[data.role];
 
   return (
-    <Paper
-      className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--work"
-      data-role={data.role}
-      data-status={data.status}
-      data-selected={data.selected ? 'true' : undefined}
-      withBorder
-      radius="md"
-      p="sm"
-    >
-      <Handle type="target" position={Position.Top} id="top" className="monosuite-workflow-canvas-handle" />
-      <Handle
-        type="target"
-        id="left"
-        position={Position.Left}
-        className="monosuite-workflow-canvas-handle"
-      />
-      <Box className="monosuite-workflow-canvas-node-kind">
-        <Badge
-          size="xs"
-          variant="filled"
-          color={roleColor(data.role)}
-          className="monosuite-badge-with-icon"
-          leftSection={<Icon size={11} />}
+    <TurnAwaitingIndicator active={data.awaitingTurn} tone={data.awaitingTone}>
+      <Paper
+        className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--work"
+        data-role={data.role}
+        data-status={data.status}
+        data-selected={data.selected ? 'true' : undefined}
+        data-awaiting-turn={data.awaitingTurn ? 'true' : undefined}
+        withBorder
+        radius="md"
+        p="sm"
+      >
+        <Handle type="target" position={Position.Top} id="top" className="monosuite-workflow-canvas-handle" />
+        <Handle
+          type="target"
+          id="left"
+          position={Position.Left}
+          className="monosuite-workflow-canvas-handle"
+        />
+        <Box className="monosuite-workflow-canvas-node-kind">
+          <Badge
+            size="xs"
+            variant="filled"
+            color={roleColor(data.role)}
+            className="monosuite-badge-with-icon"
+            leftSection={<Icon size={11} />}
+          >
+            {data.roleLabel}
+          </Badge>
+          <WorkStatusChip status={data.status} />
+        </Box>
+        <Text
+          size="md"
+          fw={data.selected || data.status === 'open' || data.status === 'ready' || data.awaitingTurn ? 800 : 700}
+          lh={1.3}
+          lineClamp={2}
         >
-          {data.roleLabel}
-        </Badge>
-        <WorkStatusChip status={data.status} />
-      </Box>
-      <Text size="md" fw={data.selected || data.status === 'open' || data.status === 'ready' ? 800 : 700} lh={1.3} lineClamp={2}>
-        {data.title}
-      </Text>
-      <Text size="xs" c="dimmed" mt={4} lineClamp={2}>
-        {data.meta}
-      </Text>
-      {(data.status === 'open' || data.status === 'ready') && data.selected ? (
-        <Badge size="xs" variant="filled" color="teal" mt={8}>
-          Your turn · {data.roleLabel}
-        </Badge>
-      ) : (
-        <Text size="xs" c="dimmed" mt={6} lineClamp={1}>
-          Answer by · {data.roleLabel}
+          {data.title}
         </Text>
-      )}
-      <Handle type="source" position={Position.Bottom} id="bottom" className="monosuite-workflow-canvas-handle" />
-      <Handle
-        type="source"
-        id="right"
-        position={Position.Right}
-        className="monosuite-workflow-canvas-handle"
-      />
-    </Paper>
+        <Text size="xs" c="dimmed" mt={4} lineClamp={2}>
+          {data.meta}
+        </Text>
+        {data.awaitingTurn || ((data.status === 'open' || data.status === 'ready') && data.selected) ? (
+          <Badge size="xs" variant="filled" color={data.awaitingTone} mt={8}>
+            Your turn · {data.roleLabel}
+          </Badge>
+        ) : (
+          <Text size="xs" c="dimmed" mt={6} lineClamp={1}>
+            Answer by · {data.roleLabel}
+          </Text>
+        )}
+        <Handle type="source" position={Position.Bottom} id="bottom" className="monosuite-workflow-canvas-handle" />
+        <Handle
+          type="source"
+          id="right"
+          position={Position.Right}
+          className="monosuite-workflow-canvas-handle"
+        />
+      </Paper>
+    </TurnAwaitingIndicator>
   );
 }
 
@@ -492,17 +558,19 @@ function CollabFlowCard({ data }: NodeProps<CollabFlowNode>) {
           : 'neutral';
 
   return (
-    <Paper
-      className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--collab"
-      data-kind={data.kind}
-      data-focus={data.focus ? 'true' : undefined}
-      data-trail={data.trail ? 'true' : undefined}
-      data-blocked={data.blocked ? 'true' : undefined}
-      data-selected={data.selected ? 'true' : undefined}
-      withBorder
-      radius="md"
-      p="sm"
-    >
+    <TurnAwaitingIndicator active={data.awaitingTurn} tone={data.awaitingTone}>
+      <Paper
+        className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--collab"
+        data-kind={data.kind}
+        data-focus={data.focus ? 'true' : undefined}
+        data-trail={data.trail ? 'true' : undefined}
+        data-blocked={data.blocked ? 'true' : undefined}
+        data-selected={data.selected ? 'true' : undefined}
+        data-awaiting-turn={data.awaitingTurn ? 'true' : undefined}
+        withBorder
+        radius="md"
+        p="sm"
+      >
       <Handle
         type="target"
         id="top"
@@ -588,6 +656,7 @@ function CollabFlowCard({ data }: NodeProps<CollabFlowNode>) {
         className="monosuite-workflow-canvas-handle"
       />
     </Paper>
+    </TurnAwaitingIndicator>
   );
 }
 
@@ -771,6 +840,9 @@ function workRuntimeStatus(
       commanderParticipantId,
     )
   ) {
+    return 'blocked';
+  }
+  if (phaseSequenceBlocker(item, workCatalog, answers, participants, commanderParticipantId)) {
     return 'blocked';
   }
   const { quorum } = workItemQuorum(item, answers, participants, commanderParticipantId);
@@ -1058,12 +1130,34 @@ function resolveThreadItems(
   return resolved;
 }
 
+function investigationRoleWorkComplete(
+  workCatalog: WorkflowWorkItem[],
+  answers: WorkAnswersState,
+  participants: Participant[],
+  commanderParticipantId: string,
+  investigationComplete: boolean,
+): boolean {
+  return workItemsForPhase('investigation', workCatalog)
+    .filter((item) => item.required && item.answerType !== 'generated')
+    .every((item) =>
+      isWorkItemAnswered(
+        item,
+        answers,
+        participants,
+        commanderParticipantId,
+        investigationComplete,
+      ),
+    );
+}
+
 function buildThreadPlan(
   questions: Question[],
   investigationComplete: boolean,
   participants: Participant[],
   commanderParticipantId: string,
   threadCatalog: CollabThreadDef[] = COLLAB_THREADS,
+  /** When false, collab stays blocked so role work finishes first (one turn at a time). */
+  collabUnlocked = true,
 ): {
   threads: Array<{ thread: CollabThreadDef; items: ResolvedThreadItem[] }>;
   focusIds: number[];
@@ -1071,16 +1165,48 @@ function buildThreadPlan(
 } {
   const questionsById = new Map(questions.map((question) => [question.id, question]));
   const phaseThreads = threadsForPhase('investigation', threadCatalog);
-  const threads = (phaseThreads.length > 0 ? phaseThreads : threadCatalog).map((thread) => ({
-    thread,
-    items: resolveThreadItems(
+  const catalogThreads = phaseThreads.length > 0 ? phaseThreads : threadCatalog;
+
+  let activeThreadLabel: string | null = null;
+
+  const threads = catalogThreads.map((thread) => {
+    const items = resolveThreadItems(
       thread,
       questionsById,
       investigationComplete,
       participants,
       commanderParticipantId,
-    ),
-  }));
+    );
+
+    if (investigationComplete) {
+      return { thread, items };
+    }
+
+    const nextItems = items.map((item) => {
+      if (item.role !== 'now') return item;
+
+      if (!collabUnlocked) {
+        return {
+          ...item,
+          role: 'blocked' as const,
+          blockedReason: 'Waiting for prior role work in this phase',
+        };
+      }
+
+      if (activeThreadLabel !== null) {
+        return {
+          ...item,
+          role: 'blocked' as const,
+          blockedReason: `Waiting for ${activeThreadLabel} to finish`,
+        };
+      }
+
+      activeThreadLabel = thread.label;
+      return item;
+    });
+
+    return { thread, items: nextItems };
+  });
 
   const focusIds = threads.flatMap(({ items }) =>
     items.filter((item) => item.role === 'now').map((item) => item.question.id),
@@ -1114,26 +1240,8 @@ function workLayout(
   phaseX: number,
   work: WorkflowWorkItem[],
 ): Record<string, { x: number; y: number }> {
-  if (phaseId === 'investigation') {
-    const byRole = {
-      owner: work.find((item) => item.role === 'owner'),
-      admin: work.find((item) => item.role === 'admin'),
-      investigator: work.find((item) => item.role === 'investigator'),
-      responder: work.find((item) => item.role === 'responder'),
-    };
-    const layout: Record<string, { x: number; y: number }> = {};
-    if (byRole.owner) layout[byRole.owner.id] = { x: phaseX, y: SYSTEM_Y };
-    if (byRole.admin) layout[byRole.admin.id] = { x: phaseX + ITEM_GAP_X, y: SYSTEM_Y };
-    if (byRole.investigator) {
-      layout[byRole.investigator.id] = { x: phaseX, y: SYSTEM_Y + LANE_GAP_Y };
-    }
-    if (byRole.responder) {
-      layout[byRole.responder.id] = { x: phaseX + ITEM_GAP_X, y: SYSTEM_Y + LANE_GAP_Y };
-    }
-    return layout;
-  }
-
   // Stack under the phase; triage keeps severity at WORK_Y and work below.
+  // Investigation is a vertical sequence (one active role at a time).
   const startY = phaseId === 'triage' ? WORK_Y + LANE_GAP_Y : SYSTEM_Y;
   const layout: Record<string, { x: number; y: number }> = {};
   work.forEach((item, index) => {
@@ -1142,8 +1250,12 @@ function workLayout(
   return layout;
 }
 
-function investigationThreadStartY(): number {
-  return SYSTEM_Y + INVESTIGATION_WORK_ROWS * LANE_GAP_Y + THREAD_OFFSET_Y;
+function investigationThreadStartY(workCatalog: WorkflowWorkItem[] = WORKFLOW_CANVAS_WORK): number {
+  const workCount = Math.max(
+    INVESTIGATION_WORK_ROWS,
+    workItemsForPhase('investigation', workCatalog).length,
+  );
+  return SYSTEM_Y + workCount * LANE_GAP_Y + THREAD_OFFSET_Y;
 }
 
 /** First Y for custom questions — always below work / triage / collab for that phase. */
@@ -1166,7 +1278,7 @@ function customQuestionsStartY(
   }
 
   if (phaseId === 'investigation' && visibleThreadCount > 0) {
-    const threadStartY = investigationThreadStartY();
+    const threadStartY = investigationThreadStartY(workCatalog);
     const threadBottom = threadStartY + (visibleThreadCount - 1) * LANE_GAP_Y;
     bottom = Math.max(bottom, threadBottom);
   }
@@ -1251,6 +1363,7 @@ function appendPhaseWork(
     participants: Participant[];
     commanderParticipantId: string;
     workCatalog: WorkflowWorkItem[];
+    turnAttention: RoomTurnAttention | null;
     nextNodes: CanvasNode[];
     nextEdges: Edge[];
   },
@@ -1263,6 +1376,7 @@ function appendPhaseWork(
     participants,
     commanderParticipantId,
     workCatalog,
+    turnAttention,
     nextNodes,
     nextEdges,
   } = options;
@@ -1270,15 +1384,8 @@ function appendPhaseWork(
   if (work.length === 0) return;
 
   const layout = workLayout(phaseId, phaseX, work);
-  const ownerItem = work.find((item) => item.role === 'owner');
-  const adminItem = work.find((item) => item.role === 'admin');
-  const investigatorItem = work.find((item) => item.role === 'investigator');
-  const responderItem = work.find((item) => item.role === 'responder');
-  const adminAnswersId =
-    workCatalog.find((item) => item.role === 'admin' && item.phaseId === 'investigation')?.id ??
-    adminItem?.id;
 
-  work.forEach((item) => {
+  work.forEach((item, index) => {
     const status = workRuntimeStatus(
       item,
       answers,
@@ -1292,15 +1399,24 @@ function appendPhaseWork(
       item.answerType !== 'generated' && quorum.total > 1
         ? `${quorum.answered}/${quorum.total}`
         : null;
+    const adminAnswersId =
+      workCatalog.find((entry) => entry.role === 'admin' && entry.phaseId === 'investigation')
+        ?.id ?? work.find((entry) => entry.role === 'admin')?.id;
     const generatedTitle =
       item.answerType === 'generated'
         ? summarizeWorkAnswers(adminAnswersId ? answers[adminAnswersId] : undefined) || item.title
         : item.title;
+    const awaitingTurn = turnAttention?.targetId === item.id;
+    const awaitingTone: 'teal' | 'warning' =
+      turnAttention?.source === 'complete-phase' ? 'warning' : 'teal';
     nextNodes.push({
       id: item.id,
       type: 'workNode',
       position: layout[item.id] ?? { x: phaseX, y: WORK_Y },
-      style: { transition: NODE_MOVE_TRANSITION, zIndex: 5 },
+      style: {
+        transition: NODE_MOVE_TRANSITION,
+        zIndex: awaitingTurn ? 12 : 5,
+      },
       data: {
         title: generatedTitle,
         roleLabel: item.roleLabel,
@@ -1308,103 +1424,64 @@ function appendPhaseWork(
         meta: quorumMeta ? `${item.meta} · ${quorumMeta}` : item.meta,
         status,
         selected: selectedId === item.id,
+        awaitingTurn,
+        awaitingTone,
       },
       selectable: true,
       draggable: true,
     });
 
-    if (item.dependsOn?.length) return;
-
-    // Investigation board is a 2×2 grid — only the owner root links to the phase.
-    if (phaseId === 'investigation') {
-      if (!ownerItem || item.id !== ownerItem.id) return;
+    if (index === 0) {
+      nextEdges.push({
+        id: `phase-work-${phaseId}-${item.id}`,
+        source: phaseId,
+        sourceHandle: 'bottom',
+        target: item.id,
+        targetHandle: 'top',
+        type: 'smoothstep',
+        style: {
+          stroke: 'var(--mantine-color-teal-filled)',
+          strokeWidth: 1.75,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: 'var(--mantine-color-teal-filled)',
+        },
+      });
+      return;
     }
 
+    const prior = work[index - 1];
+    const depActive = isWorkItemAnswered(
+      prior,
+      answers,
+      participants,
+      commanderParticipantId,
+      investigationComplete,
+    );
     nextEdges.push({
-      id: `phase-work-${phaseId}-${item.id}`,
-      source: phaseId,
+      id: `work-seq-${prior.id}-${item.id}`,
+      source: prior.id,
       sourceHandle: 'bottom',
       target: item.id,
       targetHandle: 'top',
       type: 'smoothstep',
       style: {
-        stroke: 'var(--mantine-color-teal-filled)',
-        strokeWidth: 1.75,
+        stroke: depActive
+          ? 'var(--mantine-color-teal-filled)'
+          : 'var(--mantine-color-warning-filled)',
+        strokeWidth: 1.5,
+        strokeDasharray: depActive ? undefined : '6 5',
+        opacity: depActive ? 1 : 0.7,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: 'var(--mantine-color-teal-filled)',
+        color: depActive
+          ? 'var(--mantine-color-teal-filled)'
+          : 'var(--mantine-color-warning-filled)',
       },
     });
   });
-
-  if (phaseId === 'investigation') {
-    const columnLinks: { id: string; source?: string; target?: string }[] = [
-      {
-        id: 'work-owner-investigator',
-        source: ownerItem?.id,
-        target: investigatorItem?.id,
-      },
-      {
-        id: 'work-admin-responder',
-        source: adminItem?.id,
-        target: responderItem?.id,
-      },
-    ];
-    columnLinks.forEach((link) => {
-      if (!link.source || !link.target) return;
-      nextEdges.push({
-        id: link.id,
-        source: link.source,
-        sourceHandle: 'bottom',
-        target: link.target,
-        targetHandle: 'top',
-        type: 'smoothstep',
-        style: {
-          stroke: 'var(--mantine-color-teal-filled)',
-          strokeWidth: 1.5,
-          opacity: 0.85,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 11,
-          height: 11,
-          color: 'var(--mantine-color-teal-filled)',
-        },
-      });
-    });
-
-    if (ownerItem && adminItem) {
-      const depActive = isWorkItemAnswered(
-        ownerItem,
-        answers,
-        participants,
-        commanderParticipantId,
-      );
-      nextEdges.push({
-        id: 'work-owner-admin',
-        source: ownerItem.id,
-        sourceHandle: 'right',
-        target: adminItem.id,
-        targetHandle: 'left',
-        type: 'smoothstep',
-        style: {
-          stroke: depActive
-            ? 'var(--mantine-color-teal-filled)'
-            : 'var(--mantine-color-warning-filled)',
-          strokeWidth: 1.5,
-          strokeDasharray: depActive ? undefined : '6 5',
-          opacity: depActive ? 1 : 0.7,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: depActive
-            ? 'var(--mantine-color-teal-filled)'
-            : 'var(--mantine-color-warning-filled)',
-        },
-      });
-    }
-  }
 }
 
 function appendCollabThreads(
@@ -1414,15 +1491,17 @@ function appendCollabThreads(
     threadPlan: ReturnType<typeof buildThreadPlan>;
     selectedId: string | null;
     workCatalog: WorkflowWorkItem[];
+    turnAttention: RoomTurnAttention | null;
     nextNodes: CanvasNode[];
     nextEdges: Edge[];
   },
 ) {
-  const { phaseX, threadPlan, selectedId, workCatalog, nextNodes, nextEdges } = options;
+  const { phaseX, threadPlan, selectedId, workCatalog, turnAttention, nextNodes, nextEdges } =
+    options;
   if (threadPlan.threads.length === 0) return;
 
-  // Board-style: each thread is a horizontal lane under Investigation work grid.
-  const threadStartY = investigationThreadStartY();
+  // Board-style: each thread is a horizontal lane under Investigation work sequence.
+  const threadStartY = investigationThreadStartY(workCatalog);
   let linkedFromPhase = false;
   const investigatorItem = workItemsForPhase('investigation', workCatalog).find(
     (item) => item.role === 'investigator',
@@ -1485,6 +1564,9 @@ function appendCollabThreads(
       const focus = role === 'now';
       const trail = role === 'done';
       const blocked = role === 'blocked';
+      const awaitingTurn = turnAttention?.targetId === nodeId;
+      const awaitingTone: 'teal' | 'warning' =
+        turnAttention?.source === 'complete-phase' ? 'warning' : 'teal';
 
       nextNodes.push({
         id: nodeId,
@@ -1493,7 +1575,10 @@ function appendCollabThreads(
           x: phaseX + ITEM_GAP_X * (itemIndex + 1),
           y: rowY,
         },
-        style: { transition: NODE_MOVE_TRANSITION, zIndex: 5 },
+        style: {
+          transition: NODE_MOVE_TRANSITION,
+          zIndex: awaitingTurn ? 12 : 5,
+        },
         data: {
           kind,
           code: collabCode(question),
@@ -1509,6 +1594,8 @@ function appendCollabThreads(
           answerPreview: collabAnswerPreview(question),
           assigneeLabel: collabAssigneeLabel(question),
           actionHint: focus ? collabActionHint(question) : null,
+          awaitingTurn,
+          awaitingTone,
         },
         selectable: !blocked,
         draggable: true,
@@ -1568,6 +1655,7 @@ function buildGraph(options: {
   commanderParticipantId: string;
   workCatalog: WorkflowWorkItem[];
   threadCatalog: CollabThreadDef[];
+  turnAttention: RoomTurnAttention | null;
 }): {
   nodes: CanvasNode[];
   edges: Edge[];
@@ -1591,17 +1679,26 @@ function buildGraph(options: {
     commanderParticipantId,
     workCatalog,
     threadCatalog,
+    turnAttention,
   } = options;
   const nextNodes: CanvasNode[] = [];
   const nextEdges: Edge[] = [];
   const childPhases = visibleChildPhases(expandedPhaseId);
   const columns = phaseColumns(steps, expandedPhaseId);
+  const collabUnlocked = investigationRoleWorkComplete(
+    workCatalog,
+    answers,
+    participants,
+    commanderParticipantId,
+    investigationComplete,
+  );
   const threadPlan = buildThreadPlan(
     questions,
     investigationComplete,
     participants,
     commanderParticipantId,
     threadCatalog,
+    collabUnlocked,
   );
   let remainingCollabCount = 0;
   let focusIds: number[] = [];
@@ -1621,11 +1718,18 @@ function buildGraph(options: {
       expanded: false,
     };
 
+    const awaitingTurn = turnAttention?.phaseId === step.id;
+    const awaitingTone: 'teal' | 'warning' =
+      turnAttention?.source === 'complete-phase' ? 'warning' : 'teal';
+
     nextNodes.push({
       id: step.id,
       type: 'phaseNode',
       position: { x: column.x, y: PHASE_Y },
-      style: { transition: NODE_MOVE_TRANSITION, zIndex: column.expanded ? 8 : 1 },
+      style: {
+        transition: NODE_MOVE_TRANSITION,
+        zIndex: column.expanded || awaitingTurn ? 8 : 1,
+      },
       data: {
         label: step.label,
         number: String(index + 1).padStart(2, '0'),
@@ -1644,6 +1748,8 @@ function buildGraph(options: {
         expanded: column.expanded,
         evidenceCount: evidence.filter((item) => item.phaseId === step.id).length,
         phaseId: step.id,
+        awaitingTurn,
+        awaitingTone,
       },
       selectable: true,
       draggable: true,
@@ -1716,6 +1822,7 @@ function buildGraph(options: {
       participants,
       commanderParticipantId,
       workCatalog,
+      turnAttention,
       nextNodes,
       nextEdges,
     });
@@ -1730,6 +1837,7 @@ function buildGraph(options: {
       threadPlan,
       selectedId,
       workCatalog,
+      turnAttention,
       nextNodes,
       nextEdges,
     });
@@ -1852,7 +1960,8 @@ export function WorkflowCanvasView({
   }, []);
 
   const phaseGaps = useCallback(
-    (phaseId: string) => {
+    (phaseId: string, answersOverride?: WorkAnswersState) => {
+      const answerState = answersOverride ?? answers;
       const gaps: string[] = [];
       workItemsForPhase(phaseId, workCatalog)
         .filter((item) => item.required)
@@ -1860,7 +1969,7 @@ export function WorkflowCanvasView({
           if (
             !isWorkItemAnswered(
               item,
-              answers,
+              answerState,
               participants,
               commanderParticipantId,
               investigationComplete,
@@ -1907,6 +2016,38 @@ export function WorkflowCanvasView({
     ],
   );
 
+  const roomTurn = useMemo(() => {
+    const activePhase =
+      steps.find(
+        (step) => step.status === 'current' && !completedPhaseIds.includes(step.id),
+      ) ??
+      steps.find(
+        (step) => !completedPhaseIds.includes(step.id) && step.status !== 'completed',
+      ) ??
+      null;
+    return resolveRoomTurnAttention({
+      steps,
+      completedPhaseIds,
+      workCatalog,
+      answers,
+      questions,
+      participants,
+      commanderParticipantId,
+      investigationComplete,
+      currentPhaseGaps: activePhase ? phaseGaps(activePhase.id) : undefined,
+    });
+  }, [
+    answers,
+    commanderParticipantId,
+    completedPhaseIds,
+    investigationComplete,
+    participants,
+    phaseGaps,
+    questions,
+    steps,
+    workCatalog,
+  ]);
+
   const graph = useMemo(
     () =>
       buildGraph({
@@ -1925,6 +2066,7 @@ export function WorkflowCanvasView({
         commanderParticipantId,
         workCatalog,
         threadCatalog,
+        turnAttention: roomTurn,
       }),
     [
       answers,
@@ -1938,6 +2080,7 @@ export function WorkflowCanvasView({
       isCommander,
       participants,
       questions,
+      roomTurn,
       selectedId,
       steps,
       threadCatalog,
@@ -2157,6 +2300,81 @@ export function WorkflowCanvasView({
     resetDraftState();
   };
 
+  const openRoomTurnTask = useCallback(
+    (targetId: string) => {
+      selectCanvasItem(targetId);
+      forceDefaultLayoutRef.current = true;
+      setLayoutEpoch((value) => value + 1);
+    },
+    [selectCanvasItem],
+  );
+
+  const pendingAdvanceFromIdRef = useRef<string | null>(null);
+
+  const resolveTurnWithAnswers = useCallback(
+    (nextAnswers: WorkAnswersState) => {
+      const activePhase =
+        steps.find(
+          (step) => step.status === 'current' && !completedPhaseIds.includes(step.id),
+        ) ??
+        steps.find(
+          (step) => !completedPhaseIds.includes(step.id) && step.status !== 'completed',
+        ) ??
+        null;
+      return resolveRoomTurnAttention({
+        steps,
+        completedPhaseIds,
+        workCatalog,
+        answers: nextAnswers,
+        questions,
+        participants,
+        commanderParticipantId,
+        investigationComplete,
+        currentPhaseGaps: activePhase ? phaseGaps(activePhase.id, nextAnswers) : undefined,
+      });
+    },
+    [
+      commanderParticipantId,
+      completedPhaseIds,
+      investigationComplete,
+      participants,
+      phaseGaps,
+      questions,
+      steps,
+      workCatalog,
+    ],
+  );
+
+  const goToNextTurnAfterSave = useCallback(
+    (turn: RoomTurnAttention | null, fromTargetId: string, baseToast: string) => {
+      if (!turn || turn.targetId === fromTargetId) {
+        resetDraftState();
+        showToast(
+          turn?.targetId === fromTargetId
+            ? `${baseToast} · waiting for other assignees`
+            : baseToast,
+        );
+        return;
+      }
+      openRoomTurnTask(turn.targetId);
+      showToast(
+        turn.source === 'complete-phase'
+          ? `${baseToast} · Ready for Complete Phase`
+          : `${baseToast} · Next: ${turn.roleLabel}`,
+      );
+    },
+    [openRoomTurnTask, resetDraftState, showToast],
+  );
+
+  useEffect(() => {
+    const fromId = pendingAdvanceFromIdRef.current;
+    if (!fromId || !roomTurn) return;
+    // Parent state (collab answers) may lag one frame.
+    if (roomTurn.targetId === fromId) return;
+    pendingAdvanceFromIdRef.current = null;
+    goToNextTurnAfterSave(roomTurn, fromId, 'Answer recorded');
+  }, [goToNextTurnAfterSave, questions, roomTurn]);
+
   const saveAnswer = () => {
     if (!selectedWork) return;
     if (selectedWork.answerType === 'generated') return;
@@ -2207,14 +2425,15 @@ export function WorkflowCanvasView({
       values,
       otherText,
     });
-    setAnswers((prev) => ({
-      ...prev,
-      [selectedWork.id]: upsertPersonAnswer(prev[selectedWork.id], personAnswer),
-    }));
-    showToast(
-      selectedWork.role === 'owner'
-        ? 'Answer saved · Asset Admin unlocked'
-        : 'Answer saved',
+    const nextAnswers: WorkAnswersState = {
+      ...answers,
+      [selectedWork.id]: upsertPersonAnswer(answers[selectedWork.id], personAnswer),
+    };
+    setAnswers(nextAnswers);
+    goToNextTurnAfterSave(
+      resolveTurnWithAnswers(nextAnswers),
+      selectedWork.id,
+      'Answer saved',
     );
   };
 
@@ -2225,9 +2444,9 @@ export function WorkflowCanvasView({
       showToast('Enter an answer first');
       return;
     }
+    pendingAdvanceFromIdRef.current = `collab-${selectedCollab.id}`;
     onSubmitCollabAnswer(selectedCollab.id, value);
     resetDraftState();
-    showToast('Answer recorded · thread updated');
   };
 
   const saveCollabDecision = () => {
@@ -2236,9 +2455,9 @@ export function WorkflowCanvasView({
       showToast('Select a decision first');
       return;
     }
+    pendingAdvanceFromIdRef.current = `collab-${selectedCollab.id}`;
     onRecordDecision(selectedCollab.id, choiceValues, choiceOther);
     resetDraftState();
-    showToast('Decision recorded · thread updated');
   };
 
   const completePhase = (phaseId: string) => {
@@ -2333,6 +2552,11 @@ export function WorkflowCanvasView({
             View response flow
           </Button>
         </Group>
+      ) : null}
+      {roomTurn && !allPhasesDone ? (
+        <div className="monosuite-room-turn-attention-host">
+          <RoomTurnAttentionBar turn={roomTurn} onOpenTask={openRoomTurnTask} />
+        </div>
       ) : null}
       <Box className="monosuite-workflow-canvas-stage">
         <Box ref={flowContainerRef} className="monosuite-workflow-canvas-flow">
@@ -2574,17 +2798,34 @@ export function WorkflowCanvasView({
                   choiceOther={choiceOther}
                   onChoiceOtherChange={setChoiceOther}
                   onSave={() => {
+                    if (!selectedCommanderQuestion) return;
+                    const fromId = commanderNodeId(selectedCommanderQuestion.id);
                     if (selectedCommanderQuestion.answerType === 'select') {
+                      if (
+                        !isChoiceAnswerValid(
+                          choiceValues,
+                          choiceOther,
+                          selectedCommanderQuestion.selectionMode,
+                        )
+                      ) {
+                        showToast('Select or enter an answer first');
+                        return;
+                      }
                       onAnswerCommanderQuestion?.(selectedCommanderQuestion.id, {
                         values: choiceValues,
                         otherText: choiceOther,
                       });
                     } else {
+                      if (!draft.trim()) {
+                        showToast('Enter an answer first');
+                        return;
+                      }
                       onAnswerCommanderQuestion?.(selectedCommanderQuestion.id, {
                         values: [draft.trim()],
                       });
                     }
                     resetDraftState();
+                    goToNextTurnAfterSave(roomTurn, fromId, 'Answer recorded');
                   }}
                   onUpdate={(input) =>
                     onUpdateCommanderQuestion?.(selectedCommanderQuestion.id, input)
@@ -2825,6 +3066,13 @@ function PhaseInspector({
           participants,
           commanderParticipantId,
           threadCatalog,
+          investigationRoleWorkComplete(
+            workCatalog,
+            answers,
+            participants,
+            commanderParticipantId,
+            investigationComplete,
+          ),
         )
       : null;
   const remainingCollab =
@@ -3119,12 +3367,12 @@ function WorkInspector({
         <TaskQuorumProgress roleLabel={item.roleLabel} role={item.role} quorum={quorum} />
       ) : null}
 
-      {status === 'blocked' && item.dependsOn?.length ? (
+      {status === 'blocked' ? (
         <Paper withBorder radius="sm" p="sm" className="monosuite-workflow-canvas-dependency">
           <Group gap={8} wrap="nowrap" align="flex-start">
             <IconLock size={15} color="var(--mantine-color-warning-filled)" aria-hidden />
             <Text size="xs" lh={1.45}>
-              Waiting for a prior role response before this work unlocks.
+              Waiting for the prior role to finish — only one role acts at a time.
             </Text>
           </Group>
         </Paper>

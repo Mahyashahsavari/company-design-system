@@ -31,6 +31,7 @@ import {
 } from '../../../shared/constants';
 import { routes } from '../../../shared/routes';
 import { ROOM_ROLE_COLOR, ROOM_ROLE_EMOJI, type RoomSlaPolicy } from '../data';
+import type { PapLevel, RoomTlpPolicy, RoomVisibility } from '../roomPolicy';
 import { useRoomIncident } from '../RoomScenarioContext';
 import { RoomDetailsDrawer } from './RoomDetailsDrawer';
 
@@ -41,6 +42,9 @@ interface RoomCommandHeaderProps {
   roomTitle: string;
   roomDescription: string;
   roomTags: string[];
+  visibility: RoomVisibility;
+  tlp: RoomTlpPolicy;
+  pap: PapLevel;
   onRoomAction: (action: string) => void;
   onCloseRoom: () => void;
   canEditRoomSettings?: boolean;
@@ -59,6 +63,9 @@ export function RoomCommandHeader({
   roomTitle,
   roomDescription,
   roomTags,
+  visibility,
+  tlp,
+  pap,
   onRoomAction,
   onCloseRoom,
   canEditRoomSettings = false,
@@ -449,6 +456,9 @@ export function RoomCommandHeader({
         roomTitle={roomTitle}
         description={roomDescription}
         tags={roomTags}
+        visibility={visibility}
+        tlp={tlp}
+        pap={pap}
         canEditRoomSettings={canEditRoomSettings}
         onEditRoomSettings={() => onRoomAction('room-settings')}
       />

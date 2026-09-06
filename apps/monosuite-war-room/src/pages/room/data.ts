@@ -1,3 +1,12 @@
+import {
+  FALLBACK_ROOM_POLICY,
+  type PapLevel,
+  type RoomTlpPolicy,
+  type RoomVisibility,
+} from './roomPolicy';
+
+export type { PapLevel, RoomTlpPolicy, RoomVisibility } from './roomPolicy';
+
 export type WorkflowStatus = 'completed' | 'current' | 'pending';
 export type QuestionStatus = 'open' | 'decision' | 'answered';
 export type PresenceStatus = 'online' | 'away';
@@ -731,6 +740,9 @@ export interface RoomSettingsDraft {
   incidentReferences: string[];
   attackerReferences: string[];
   victimReferences: string[];
+  visibility: RoomVisibility;
+  tlp: RoomTlpPolicy;
+  pap: PapLevel;
 }
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettingsDraft = {
@@ -742,6 +754,7 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettingsDraft = {
   incidentReferences: [],
   attackerReferences: [],
   victimReferences: [],
+  ...FALLBACK_ROOM_POLICY,
 };
 
 export { CURRENT_USER } from '../../shared/constants';

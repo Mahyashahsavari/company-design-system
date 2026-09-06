@@ -13,6 +13,8 @@ export type { MonosuiteSemanticColors } from './semantic';
 export { colors, brand, accent, success, warning, danger, neutral, teal, dark } from './colors';
 export type { MonosuiteColorName } from './colors';
 
+export { tlpColors, tlpCssVariables } from './tlp';
+
 export { warRoomTheme } from './products/war-room';
 
 export { breakpoints } from './breakpoints';

@@ -1,4 +1,4 @@
-import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Box, Text, Tooltip } from '@mantine/core';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { RESPONSE_WORKFLOW_FIELD_DESCRIPTION } from '../../data';
 
@@ -7,6 +7,7 @@ interface WorkflowInfoLabelProps {
   workflowDescription?: string;
   size?: 'xs' | 'sm';
   fw?: number;
+  required?: boolean;
 }
 
 function buildTooltip(workflowName?: string, workflowDescription?: string) {
@@ -28,13 +29,28 @@ export function WorkflowInfoLabel({
   workflowDescription,
   size = 'xs',
   fw = 600,
+  required = false,
 }: WorkflowInfoLabelProps) {
   const tooltip = buildTooltip(workflowName, workflowDescription);
 
   return (
-    <Group gap={4} wrap="nowrap" align="center">
+    <Box
+      component="span"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}
+    >
       <Text component="span" size={size} fw={fw}>
         Response workflow
+        {required ? (
+          <Text
+            component="span"
+            c="var(--mantine-color-error)"
+            inherit
+            aria-hidden
+            style={{ marginInlineStart: 4 }}
+          >
+            *
+          </Text>
+        ) : null}
       </Text>
       <Tooltip label={tooltip} multiline maw={320} withArrow openDelay={200}>
         <ActionIcon
@@ -46,6 +62,6 @@ export function WorkflowInfoLabel({
           <IconInfoCircle size={size === 'sm' ? 16 : 14} aria-hidden />
         </ActionIcon>
       </Tooltip>
-    </Group>
+    </Box>
   );
 }

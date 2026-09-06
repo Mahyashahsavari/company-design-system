@@ -1,6 +1,7 @@
 import type { CSSVariablesResolver } from '@mantine/core';
 import { brand, dark, danger, neutral, teal } from './colors';
 import { layout } from './spacing';
+import { tlpCssVariables } from './tlp';
 
 /**
  * Semantic colour tokens.
@@ -110,6 +111,7 @@ export const monosuiteCssVariablesResolver: CSSVariablesResolver = () => ({
     '--monosuite-navbar-width': `${layout.navbarWidth}px`,
     '--monosuite-content-max-width': `${layout.contentMaxWidth}px`,
     ...chromeVariables,
+    ...tlpCssVariables,
   },
   light: {
     ...toColorVariables(semanticColors.light),
