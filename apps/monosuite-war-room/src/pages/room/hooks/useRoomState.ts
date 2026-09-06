@@ -45,6 +45,8 @@ import {
   getRemoteCamerasOn,
 } from '../data';
 import type { RoomScenarioPack } from '../scenarios';
+import { buildRoomMinutesMarkdown, downloadRoomMinutes } from '../buildRoomMinutes';
+import type { WorkAnswersState } from '../workAnswers';
 import {
   formatTaskAnswerDisplay,
   makePersonAnswer,
@@ -189,9 +191,12 @@ export function useRoomState(pack?: RoomScenarioPack | null) {
   const [evidenceKind, setEvidenceKind] = useState<EvidenceKind>('file');
   const [evidencePhaseId, setEvidencePhaseId] = useState<string | null>(null);
   const [commanderQuestions, setCommanderQuestions] = useState<CommanderQuestion[]>([]);
-  const [phaseSkippable, setPhaseSkippable] = useState<Record<string, boolean>>({});
+  const [phaseSkippable, setPhaseSkippable] = useState<Record<string, boolean>>(
+    () => ({ ...(pack?.initialPhaseSkippable ?? {}) }),
+  );
   const [skippedPhases, setSkippedPhases] = useState<string[]>([]);
   const [triageNotes, setTriageNotes] = useState('');
+  const [workAnswers, setWorkAnswers] = useState<WorkAnswersState>({});
   const [roomSettings, setRoomSettings] = useState<RoomSettingsDraft>(
     () => structuredClone(pack?.roomSettings ?? DEFAULT_ROOM_SETTINGS),
   );
@@ -730,9 +735,32 @@ export function useRoomState(pack?: RoomScenarioPack | null) {
           setEvidenceKind('file');
           setEvidenceOpen(true);
           break;
-        case 'export':
-          showToast('Exporting room summary…');
+        case 'export': {
+          const slug = (roomSettings.title || 'room')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 48);
+          const markdown = buildRoomMinutesMarkdown({
+            roomTitle: roomSettings.title,
+            incidentId: scenarioIncident?.id,
+            incidentSeverity: scenarioIncident?.severity,
+            incidentDescription: roomSettings.description,
+            workflowName: roomWorkflow.workflowName,
+            steps: roomWorkflow.steps,
+            workCatalog: scenarioWorkItems ?? [],
+            workAnswers,
+            questions,
+            commanderQuestions,
+            triageNotes,
+            history,
+            skippedPhases,
+            completedPhaseIds,
+          });
+          downloadRoomMinutes(`${slug || 'room'}-minutes.md`, markdown);
+          showToast('Room minutes downloaded');
           break;
+        }
         case 'room-settings':
           if (!canEditRoomSettings) {
             showToast('You do not have permission to edit room settings');
@@ -757,7 +785,27 @@ export function useRoomState(pack?: RoomScenarioPack | null) {
           showToast(action);
       }
     },
-    [canEditRoomSettings, canManageParticipants, commanderParticipantId, closeRoom, showToast],
+    [
+      canEditRoomSettings,
+      canManageParticipants,
+      commanderParticipantId,
+      closeRoom,
+      showToast,
+      roomSettings.title,
+      roomSettings.description,
+      scenarioIncident?.id,
+      scenarioIncident?.severity,
+      roomWorkflow.workflowName,
+      roomWorkflow.steps,
+      scenarioWorkItems,
+      workAnswers,
+      questions,
+      commanderQuestions,
+      triageNotes,
+      history,
+      skippedPhases,
+      completedPhaseIds,
+    ],
   );
 
   const openAddEvidence = useCallback((kind: EvidenceKind = 'file', phaseId?: string | null) => {
@@ -1489,6 +1537,8 @@ export function useRoomState(pack?: RoomScenarioPack | null) {
     skipPhase,
     triageNotes,
     setTriageNotes,
+    workAnswers,
+    setWorkAnswers,
     roomSettings,
     saveRoomSettings,
     roomWorkflow,

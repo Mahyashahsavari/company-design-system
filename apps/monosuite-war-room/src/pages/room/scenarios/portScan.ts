@@ -2,10 +2,11 @@ import type { RoomScenarioPack } from './types';
 import { START_AT_DETECTED_STATUSES } from './types';
 import {
   investigationBoard,
-  laterPhaseGates,
-  phaseGateWork,
+  lessonsLearnedBoard,
+  responseActionBoard,
   SCENARIO_COMMANDER_ID,
   SCENARIO_PARTICIPANTS,
+  triageSeverityCheck,
 } from './shared';
 import { CURRENT_USER } from '../../../shared/constants';
 
@@ -131,38 +132,52 @@ export const portScanScenario: RoomScenarioPack = {
   ],
   collabThreads: [
     {
-      id: 'ps-recon',
-      label: 'Scan intent',
-      phaseId: 'investigation',
+      id: 'ps-containment',
+      label: 'Scan intent & edge decision',
+      phaseId: 'containment',
       itemIds: [101, 102, 103],
     },
   ],
+  // Detected has no required work — intake already happened when the room opened.
   workItems: [
-    phaseGateWork(
-      'detected',
-      `${PREFIX}-detected-ack`,
-      'Acknowledge detection',
-      'Confirm the port-scan alert is valid intake for this room.',
-      ['Valid — continue', 'False positive', 'Duplicate of existing room'],
-    ),
-    phaseGateWork(
-      'triage',
-      `${PREFIX}-triage-sev`,
-      'Confirm triage severity',
-      'What severity should drive the response for this scan?',
-      ['Keep Medium', 'Raise to High', 'Lower to Low'],
-    ),
+    triageSeverityCheck(PREFIX, 'Medium severity is on the incident. Confirm operating severity for this scan.', [
+      'Keep Medium',
+      'Raise to High',
+      'Lower to Low',
+      'Ask Commander to review',
+    ]),
     ...investigationBoard(PREFIX, {
-      ownerQ: 'How much disruption is acceptable while tightening DMZ allow-lists?',
-      adminQ: 'Which edge control should Network Ops apply first?',
-      investigatorQ: 'Summarize scan pattern and any follow-on probes.',
-      responderQ: 'Which DMZ services were touched by the scanner?',
-      ownerOpts: ['Up to 15 minutes', 'No interruption', 'Change window required'],
-      adminOpts: ['Geo / ASN block', 'Source IP deny', 'Rate-limit only'],
-      responderOpts: ['SSH (22)', 'HTTPS (443)', 'RDP (3389)', 'Alt-HTTP (8080)'],
+      reportQ:
+        'Summarize scan pattern, ports hit on fw-dmz-01, and whether follow-on probes were observed. Share with the room.',
     }),
-    ...laterPhaseGates(PREFIX),
+    ...responseActionBoard('containment', PREFIX, {
+      proposeQ:
+        'Based on T1046 Network Service Discovery against the DMZ edge, which containment options should Owner consider?',
+      proposeOpts: [
+        'Block source IP 203.0.113.44',
+        'Block scanner ASN at edge',
+        'Rate-limit inbound scans',
+        'Tighten DMZ allow-list',
+        'Monitor only — no block',
+      ],
+    }),
+    // Eradication / Recovery intentionally empty + skippable for opportunistic recon.
+    ...lessonsLearnedBoard(PREFIX, {
+      summaryQ: 'What did the team learn from this opportunistic port scan?',
+      rulesQ: 'Which follow-up rules should reduce recurrence?',
+      rulesOpts: [
+        'Tune firewall port-scan detection',
+        'Add ASN deny for known scanners',
+        'Harden internet-exposed DMZ services',
+        'Update recon playbook',
+        'No new rule required',
+      ],
+    }),
   ],
+  initialPhaseSkippable: {
+    eradication: true,
+    recovery: true,
+  },
   evidence: [],
   history: [
     {

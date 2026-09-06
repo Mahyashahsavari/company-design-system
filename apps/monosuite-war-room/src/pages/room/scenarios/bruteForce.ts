@@ -2,10 +2,11 @@ import type { RoomScenarioPack } from './types';
 import { START_AT_DETECTED_STATUSES } from './types';
 import {
   investigationBoard,
-  laterPhaseGates,
-  phaseGateWork,
+  lessonsLearnedBoard,
+  responseActionBoard,
   SCENARIO_COMMANDER_ID,
   SCENARIO_PARTICIPANTS,
+  triageSeverityCheck,
 } from './shared';
 import { CURRENT_USER } from '../../../shared/constants';
 
@@ -131,37 +132,67 @@ export const bruteForceScenario: RoomScenarioPack = {
   ],
   collabThreads: [
     {
-      id: 'bf-account',
-      label: 'Account & MFA',
-      phaseId: 'investigation',
+      id: 'bf-containment',
+      label: 'Account & MFA decision',
+      phaseId: 'containment',
       itemIds: [301, 302, 303],
     },
   ],
   workItems: [
-    phaseGateWork(
-      'detected',
-      `${PREFIX}-detected-ack`,
-      'Acknowledge brute-force success',
-      'Confirm the identity alert is valid intake for this room.',
-      ['Valid — continue', 'False positive', 'Duplicate'],
-    ),
-    phaseGateWork(
-      'triage',
-      `${PREFIX}-triage-sev`,
-      'Confirm High severity',
-      'Is High severity correct given successful auth?',
-      ['Keep High', 'Raise to Critical', 'Lower to Medium'],
-    ),
+    triageSeverityCheck(PREFIX, 'High severity is on the incident after successful auth. Confirm operating severity.', [
+      'Keep High',
+      'Raise to Critical',
+      'Lower to Medium',
+      'Ask Commander to review',
+    ]),
     ...investigationBoard(PREFIX, {
-      ownerQ: 'How long can Finance Ops accept j.martinez being locked out?',
-      adminQ: 'Which identity control should be applied first?',
-      investigatorQ: 'Document MFA outcome and post-login activity.',
-      responderQ: 'Which sessions or tokens should be revoked?',
-      ownerOpts: ['Immediate lock OK', 'Up to 30 minutes', 'Business approval required'],
-      adminOpts: ['Disable account', 'Revoke VPN sessions', 'Force MFA re-enroll'],
-      responderOpts: ['Active VPN session', 'SSO refresh tokens', 'No live sessions found'],
+      reportQ:
+        'Document brute-force success, MFA outcome, and post-login activity for j.martinez. Share the investigation report.',
     }),
-    ...laterPhaseGates(PREFIX),
+    ...responseActionBoard('containment', PREFIX, {
+      proposeQ:
+        'Based on successful brute-force (credential access), which containment options should Owner consider?',
+      proposeOpts: [
+        'Disable j.martinez account',
+        'Revoke active VPN / SSO sessions',
+        'Block source IP at edge',
+        'Force MFA re-enrollment',
+        'Reset password / rotate tokens',
+      ],
+    }),
+    ...responseActionBoard('eradication', PREFIX, {
+      proposeTitle: 'Propose eradication options',
+      proposeQ: 'Which eradication options remove residual access after containment?',
+      proposeOpts: [
+        'Invalidate refresh tokens / API keys',
+        'Remove attacker mailbox rules',
+        'Clear rogue MFA devices',
+        'Audit privileged group membership',
+        'Hunt for secondary accounts',
+      ],
+    }),
+    ...responseActionBoard('recovery', PREFIX, {
+      proposeTitle: 'Propose recovery options',
+      proposeQ: 'Which recovery options restore legitimate access safely?',
+      proposeOpts: [
+        'Re-enable account after MFA proof',
+        'Restore VPN access with monitoring',
+        'Confirm SSO conditional access',
+        'User re-onboarding checklist',
+        'Notify manager / HR as needed',
+      ],
+    }),
+    ...lessonsLearnedBoard(PREFIX, {
+      summaryQ: 'What did the team learn from this successful brute-force incident?',
+      rulesQ: 'Which follow-up rules should reduce recurrence?',
+      rulesOpts: [
+        'Tighten lockout / rate-limit policy',
+        'Require MFA on all remote auth',
+        'Tune identity brute-force detections',
+        'Update credential-access playbook',
+        'Block known bad auth ASNs',
+      ],
+    }),
   ],
   evidence: [],
   history: [

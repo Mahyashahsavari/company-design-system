@@ -92,6 +92,9 @@ export function ResponseWorkflow({
   collabThreads,
   completedPhaseIds,
   onCompletePhase,
+  workAnswers,
+  onWorkAnswersChange,
+  onExportMinutes,
 }: ResponseWorkflowProps) {
   const strip = density === 'strip';
   const focus = density === 'focus';
@@ -172,6 +175,9 @@ export function ResponseWorkflow({
         collabThreads={collabThreads}
         completedPhaseIds={completedPhaseIds}
         onCompletePhase={onCompletePhase}
+        workAnswers={workAnswers}
+        onWorkAnswersChange={onWorkAnswersChange}
+        onExportMinutes={onExportMinutes}
         fillHeight
       />
     </WorkflowShell>

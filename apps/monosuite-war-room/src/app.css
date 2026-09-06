@@ -943,6 +943,30 @@ body {
   opacity: 0.72;
   /* Keep measured height stable so React Flow layout clearance stays valid. */
   min-height: 148px;
+  position: relative;
+  overflow: hidden;
+}
+
+.monosuite-workflow-canvas-phase-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--phase-accent, var(--mantine-color-teal-filled));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.monosuite-workflow-canvas-node--phase[data-status='done'] .monosuite-workflow-canvas-phase-strip,
+.monosuite-workflow-canvas-node--work[data-status='answered'] .monosuite-workflow-canvas-phase-strip {
+  background: var(--mantine-color-success-filled);
+}
+
+.monosuite-workflow-canvas-node--phase[data-status='active'] .monosuite-workflow-canvas-phase-strip,
+.monosuite-workflow-canvas-node--work[data-awaiting-turn='true'] .monosuite-workflow-canvas-phase-strip,
+.monosuite-workflow-canvas-node--work[data-status='ready'] .monosuite-workflow-canvas-phase-strip {
+  background: var(--phase-accent, var(--mantine-color-teal-filled));
 }
 
 .monosuite-workflow-canvas-shell[data-focus-phase] .monosuite-workflow-canvas-node--phase {
@@ -971,28 +995,28 @@ body {
 }
 
 .monosuite-workflow-canvas-node--phase[data-status='active'] {
-  border-color: color-mix(in srgb, var(--mantine-color-teal-filled) 45%, var(--monosuite-color-border));
-  box-shadow: inset 0 3px 0 var(--mantine-color-teal-filled);
-  background: color-mix(in srgb, var(--mantine-color-teal-filled) 6%, var(--monosuite-color-surface-raised));
+  border-color: color-mix(in srgb, var(--phase-accent, var(--mantine-color-teal-filled)) 45%, var(--monosuite-color-border));
+  box-shadow: inset 0 3px 0 var(--phase-accent, var(--mantine-color-teal-filled));
+  background: color-mix(in srgb, var(--phase-accent, var(--mantine-color-teal-filled)) 6%, var(--monosuite-color-surface-raised));
 }
 
 .monosuite-workflow-canvas-node--phase[data-awaiting-turn='true'] {
   box-shadow:
-    inset 0 3px 0 var(--mantine-color-teal-filled),
-    0 0 0 2px color-mix(in srgb, var(--mantine-color-teal-filled) 45%, transparent),
+    inset 0 3px 0 var(--phase-accent, var(--mantine-color-teal-filled)),
+    0 0 0 2px color-mix(in srgb, var(--phase-accent, var(--mantine-color-teal-filled)) 45%, transparent),
     var(--mantine-shadow-sm);
   animation: monosuite-turn-card-glow 2.2s ease-in-out infinite;
 }
 
 .monosuite-workflow-canvas-node--phase[data-awaiting-turn='true'][data-status='active'] {
-  border-color: color-mix(in srgb, var(--mantine-color-teal-filled) 50%, var(--monosuite-color-border));
+  border-color: color-mix(in srgb, var(--phase-accent, var(--mantine-color-teal-filled)) 50%, var(--monosuite-color-border));
   animation: monosuite-turn-card-glow 2.2s ease-in-out infinite;
 }
 
 .monosuite-workflow-canvas-node--work[data-awaiting-turn='true'],
 .monosuite-workflow-canvas-node--collab[data-awaiting-turn='true'] {
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--mantine-color-teal-filled) 55%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--phase-accent, var(--mantine-color-teal-filled)) 55%, transparent),
     var(--mantine-shadow-sm);
   animation: monosuite-turn-card-glow 2.2s ease-in-out infinite;
 }
@@ -1017,8 +1041,8 @@ body {
 
 .monosuite-workflow-canvas-node--phase[data-expanded='true'][data-status='active'] {
   box-shadow:
-    inset 0 3px 0 var(--mantine-color-teal-filled),
-    0 0 0 2px color-mix(in srgb, var(--mantine-color-teal-filled) 40%, transparent),
+    inset 0 3px 0 var(--phase-accent, var(--mantine-color-teal-filled)),
+    0 0 0 2px color-mix(in srgb, var(--phase-accent, var(--mantine-color-teal-filled)) 40%, transparent),
     var(--mantine-shadow-sm);
 }
 
@@ -1052,6 +1076,8 @@ body {
   max-width: 204px;
   border-radius: var(--mantine-radius-md);
   background: var(--monosuite-color-surface);
+  position: relative;
+  overflow: hidden;
 }
 
 /* Icon + label vertically centered in Mantine badges */

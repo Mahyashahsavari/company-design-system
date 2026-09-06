@@ -138,6 +138,9 @@ export function MobileRoomView({
           collabThreads={room.scenarioCollabThreads}
           completedPhaseIds={room.completedPhaseIds}
           onCompletePhase={room.completePhase}
+          workAnswers={room.workAnswers}
+          onWorkAnswersChange={room.setWorkAnswers}
+          onExportMinutes={() => room.roomAction('export')}
         />
       </Box>
 

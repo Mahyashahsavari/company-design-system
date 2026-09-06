@@ -19,12 +19,31 @@ export type ContextTab = 'participants' | 'chat' | 'activity';
 export type AssignableTaskRole = 'owner' | 'admin' | 'investigator' | 'generated' | 'responder';
 export type TaskSelectionMode = 'single' | 'multi';
 
+export interface ExecutionActionState {
+  action: string;
+  duration: string;
+  dueAt: string;
+  /** Optional planning or outcome notes. */
+  notes?: string;
+  status: 'in_progress' | 'done' | 'rejected';
+}
+
 export interface TaskPersonAnswer {
   participantId: string;
   participantName: string;
   values: string[];
   otherText?: string;
   answeredAt: string;
+  /** @deprecated Prefer executionItems for per-action admin work. */
+  duration?: string;
+  /** @deprecated Prefer executionItems. */
+  dueAt?: string;
+  /** @deprecated Prefer executionItems. */
+  description?: string;
+  /** @deprecated Prefer executionItems. */
+  executionStatus?: 'done' | 'not_done';
+  /** Admin execution: one entry per Owner-selected action. */
+  executionItems?: ExecutionActionState[];
 }
 
 export interface ContextEntityField {

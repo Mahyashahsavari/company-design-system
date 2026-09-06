@@ -7,10 +7,12 @@ import {
   Indicator,
   Paper,
   Progress,
+  Radio,
   ScrollArea,
   Stack,
   Text,
   Textarea,
+  TextInput,
   ThemeIcon,
   Tooltip,
   UnstyledButton,
@@ -50,13 +52,14 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { CURRENT_USER } from '../../../../shared/constants';
 import type {
   CommanderAssignee,
   CommanderQuestion,
   EvidenceItem,
   EvidenceKind,
+  ExecutionActionState,
   Participant,
   Question,
   RoomSeverity,
@@ -74,7 +77,11 @@ import {
   upsertPersonAnswer,
 } from '../../taskQuorum';
 import {
+  createExecutionDrafts,
+  isExecutionItemScheduled,
+  isExecutionItemsComplete,
   isWorkItemAnswered,
+  resolveWorkItemOptions,
   summarizeWorkAnswers,
   workDependsSatisfiedWithCatalog,
   workItemQuorum,
@@ -157,6 +164,9 @@ interface WorkflowCanvasViewProps {
   collabThreads?: CollabThreadDef[];
   completedPhaseIds?: string[];
   onCompletePhase?: (phaseId: string) => void;
+  workAnswers?: WorkAnswersState;
+  onWorkAnswersChange?: (answers: WorkAnswersState) => void;
+  onExportMinutes?: () => void;
 }
 
 type CanvasPhaseStatus = 'done' | 'active' | 'locked' | 'queued';
@@ -172,6 +182,7 @@ interface PhaseNodeData {
   expanded: boolean;
   evidenceCount: number;
   phaseId: string;
+  phaseColor: string;
   awaitingTurn: boolean;
   awaitingTone: 'teal' | 'warning';
   [key: string]: unknown;
@@ -184,6 +195,7 @@ interface WorkNodeData {
   meta: string;
   status: WorkRuntimeStatus;
   selected: boolean;
+  phaseColor: string;
   awaitingTurn: boolean;
   awaitingTone: 'teal' | 'warning';
   [key: string]: unknown;
@@ -211,12 +223,6 @@ interface CollabNodeData {
   [key: string]: unknown;
 }
 
-interface ThreadNodeData {
-  label: string;
-  meta: string;
-  [key: string]: unknown;
-}
-
 interface EvidenceNodeData {
   phaseId: string;
   count: number;
@@ -239,7 +245,6 @@ interface CommanderQuestionNodeData {
 type PhaseFlowNode = Node<PhaseNodeData, 'phaseNode'>;
 type WorkFlowNode = Node<WorkNodeData, 'workNode'>;
 type CollabFlowNode = Node<CollabNodeData, 'collabNode'>;
-type ThreadFlowNode = Node<ThreadNodeData, 'threadNode'>;
 type EvidenceFlowNode = Node<EvidenceNodeData, 'evidenceNode'>;
 type TriageSeverityFlowNode = Node<TriageSeverityNodeData, 'triageSeverityNode'>;
 type CommanderQuestionFlowNode = Node<CommanderQuestionNodeData, 'commanderQuestionNode'>;
@@ -247,7 +252,6 @@ type CanvasNode =
   | PhaseFlowNode
   | WorkFlowNode
   | CollabFlowNode
-  | ThreadFlowNode
   | EvidenceFlowNode
   | TriageSeverityFlowNode
   | CommanderQuestionFlowNode;
@@ -285,9 +289,6 @@ const PHASE_GAP_X = 48;
 const PHASE_ORIGIN_X = 24;
 const NODE_MOVE_TRANSITION = 'box-shadow 280ms ease, opacity 220ms ease';
 
-/** How many work-item rows the investigation board uses (sequential vertical stack). */
-const INVESTIGATION_WORK_ROWS = 4;
-
 /** Left-edge stride between phase cards; scales slightly with phase count. */
 function phaseSlotWidth(stepCount: number): number {
   if (stepCount <= 5) return PHASE_CARD_WIDTH + PHASE_GAP_X + 8;
@@ -324,8 +325,8 @@ function fitCanvasToView(
             (node.data as CommanderQuestionNodeData).question.phaseId === expandedPhaseId
           );
         }
-        if (expandedPhaseId === 'investigation') {
-          return node.type === 'collabNode' || node.type === 'threadNode';
+        if (node.type === 'collabNode') {
+          return true;
         }
         return false;
       })
@@ -402,14 +403,14 @@ function TurnAwaitingIndicator({
       position="top-end"
       zIndex={20}
       withBorder
-      label={active && label ? 'Now' : undefined}
+      label={active && label ? 'Live' : undefined}
       styles={
         active
           ? {
               indicator: {
-                fontSize: 9,
+                fontSize: 8,
                 fontWeight: 800,
-                minWidth: active && label ? 32 : 14,
+                minWidth: active && label ? 36 : 14,
                 height: active && label ? 18 : 14,
                 paddingInline: active && label ? 5 : 0,
                 boxShadow:
@@ -427,6 +428,7 @@ function TurnAwaitingIndicator({
 }
 
 function PhaseFlowCard({ data }: NodeProps<PhaseFlowNode>) {
+  const accent = `var(--mantine-color-${data.phaseColor}-filled)`;
   return (
     <TurnAwaitingIndicator active={data.awaitingTurn} tone={data.awaitingTone} label={false}>
       <Paper
@@ -435,10 +437,17 @@ function PhaseFlowCard({ data }: NodeProps<PhaseFlowNode>) {
         data-selected={data.selected ? 'true' : undefined}
         data-expanded={data.expanded ? 'true' : 'false'}
         data-awaiting-turn={data.awaitingTurn ? 'true' : undefined}
+        data-phase-color={data.phaseColor}
         withBorder
         radius="sm"
         p="sm"
+        style={
+          {
+            ['--phase-accent' as string]: accent,
+          } as CSSProperties
+        }
       >
+        <Box className="monosuite-workflow-canvas-phase-strip" aria-hidden />
         <Handle type="target" position={Position.Top} id="top" className="monosuite-workflow-canvas-handle" />
         <Handle type="target" position={Position.Left} id="left" className="monosuite-workflow-canvas-handle" />
         <Group justify="space-between" gap={6} wrap="nowrap" mb={6}>
@@ -475,6 +484,9 @@ function PhaseFlowCard({ data }: NodeProps<PhaseFlowNode>) {
 
 function WorkFlowCard({ data }: NodeProps<WorkFlowNode>) {
   const Icon = ROLE_ICON[data.role];
+  const accent = `var(--mantine-color-${data.phaseColor || 'teal'}-filled)`;
+  const showProgressChrome =
+    data.awaitingTurn || data.status === 'ready' || data.status === 'open';
 
   return (
     <TurnAwaitingIndicator active={data.awaitingTurn} tone={data.awaitingTone}>
@@ -484,10 +496,19 @@ function WorkFlowCard({ data }: NodeProps<WorkFlowNode>) {
         data-status={data.status}
         data-selected={data.selected ? 'true' : undefined}
         data-awaiting-turn={data.awaitingTurn ? 'true' : undefined}
+        data-phase-color={data.phaseColor}
         withBorder
         radius="md"
         p="sm"
+        style={
+          {
+            ['--phase-accent' as string]: accent,
+          } as CSSProperties
+        }
       >
+        {showProgressChrome || data.status === 'answered' ? (
+          <Box className="monosuite-workflow-canvas-phase-strip" aria-hidden />
+        ) : null}
         <Handle type="target" position={Position.Top} id="top" className="monosuite-workflow-canvas-handle" />
         <Handle
           type="target"
@@ -505,7 +526,9 @@ function WorkFlowCard({ data }: NodeProps<WorkFlowNode>) {
           >
             {data.roleLabel}
           </Badge>
-          <WorkStatusChip status={data.status} />
+          <WorkStatusChip
+            status={data.awaitingTurn && data.status !== 'answered' ? 'ready' : data.status}
+          />
         </Box>
         <Text
           size="md"
@@ -519,8 +542,12 @@ function WorkFlowCard({ data }: NodeProps<WorkFlowNode>) {
           {data.meta}
         </Text>
         {data.awaitingTurn || ((data.status === 'open' || data.status === 'ready') && data.selected) ? (
-          <Badge size="xs" variant="filled" color={data.awaitingTone} mt={8}>
-            Your turn · {data.roleLabel}
+          <Badge size="xs" variant="filled" color="teal" mt={8}>
+            In progress · {data.roleLabel}
+          </Badge>
+        ) : data.status === 'answered' ? (
+          <Badge size="xs" variant="filled" color="success" mt={8}>
+            Done
           </Badge>
         ) : (
           <Text size="xs" c="dimmed" mt={6} lineClamp={1}>
@@ -660,57 +687,10 @@ function CollabFlowCard({ data }: NodeProps<CollabFlowNode>) {
   );
 }
 
-function ThreadFlowCard({ data }: NodeProps<ThreadFlowNode>) {
-  return (
-    <Paper
-      className="monosuite-workflow-canvas-node monosuite-workflow-canvas-node--thread"
-      withBorder
-      radius="sm"
-      px="sm"
-      py={8}
-    >
-      <Handle
-        type="target"
-        id="left"
-        position={Position.Left}
-        className="monosuite-workflow-canvas-handle"
-      />
-      <Handle
-        type="target"
-        id="top"
-        position={Position.Top}
-        className="monosuite-workflow-canvas-handle"
-      />
-      <Handle
-        type="source"
-        id="right"
-        position={Position.Right}
-        className="monosuite-workflow-canvas-handle"
-      />
-      <Handle
-        type="source"
-        id="bottom"
-        position={Position.Bottom}
-        className="monosuite-workflow-canvas-handle"
-      />
-      <Text size="10px" fw={800} tt="uppercase" c="teal" style={{ letterSpacing: '0.06em' }}>
-        Thread
-      </Text>
-      <Text size="md" fw={700} lh={1.3} lineClamp={1}>
-        {data.label}
-      </Text>
-      <Text size="xs" c="dimmed" lineClamp={1}>
-        {data.meta}
-      </Text>
-    </Paper>
-  );
-}
-
 const nodeTypes = {
   phaseNode: PhaseFlowCard,
   workNode: WorkFlowCard,
   collabNode: CollabFlowCard,
-  threadNode: ThreadFlowCard,
   evidenceNode: EvidenceFlowCard,
   triageSeverityNode: TriageSeverityFlowCard,
   commanderQuestionNode: CommanderQuestionFlowCard,
@@ -765,7 +745,7 @@ function roleColor(role: WorkflowWorkRole): string {
 function PhaseStatusChip({ status }: { status: CanvasPhaseStatus }) {
   if (status === 'done') {
     return (
-      <Badge size="xs" variant="light" color="success" className="monosuite-badge-with-icon" leftSection={<IconCheck size={10} />}>
+      <Badge size="xs" variant="filled" color="success" className="monosuite-badge-with-icon" leftSection={<IconCheck size={10} />}>
         Done
       </Badge>
     );
@@ -773,7 +753,7 @@ function PhaseStatusChip({ status }: { status: CanvasPhaseStatus }) {
   if (status === 'active') {
     return (
       <Badge size="xs" variant="filled" color="teal" className="monosuite-badge-with-icon" leftSection={<IconRadio size={10} />}>
-        Active
+        In progress
       </Badge>
     );
   }
@@ -794,8 +774,8 @@ function PhaseStatusChip({ status }: { status: CanvasPhaseStatus }) {
 function WorkStatusChip({ status }: { status: WorkRuntimeStatus }) {
   if (status === 'answered') {
     return (
-      <Badge size="xs" variant="light" color="success">
-        Answered
+      <Badge size="xs" variant="filled" color="success" className="monosuite-badge-with-icon" leftSection={<IconCheck size={10} />}>
+        Done
       </Badge>
     );
   }
@@ -808,13 +788,13 @@ function WorkStatusChip({ status }: { status: WorkRuntimeStatus }) {
   }
   if (status === 'ready') {
     return (
-      <Badge size="xs" variant="light" color="teal">
-        Ready
+      <Badge size="xs" variant="filled" color="teal" className="monosuite-badge-with-icon" leftSection={<IconRadio size={10} />}>
+        In progress
       </Badge>
     );
   }
   return (
-    <Badge size="xs" variant="light" color="accent">
+    <Badge size="xs" variant="light" color="neutral">
       Open
     </Badge>
   );
@@ -1130,14 +1110,15 @@ function resolveThreadItems(
   return resolved;
 }
 
-function investigationRoleWorkComplete(
+function phaseRoleWorkComplete(
+  phaseId: string,
   workCatalog: WorkflowWorkItem[],
   answers: WorkAnswersState,
   participants: Participant[],
   commanderParticipantId: string,
   investigationComplete: boolean,
 ): boolean {
-  return workItemsForPhase('investigation', workCatalog)
+  return workItemsForPhase(phaseId, workCatalog)
     .filter((item) => item.required && item.answerType !== 'generated')
     .every((item) =>
       isWorkItemAnswered(
@@ -1158,18 +1139,20 @@ function buildThreadPlan(
   threadCatalog: CollabThreadDef[] = COLLAB_THREADS,
   /** When false, collab stays blocked so role work finishes first (one turn at a time). */
   collabUnlocked = true,
+  phaseId?: string,
 ): {
   threads: Array<{ thread: CollabThreadDef; items: ResolvedThreadItem[] }>;
   focusIds: number[];
   remainingCount: number;
 } {
   const questionsById = new Map(questions.map((question) => [question.id, question]));
-  const phaseThreads = threadsForPhase('investigation', threadCatalog);
-  const catalogThreads = phaseThreads.length > 0 ? phaseThreads : threadCatalog;
+  const scopedCatalog = phaseId
+    ? threadsForPhase(phaseId, threadCatalog)
+    : threadCatalog;
 
   let activeThreadLabel: string | null = null;
 
-  const threads = catalogThreads.map((thread) => {
+  const threads = scopedCatalog.map((thread) => {
     const items = resolveThreadItems(
       thread,
       questionsById,
@@ -1250,11 +1233,11 @@ function workLayout(
   return layout;
 }
 
-function investigationThreadStartY(workCatalog: WorkflowWorkItem[] = WORKFLOW_CANVAS_WORK): number {
-  const workCount = Math.max(
-    INVESTIGATION_WORK_ROWS,
-    workItemsForPhase('investigation', workCatalog).length,
-  );
+function phaseCollabStartY(
+  phaseId: string,
+  workCatalog: WorkflowWorkItem[] = WORKFLOW_CANVAS_WORK,
+): number {
+  const workCount = Math.max(1, workItemsForPhase(phaseId, workCatalog).length);
   return SYSTEM_Y + workCount * LANE_GAP_Y + THREAD_OFFSET_Y;
 }
 
@@ -1277,8 +1260,8 @@ function customQuestionsStartY(
     bottom = Math.max(bottom, WORK_Y);
   }
 
-  if (phaseId === 'investigation' && visibleThreadCount > 0) {
-    const threadStartY = investigationThreadStartY(workCatalog);
+  if (visibleThreadCount > 0) {
+    const threadStartY = phaseCollabStartY(phaseId, workCatalog);
     const threadBottom = threadStartY + (visibleThreadCount - 1) * LANE_GAP_Y;
     bottom = Math.max(bottom, threadBottom);
   }
@@ -1364,6 +1347,7 @@ function appendPhaseWork(
     commanderParticipantId: string;
     workCatalog: WorkflowWorkItem[];
     turnAttention: RoomTurnAttention | null;
+    phaseColor: string;
     nextNodes: CanvasNode[];
     nextEdges: Edge[];
   },
@@ -1377,6 +1361,7 @@ function appendPhaseWork(
     commanderParticipantId,
     workCatalog,
     turnAttention,
+    phaseColor,
     nextNodes,
     nextEdges,
   } = options;
@@ -1424,6 +1409,7 @@ function appendPhaseWork(
         meta: quorumMeta ? `${item.meta} · ${quorumMeta}` : item.meta,
         status,
         selected: selectedId === item.id,
+        phaseColor,
         awaitingTurn,
         awaitingTone,
       },
@@ -1485,7 +1471,7 @@ function appendPhaseWork(
 }
 
 function appendCollabThreads(
-  investigationId: string,
+  phaseId: string,
   options: {
     phaseX: number;
     threadPlan: ReturnType<typeof buildThreadPlan>;
@@ -1500,63 +1486,17 @@ function appendCollabThreads(
     options;
   if (threadPlan.threads.length === 0) return;
 
-  // Board-style: each thread is a horizontal lane under Investigation work sequence.
-  const threadStartY = investigationThreadStartY(workCatalog);
+  const threadStartY = phaseCollabStartY(phaseId, workCatalog);
   let linkedFromPhase = false;
-  const investigatorItem = workItemsForPhase('investigation', workCatalog).find(
-    (item) => item.role === 'investigator',
-  );
+  const phaseWork = workItemsForPhase(phaseId, workCatalog);
+  const railSourceId = phaseWork[phaseWork.length - 1]?.id ?? phaseId;
 
   threadPlan.threads.forEach(({ thread, items }, threadIndex) => {
     if (items.length === 0) return;
 
     const rowY = threadStartY + threadIndex * LANE_GAP_Y;
-    const headerId = `thread-${thread.id}`;
-    const doneCount = items.filter((item) => item.role === 'done').length;
-    const nowCount = items.filter((item) => item.role === 'now').length;
+    let previousId: string | null = null;
 
-    nextNodes.push({
-      id: headerId,
-      type: 'threadNode',
-      position: { x: phaseX, y: rowY },
-      style: { transition: NODE_MOVE_TRANSITION, zIndex: 5 },
-      data: {
-        label: thread.label,
-        meta:
-          nowCount > 0
-            ? `${doneCount} done · ${nowCount} active`
-            : `${doneCount} done · thread clear`,
-      },
-      selectable: false,
-      draggable: true,
-    });
-
-    if (!linkedFromPhase) {
-      // Link from the bottom-left work card so the rail does not cut through the top row.
-      const threadSourceId = investigatorItem?.id ?? investigationId;
-      nextEdges.push({
-        id: `phase-thread-rail-${investigationId}`,
-        source: threadSourceId,
-        sourceHandle: 'bottom',
-        target: headerId,
-        targetHandle: 'top',
-        type: 'smoothstep',
-        style: {
-          stroke: 'var(--mantine-color-teal-filled)',
-          strokeWidth: 1.75,
-          opacity: 0.9,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 12,
-          height: 12,
-          color: 'var(--mantine-color-teal-filled)',
-        },
-      });
-      linkedFromPhase = true;
-    }
-
-    let previousId = headerId;
     items.forEach((item, itemIndex) => {
       const { question, role, blockedReason } = item;
       const kind = collabKind(question);
@@ -1572,7 +1512,7 @@ function appendCollabThreads(
         id: nodeId,
         type: 'collabNode',
         position: {
-          x: phaseX + ITEM_GAP_X * (itemIndex + 1),
+          x: phaseX + ITEM_GAP_X * itemIndex,
           y: rowY,
         },
         style: {
@@ -1601,38 +1541,61 @@ function appendCollabThreads(
         draggable: true,
       });
 
-      nextEdges.push({
-        id: `thread-link-${previousId}-${nodeId}`,
-        source: previousId,
-        sourceHandle: 'right',
-        target: nodeId,
-        targetHandle: 'left',
-        type: 'smoothstep',
-        style: {
-          stroke: blocked
-            ? 'var(--mantine-color-warning-filled)'
-            : kind === 'decision'
-              ? 'var(--mantine-color-brand-filled)'
-              : kind === 'finding'
-                ? 'var(--mantine-color-accent-filled)'
-                : 'var(--mantine-color-teal-filled)',
-          strokeWidth: focus ? 2 : 1.5,
-          opacity: blocked ? 0.55 : trail ? 0.75 : 1,
-          strokeDasharray: blocked ? '6 5' : undefined,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 12,
-          height: 12,
-          color: blocked
-            ? 'var(--mantine-color-warning-filled)'
-            : kind === 'decision'
-              ? 'var(--mantine-color-brand-filled)'
-              : kind === 'finding'
-                ? 'var(--mantine-color-accent-filled)'
-                : 'var(--mantine-color-teal-filled)',
-        },
-      });
+      if (!linkedFromPhase && itemIndex === 0) {
+        nextEdges.push({
+          id: `phase-collab-rail-${phaseId}-${thread.id}`,
+          source: railSourceId,
+          sourceHandle: 'bottom',
+          target: nodeId,
+          targetHandle: 'top',
+          type: 'smoothstep',
+          style: {
+            stroke: 'var(--mantine-color-teal-filled)',
+            strokeWidth: 1.75,
+            opacity: 0.9,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 12,
+            height: 12,
+            color: 'var(--mantine-color-teal-filled)',
+          },
+        });
+        linkedFromPhase = true;
+      } else if (previousId) {
+        nextEdges.push({
+          id: `thread-link-${previousId}-${nodeId}`,
+          source: previousId,
+          sourceHandle: 'right',
+          target: nodeId,
+          targetHandle: 'left',
+          type: 'smoothstep',
+          style: {
+            stroke: blocked
+              ? 'var(--mantine-color-warning-filled)'
+              : kind === 'decision'
+                ? 'var(--mantine-color-brand-filled)'
+                : kind === 'finding'
+                  ? 'var(--mantine-color-accent-filled)'
+                  : 'var(--mantine-color-teal-filled)',
+            strokeWidth: focus ? 2 : 1.5,
+            opacity: blocked ? 0.55 : trail ? 0.75 : 1,
+            strokeDasharray: blocked ? '6 5' : undefined,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 12,
+            height: 12,
+            color: blocked
+              ? 'var(--mantine-color-warning-filled)'
+              : kind === 'decision'
+                ? 'var(--mantine-color-brand-filled)'
+                : kind === 'finding'
+                  ? 'var(--mantine-color-accent-filled)'
+                  : 'var(--mantine-color-teal-filled)',
+          },
+        });
+      }
 
       previousId = nodeId;
     });
@@ -1681,27 +1644,17 @@ function buildGraph(options: {
     threadCatalog,
     turnAttention,
   } = options;
-  const nextNodes: CanvasNode[] = [];
-  const nextEdges: Edge[] = [];
   const childPhases = visibleChildPhases(expandedPhaseId);
   const columns = phaseColumns(steps, expandedPhaseId);
-  const collabUnlocked = investigationRoleWorkComplete(
-    workCatalog,
-    answers,
-    participants,
-    commanderParticipantId,
-    investigationComplete,
-  );
-  const threadPlan = buildThreadPlan(
-    questions,
-    investigationComplete,
-    participants,
-    commanderParticipantId,
-    threadCatalog,
-    collabUnlocked,
-  );
   let remainingCollabCount = 0;
   let focusIds: number[] = [];
+  const nextNodes: CanvasNode[] = [];
+  const nextEdges: Edge[] = [];
+  const combinedThreadPlan: ReturnType<typeof buildThreadPlan> = {
+    threads: [],
+    focusIds: [],
+    remainingCount: 0,
+  };
 
   steps.forEach((step, index) => {
     const status = phaseCanvasStatus(
@@ -1748,6 +1701,7 @@ function buildGraph(options: {
         expanded: column.expanded,
         evidenceCount: evidence.filter((item) => item.phaseId === step.id).length,
         phaseId: step.id,
+        phaseColor: step.phase.color,
         awaitingTurn,
         awaitingTone,
       },
@@ -1823,27 +1777,72 @@ function buildGraph(options: {
       commanderParticipantId,
       workCatalog,
       turnAttention,
+      phaseColor: steps.find((entry) => entry.id === phaseId)?.phase.color ?? 'teal',
       nextNodes,
       nextEdges,
     });
   });
 
-  const investigationId = steps.find((step) => step.id === 'investigation')?.id;
-  if (investigationId && childPhases.has(investigationId)) {
-    remainingCollabCount = threadPlan.remainingCount;
-    focusIds = threadPlan.focusIds;
-    appendCollabThreads(investigationId, {
-      phaseX: columns.get(investigationId)?.x ?? 0,
-      threadPlan,
-      selectedId,
-      workCatalog,
-      turnAttention,
-      nextNodes,
-      nextEdges,
-    });
-  }
+  const phaseThreadCounts = new Map<string, number>();
 
-  const visibleThreadCount = threadPlan.threads.filter(({ items }) => items.length > 0).length;
+  childPhases.forEach((phaseId) => {
+    const phaseUnlocked =
+      completedPhaseIds.includes(phaseId) ||
+      phaseRoleWorkComplete(
+        phaseId,
+        workCatalog,
+        answers,
+        participants,
+        commanderParticipantId,
+        investigationComplete,
+      );
+    const phasePlan = buildThreadPlan(
+      questions,
+      investigationComplete || completedPhaseIds.includes(phaseId),
+      participants,
+      commanderParticipantId,
+      threadCatalog,
+      phaseUnlocked,
+      phaseId,
+    );
+    combinedThreadPlan.threads.push(...phasePlan.threads);
+    combinedThreadPlan.focusIds.push(...phasePlan.focusIds);
+    combinedThreadPlan.remainingCount += phasePlan.remainingCount;
+    phaseThreadCounts.set(
+      phaseId,
+      phasePlan.threads.filter(({ items }) => items.length > 0).length,
+    );
+
+    if (phasePlan.threads.length > 0) {
+      remainingCollabCount += phasePlan.remainingCount;
+      if (expandedPhaseId === phaseId || !expandedPhaseId) {
+        focusIds = [...focusIds, ...phasePlan.focusIds];
+      }
+      appendCollabThreads(phaseId, {
+        phaseX: columns.get(phaseId)?.x ?? 0,
+        threadPlan: phasePlan,
+        selectedId,
+        workCatalog,
+        turnAttention,
+        nextNodes,
+        nextEdges,
+      });
+    }
+  });
+
+  if (expandedPhaseId) {
+    focusIds = combinedThreadPlan.focusIds.filter((id) => {
+      const thread = threadCatalog.find((entry) => entry.itemIds.includes(id));
+      return thread?.phaseId === expandedPhaseId;
+    });
+    remainingCollabCount = combinedThreadPlan.threads
+      .filter(({ thread }) => thread.phaseId === expandedPhaseId)
+      .flatMap(({ items }) => items.filter((item) => item.role === 'now' || item.role === 'blocked'))
+      .length;
+  } else {
+    focusIds = combinedThreadPlan.focusIds;
+    remainingCollabCount = combinedThreadPlan.remainingCount;
+  }
 
   // Custom questions last so their lane sits below work + collaboration without overlap.
   childPhases.forEach((phaseId) => {
@@ -1852,7 +1851,7 @@ function buildGraph(options: {
       phaseX: columns.get(phaseId)?.x ?? 0,
       questions: phaseCommanderQuestions,
       selectedId,
-      visibleThreadCount: phaseId === 'investigation' ? visibleThreadCount : 0,
+      visibleThreadCount: phaseThreadCounts.get(phaseId) ?? 0,
       workCatalog,
       nextNodes,
       nextEdges,
@@ -1864,7 +1863,7 @@ function buildGraph(options: {
     edges: nextEdges,
     remainingCollabCount,
     focusIds,
-    threadPlan,
+    threadPlan: combinedThreadPlan,
   };
 }
 
@@ -1902,13 +1901,26 @@ export function WorkflowCanvasView({
   collabThreads,
   completedPhaseIds: completedPhaseIdsProp,
   onCompletePhase,
+  workAnswers: workAnswersProp,
+  onWorkAnswersChange,
+  onExportMinutes,
 }: WorkflowCanvasViewProps) {
   const workCatalog = workItems ?? WORKFLOW_CANVAS_WORK;
   const threadCatalog = collabThreads ?? COLLAB_THREADS;
-  const [answers, setAnswers] = useState<WorkAnswersState>({});
+  const [localAnswers, setLocalAnswers] = useState<WorkAnswersState>({});
+  const answers = workAnswersProp ?? localAnswers;
+  const setAnswers = useCallback(
+    (next: WorkAnswersState | ((prev: WorkAnswersState) => WorkAnswersState)) => {
+      const resolved = typeof next === 'function' ? next(answers) : next;
+      if (onWorkAnswersChange) onWorkAnswersChange(resolved);
+      else setLocalAnswers(resolved);
+    },
+    [answers, onWorkAnswersChange],
+  );
   const [draft, setDraft] = useState('');
   const [choiceValues, setChoiceValues] = useState<string[]>([]);
   const [choiceOther, setChoiceOther] = useState('');
+  const [executionItems, setExecutionItems] = useState<ExecutionActionState[]>([]);
   const [expandedPhaseId, setExpandedPhaseId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [localCompleted, setLocalCompleted] = useState<string[]>([]);
@@ -1957,6 +1969,7 @@ export function WorkflowCanvasView({
     setDraft('');
     setChoiceValues([]);
     setChoiceOther('');
+    setExecutionItems([]);
   }, []);
 
   const phaseGaps = useCallback(
@@ -2211,10 +2224,11 @@ export function WorkflowCanvasView({
     const nextId = focusIds[nextIndex];
     setFocusCursor((value) => (value + 1) % Math.max(focusIds.length, 1));
     setSelectedId(`collab-${nextId}`);
-    setExpandedPhaseId('investigation');
+    const thread = threadCatalog.find((entry) => entry.itemIds.includes(nextId));
+    setExpandedPhaseId(thread?.phaseId ?? expandedPhaseId ?? 'containment');
     resetDraftState();
     showToast('Opened the next question to answer');
-  }, [focusCursor, focusIds, resetDraftState, showToast]);
+  }, [expandedPhaseId, focusCursor, focusIds, resetDraftState, showToast, threadCatalog]);
 
   const selectCanvasItem = useCallback(
     (id: string) => {
@@ -2229,15 +2243,25 @@ export function WorkflowCanvasView({
           setChoiceValues(existing?.values ?? []);
           setChoiceOther(existing?.otherText ?? '');
           setDraft('');
+          setExecutionItems([]);
+        } else if (work.answerType === 'execution') {
+          const actions = resolveWorkItemOptions(work, workCatalog, answers);
+          setChoiceValues(actions);
+          setChoiceOther('');
+          setDraft('');
+          setExecutionItems(createExecutionDrafts(actions, existing?.executionItems));
         } else {
           setDraft(existing?.values[0] ?? '');
           setChoiceValues([]);
           setChoiceOther('');
+          setExecutionItems([]);
         }
         return;
       }
       if (id.startsWith('collab-')) {
-        setExpandedPhaseId('investigation');
+        const questionId = Number(id.replace('collab-', ''));
+        const thread = threadCatalog.find((entry) => entry.itemIds.includes(questionId));
+        setExpandedPhaseId(thread?.phaseId ?? 'containment');
         resetDraftState();
         return;
       }
@@ -2271,7 +2295,7 @@ export function WorkflowCanvasView({
       setExpandedPhaseId(id);
       resetDraftState();
     },
-    [answers, commanderQuestions, resetDraftState, workCatalog],
+    [answers, commanderQuestions, resetDraftState, threadCatalog, workCatalog],
   );
 
   const onNodeClick = useCallback(
@@ -2410,6 +2434,12 @@ export function WorkflowCanvasView({
       }
       values = choiceValues;
       otherText = choiceOther;
+    } else if (selectedWork.answerType === 'execution') {
+      if (!isExecutionItemsComplete(executionItems)) {
+        showToast('For each action set Duration, Due time, then Done or Rejected');
+        return;
+      }
+      values = executionItems.map((item) => item.action);
     } else {
       const value = draft.trim();
       if (!value) {
@@ -2424,6 +2454,13 @@ export function WorkflowCanvasView({
       participantName: CURRENT_USER.name,
       values,
       otherText,
+      executionItems:
+        selectedWork.answerType === 'execution'
+          ? executionItems.map((item) => ({
+              ...item,
+              notes: item.notes?.trim() ? item.notes.trim() : undefined,
+            }))
+          : undefined,
     });
     const nextAnswers: WorkAnswersState = {
       ...answers,
@@ -2529,6 +2566,7 @@ export function WorkflowCanvasView({
           incidentSeverity={incidentSeverity}
           evidence={evidence}
           onEdit={() => setPreferCanvasAfterComplete(true)}
+          onExportMinutes={onExportMinutes}
         />
       </Box>
     );
@@ -2608,7 +2646,7 @@ export function WorkflowCanvasView({
                 className="monosuite-workflow-canvas-controls-inline"
               />
             </Panel>
-            {focusIds.length > 0 && expandedPhaseId === 'investigation' ? (
+            {focusIds.length > 0 && expandedPhaseId ? (
               <Panel position="top-right">
                 <Button
                   className="monosuite-workflow-canvas-continue"
@@ -2862,6 +2900,8 @@ export function WorkflowCanvasView({
                   onChoiceValuesChange={setChoiceValues}
                   choiceOther={choiceOther}
                   onChoiceOtherChange={setChoiceOther}
+                  executionItems={executionItems}
+                  onExecutionItemsChange={setExecutionItems}
                   answers={answers}
                   status={workRuntimeStatus(
                     selectedWork,
@@ -2898,6 +2938,11 @@ export function WorkflowCanvasView({
                     isCommander={isCommander}
                     completedPhaseIds={completedPhaseIds}
                     onComplete={() => completePhase(overviewPhase.id)}
+                    onSkip={
+                      overviewPhase.skippable
+                        ? () => onSkipPhase?.(overviewPhase.id)
+                        : undefined
+                    }
                     onSelectItem={selectCanvasItem}
                     evidenceItems={[]}
                     commanderQuestions={commanderQuestions.filter(
@@ -2931,6 +2976,11 @@ export function WorkflowCanvasView({
                     isCommander={isCommander}
                     completedPhaseIds={completedPhaseIds}
                     onComplete={() => completePhase(overviewPhase.id)}
+                    onSkip={
+                      overviewPhase.skippable
+                        ? () => onSkipPhase?.(overviewPhase.id)
+                        : undefined
+                    }
                     onSelectItem={selectCanvasItem}
                     evidenceItems={[]}
                     commanderQuestions={commanderQuestions.filter(
@@ -2955,6 +3005,11 @@ export function WorkflowCanvasView({
                   isCommander={isCommander}
                   completedPhaseIds={completedPhaseIds}
                   onComplete={() => completePhase(overviewPhase.id)}
+                  onSkip={
+                    overviewPhase.skippable
+                      ? () => onSkipPhase?.(overviewPhase.id)
+                      : undefined
+                  }
                   onSelectItem={selectCanvasItem}
                   evidenceItems={evidence.filter((item) => item.phaseId === overviewPhase.id)}
                   commanderQuestions={commanderQuestions.filter(
@@ -2998,6 +3053,7 @@ function PhaseInspector({
   isCommander,
   completedPhaseIds,
   onComplete,
+  onSkip,
   onSelectItem,
   evidenceItems = [],
   commanderQuestions = [],
@@ -3019,6 +3075,7 @@ function PhaseInspector({
   isCommander: boolean;
   completedPhaseIds: string[];
   onComplete: () => void;
+  onSkip?: () => void;
   onSelectItem: (id: string) => void;
   evidenceItems?: EvidenceItem[];
   commanderQuestions?: CommanderQuestion[];
@@ -3040,6 +3097,7 @@ function PhaseInspector({
   ).length;
   const canOfferComplete =
     isCommander && isPhaseCompletable(step, steps, completedPhaseIds);
+  const preferSkip = Boolean(step.skippable && onSkip);
 
   const remainingWork = phaseWork
     .map((item) => ({
@@ -3059,22 +3117,22 @@ function PhaseInspector({
     });
 
   const threadPlan =
-    step.id === 'investigation'
-      ? buildThreadPlan(
-          questions,
-          investigationComplete,
-          participants,
-          commanderParticipantId,
-          threadCatalog,
-          investigationRoleWorkComplete(
-            workCatalog,
-            answers,
-            participants,
-            commanderParticipantId,
-            investigationComplete,
-          ),
-        )
-      : null;
+    buildThreadPlan(
+      questions,
+      investigationComplete || completedPhaseIds.includes(step.id),
+      participants,
+      commanderParticipantId,
+      threadCatalog,
+      phaseRoleWorkComplete(
+        step.id,
+        workCatalog,
+        answers,
+        participants,
+        commanderParticipantId,
+        investigationComplete,
+      ) || completedPhaseIds.includes(step.id),
+      step.id,
+    );
   const remainingCollab =
     threadPlan?.threads.flatMap(({ thread, items }) =>
       items
@@ -3091,7 +3149,11 @@ function PhaseInspector({
   const remainingTotal =
     remainingWork.length + remainingCollab.length + remainingCommander.length;
 
-  const completeButton = (
+  const completeButton = preferSkip ? (
+    <Button color="neutral" variant="light" fullWidth onClick={onSkip} disabled={!requiredDone && required.length > 0}>
+      Skip phase
+    </Button>
+  ) : (
     <Button color="teal" fullWidth onClick={onComplete} disabled={!requiredDone}>
       Complete Phase
     </Button>
@@ -3281,8 +3343,8 @@ function PhaseInspector({
         )}
       </Stack>
 
-      {canOfferComplete ? (
-        requiredDone ? (
+              {canOfferComplete ? (
+        requiredDone || preferSkip ? (
           completeButton
         ) : (
           <Tooltip
@@ -3311,6 +3373,8 @@ function WorkInspector({
   onChoiceValuesChange,
   choiceOther,
   onChoiceOtherChange,
+  executionItems,
+  onExecutionItemsChange,
   answers,
   status,
   onSave,
@@ -3325,6 +3389,8 @@ function WorkInspector({
   onChoiceValuesChange: (values: string[]) => void;
   choiceOther: string;
   onChoiceOtherChange: (value: string) => void;
+  executionItems: ExecutionActionState[];
+  onExecutionItemsChange: (items: ExecutionActionState[]) => void;
   answers: WorkAnswersState;
   status: WorkRuntimeStatus;
   onSave: () => void;
@@ -3334,17 +3400,30 @@ function WorkInspector({
 }) {
   const { people, quorum } = workItemQuorum(item, answers, participants, commanderParticipantId);
   const inPool = isPersonInAssigneePool(CURRENT_USER.id, people);
+  const resolvedOptions = resolveWorkItemOptions(item, workCatalog, answers);
   const choiceValid =
     item.answerType === 'select'
       ? isChoiceAnswerValid(choiceValues, choiceOther, item.selectionMode)
-      : draft.trim().length > 0;
+      : item.answerType === 'execution'
+        ? isExecutionItemsComplete(executionItems)
+        : draft.trim().length > 0;
   const canSave = status !== 'blocked' && inPool && choiceValid;
   const ownerAnswersId = workCatalog.find(
-    (entry) => entry.role === 'owner' && entry.phaseId === 'investigation',
+    (entry) => entry.role === 'owner' && entry.phaseId === item.phaseId,
   )?.id;
   const adminAnswersId = workCatalog.find(
-    (entry) => entry.role === 'admin' && entry.phaseId === 'investigation',
+    (entry) => entry.role === 'admin' && entry.phaseId === item.phaseId,
   )?.id;
+  const guidance =
+    item.guidance ??
+    PHASE_GUIDANCE[item.phaseId] ??
+    'Complete this role task so the Commander can advance the phase.';
+
+  const updateExecutionItem = (action: string, patch: Partial<ExecutionActionState>) => {
+    onExecutionItemsChange(
+      executionItems.map((entry) => (entry.action === action ? { ...entry, ...patch } : entry)),
+    );
+  };
 
   return (
     <Stack gap="md">
@@ -3354,7 +3433,7 @@ function WorkInspector({
         </Text>
         <Paper withBorder radius="sm" p="sm" bg="var(--monosuite-color-surface-sunken)">
           <Text size="sm" lh={1.5}>
-            Investigation guidance: confirm facts and authority before generating containment work.
+            {guidance}
           </Text>
         </Paper>
       </Stack>
@@ -3375,6 +3454,14 @@ function WorkInspector({
               Waiting for the prior role to finish — only one role acts at a time.
             </Text>
           </Group>
+        </Paper>
+      ) : null}
+
+      {item.optionsFromDependency && resolvedOptions.length === 0 && status !== 'blocked' ? (
+        <Paper withBorder radius="sm" p="sm" bg="var(--monosuite-color-surface-sunken)">
+          <Text size="xs" c="dimmed">
+            No options inherited yet from the prior role answer.
+          </Text>
         </Paper>
       ) : null}
 
@@ -3404,7 +3491,7 @@ function WorkInspector({
 
       {item.answerType === 'select' && inPool && status !== 'blocked' ? (
         <TaskChoiceControl
-          options={item.options ?? []}
+          options={resolvedOptions}
           selectionMode={item.selectionMode}
           allowOther={item.allowOther}
           values={choiceValues}
@@ -3413,6 +3500,115 @@ function WorkInspector({
           onOtherTextChange={onChoiceOtherChange}
           label={item.answerLabel}
         />
+      ) : null}
+
+      {item.answerType === 'execution' && inPool && status !== 'blocked' ? (
+        <Stack gap="sm">
+          {executionItems.length === 0 ? (
+            <Paper withBorder radius="sm" p="sm" bg="var(--monosuite-color-surface-sunken)">
+              <Text size="xs" c="dimmed">
+                Owner has not selected actions yet.
+              </Text>
+            </Paper>
+          ) : (
+            executionItems.map((entry) => {
+              const scheduled = isExecutionItemScheduled(entry);
+              return (
+                <Paper key={entry.action} withBorder radius="sm" p="sm">
+                  <Stack gap="xs">
+                    <Group justify="space-between" gap="xs" wrap="nowrap">
+                      <Text size="sm" fw={700} style={{ minWidth: 0 }}>
+                        {entry.action}
+                      </Text>
+                      <Badge
+                        size="xs"
+                        variant="filled"
+                        color={
+                          entry.status === 'done'
+                            ? 'success'
+                            : entry.status === 'rejected'
+                              ? 'danger'
+                              : scheduled
+                                ? 'teal'
+                                : 'neutral'
+                        }
+                      >
+                        {entry.status === 'done'
+                          ? 'Done'
+                          : entry.status === 'rejected'
+                            ? 'Rejected'
+                            : scheduled
+                              ? 'In progress'
+                              : 'Schedule'}
+                      </Badge>
+                    </Group>
+                    <TextInput
+                      label="Duration"
+                      placeholder="e.g. 30m, 2h"
+                      value={entry.duration}
+                      onChange={(event) =>
+                        updateExecutionItem(entry.action, {
+                          duration: event.currentTarget.value,
+                          status: 'in_progress',
+                        })
+                      }
+                    />
+                    <TextInput
+                      label="Due time"
+                      placeholder="e.g. Today 18:00"
+                      value={entry.dueAt}
+                      onChange={(event) =>
+                        updateExecutionItem(entry.action, {
+                          dueAt: event.currentTarget.value,
+                          status: 'in_progress',
+                        })
+                      }
+                    />
+                    {scheduled ? (
+                      <>
+                        <Radio.Group
+                          label="Outcome (after execution starts)"
+                          value={
+                            entry.status === 'done' || entry.status === 'rejected'
+                              ? entry.status
+                              : ''
+                          }
+                          onChange={(value) =>
+                            updateExecutionItem(entry.action, {
+                              status: value as 'done' | 'rejected',
+                            })
+                          }
+                        >
+                          <Group mt="xs">
+                            <Radio value="done" label="Done" />
+                            <Radio value="rejected" label="Rejected" />
+                          </Group>
+                        </Radio.Group>
+                        <Textarea
+                          label="Notes (optional)"
+                          placeholder="Optional notes about completion or rejection…"
+                          minRows={2}
+                          autosize
+                          maxRows={5}
+                          value={entry.notes ?? ''}
+                          onChange={(event) =>
+                            updateExecutionItem(entry.action, {
+                              notes: event.currentTarget.value,
+                            })
+                          }
+                        />
+                      </>
+                    ) : (
+                      <Text size="xs" c="dimmed">
+                        Set Duration and Due time to start this action. Done / Rejected appear after it is in progress.
+                      </Text>
+                    )}
+                  </Stack>
+                </Paper>
+              );
+            })
+          )}
+        </Stack>
       ) : null}
 
       {item.answerType === 'textarea' && inPool && status !== 'blocked' ? (
@@ -3430,15 +3626,15 @@ function WorkInspector({
       {item.answerType === 'generated' ? (
         <Paper withBorder radius="sm" p="sm" bg="var(--monosuite-color-surface-sunken)">
           <Text size="sm">
-            Selected method:{' '}
+            Admin execution:{' '}
             <Text span fw={700}>
               {summarizeWorkAnswers(
                 adminAnswersId ? answers[adminAnswersId] : undefined,
-              ) || 'No method selected'}
+              ) || 'No execution recorded'}
             </Text>
           </Text>
           <Text size="sm" mt={6}>
-            Business window:{' '}
+            Owner selection:{' '}
             <Text span fw={700}>
               {summarizeWorkAnswers(
                 ownerAnswersId ? answers[ownerAnswersId] : undefined,

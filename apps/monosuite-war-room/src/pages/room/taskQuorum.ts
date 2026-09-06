@@ -1,6 +1,7 @@
 import { CURRENT_USER } from '../../shared/constants';
 import type {
   AssignableTaskRole,
+  ExecutionActionState,
   Participant,
   TaskPersonAnswer,
   TaskSelectionMode,
@@ -68,12 +69,40 @@ export const OTHER_OPTION_VALUE = 'Other';
 export const DEMO_COMMANDER_FULL_ACCESS = true;
 
 export function formatTaskAnswerDisplay(answer: TaskPersonAnswer): string {
+  if (answer.executionItems?.length) {
+    return answer.executionItems
+      .map((item) => {
+        const statusLabel =
+          item.status === 'done' ? 'Done' : item.status === 'rejected' ? 'Rejected' : 'In progress';
+        const bits = [
+          item.action,
+          statusLabel,
+          item.duration ? `Duration ${item.duration}` : null,
+          item.dueAt ? `Due ${item.dueAt}` : null,
+          item.notes?.trim() || null,
+        ].filter(Boolean);
+        return bits.join(' · ');
+      })
+      .join(' | ');
+  }
   const parts = answer.values.map((value) =>
     value === OTHER_OPTION_VALUE && answer.otherText?.trim()
       ? `Other: “${answer.otherText.trim()}”`
       : value,
   );
-  return parts.join(' · ');
+  const base = parts.join(' · ');
+  const executionBits = [
+    answer.executionStatus === 'done'
+      ? 'Done'
+      : answer.executionStatus === 'not_done'
+        ? 'Not done'
+        : null,
+    answer.duration ? `Duration ${answer.duration}` : null,
+    answer.dueAt ? `Due ${answer.dueAt}` : null,
+    answer.description?.trim() ? answer.description.trim() : null,
+  ].filter(Boolean);
+  if (!executionBits.length) return base;
+  return base ? `${base} · ${executionBits.join(' · ')}` : executionBits.join(' · ');
 }
 
 export function upsertPersonAnswer(
@@ -225,12 +254,22 @@ export function makePersonAnswer(input: {
   participantName: string;
   values: string[];
   otherText?: string;
+  duration?: string;
+  dueAt?: string;
+  description?: string;
+  executionStatus?: 'done' | 'not_done';
+  executionItems?: ExecutionActionState[];
 }): TaskPersonAnswer {
   return {
     participantId: input.participantId,
     participantName: input.participantName,
     values: input.values,
     otherText: input.otherText?.trim() ? input.otherText.trim() : undefined,
+    duration: input.duration?.trim() ? input.duration.trim() : undefined,
+    dueAt: input.dueAt?.trim() ? input.dueAt.trim() : undefined,
+    description: input.description?.trim() ? input.description.trim() : undefined,
+    executionStatus: input.executionStatus,
+    executionItems: input.executionItems,
     answeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
   };
 }

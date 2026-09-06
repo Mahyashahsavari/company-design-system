@@ -3,7 +3,7 @@ import type { AssignableTaskRole, TaskSelectionMode } from '../../data';
 import { TASK_ROLE_LABEL } from '../../taskQuorum';
 
 export type WorkflowWorkRole = AssignableTaskRole;
-export type WorkflowWorkAnswerType = 'select' | 'textarea' | 'generated';
+export type WorkflowWorkAnswerType = 'select' | 'textarea' | 'execution' | 'generated';
 
 export interface WorkflowWorkItem {
   id: string;
@@ -21,104 +21,147 @@ export interface WorkflowWorkItem {
   allowOther?: boolean;
   /** Work item ids that must be answered first. */
   dependsOn?: string[];
+  /**
+   * When true, select/execution options come from the first `dependsOn`
+   * work item's submitted answer values (Owner ← Propose, Admin ← Owner).
+   */
+  optionsFromDependency?: boolean;
+  /** Inspector guidance override (falls back to PHASE_GUIDANCE). */
+  guidance?: string;
   meta: string;
 }
 
-/** Prototype work graph for the Investigation → Containment path (NIST-style rooms). */
+/** Prototype work graph aligned with SOC response flow (non-scenario rooms). */
 export const WORKFLOW_CANVAS_WORK: WorkflowWorkItem[] = [
   {
-    id: 'owner-impact',
+    id: 'triage-confirm',
+    phaseId: 'triage',
+    title: 'Review intake severity',
+    role: 'responder',
+    roleLabel: TASK_ROLE_LABEL.responder,
+    required: false,
+    question:
+      'Severity is already on the incident record. Confirm or adjust the operating severity for this room.',
+    answerType: 'select',
+    answerLabel: 'Severity check',
+    options: ['Keep as recorded', 'Raise severity', 'Lower severity', 'Needs Commander review'],
+    selectionMode: 'single',
+    allowOther: true,
+    meta: 'Optional · intake check',
+  },
+  {
+    id: 'inv-report',
     phaseId: 'investigation',
-    title: 'Confirm business impact',
+    title: 'Share investigation report',
+    role: 'investigator',
+    roleLabel: TASK_ROLE_LABEL.investigator,
+    required: true,
+    question: 'Summarize gathered evidence and findings for room participants.',
+    answerType: 'textarea',
+    answerLabel: 'Investigation report',
+    guidance: 'Publish what the team knows so Owner and Admin can act in later phases.',
+    meta: 'Required · share report',
+  },
+  {
+    id: 'inv-owner-ack',
+    phaseId: 'investigation',
+    title: 'Confirm report received',
     role: 'owner',
     roleLabel: TASK_ROLE_LABEL.owner,
     required: true,
     question:
-      'How much service interruption can the business accept while workstation-114 is isolated?',
+      'Confirm you have reviewed the shared investigation report. Response decisions happen in later phases.',
     answerType: 'select',
-    answerLabel: 'Approved interruption window',
-    options: [
-      'Up to 30 minutes',
-      'No interruption approved',
-      'Business approval is still required',
-    ],
+    answerLabel: 'Owner review',
+    options: ['Report reviewed', 'Need more investigation detail'],
     selectionMode: 'single',
-    allowOther: true,
-    meta: 'Required · Q-03',
+    allowOther: false,
+    dependsOn: ['inv-report'],
+    meta: 'After Investigator report · review only',
   },
   {
-    id: 'admin-isolation',
+    id: 'inv-admin-ack',
     phaseId: 'investigation',
-    title: 'Select isolation method',
+    title: 'Confirm technical review',
     role: 'admin',
     roleLabel: TASK_ROLE_LABEL.admin,
     required: true,
-    question: 'Which containment method can be applied within the approved interruption window?',
+    question:
+      'Confirm you have reviewed the technical findings. Executable response work starts in later phases.',
     answerType: 'select',
-    answerLabel: 'Isolation method',
-    options: ['EDR network isolation', 'Switch port shutdown', 'Firewall containment rule'],
-    selectionMode: 'multi',
-    allowOther: true,
-    dependsOn: ['owner-impact'],
-    meta: 'After Asset Owner response',
+    answerLabel: 'Admin review',
+    options: ['Findings reviewed', 'Need more telemetry'],
+    selectionMode: 'single',
+    allowOther: false,
+    dependsOn: ['inv-owner-ack'],
+    meta: 'After Owner review · review only',
   },
   {
-    id: 'investigator-c2',
-    phaseId: 'investigation',
-    title: 'Validate active C2',
-    role: 'investigator',
-    roleLabel: TASK_ROLE_LABEL.investigator,
-    required: true,
-    question: 'Is outbound command-and-control traffic still active from the affected segment?',
-    answerType: 'textarea',
-    answerLabel: 'Investigation note',
-    dependsOn: ['admin-isolation'],
-    meta: 'After Asset Admin response',
-  },
-  {
-    id: 'responder-scope',
-    phaseId: 'investigation',
-    title: 'Confirm affected accounts',
+    id: 'contain-propose',
+    phaseId: 'containment',
+    title: 'Propose containment options',
     role: 'responder',
     roleLabel: TASK_ROLE_LABEL.responder,
     required: true,
-    question: 'Which accounts show suspicious authentication tied to this burst?',
+    question: 'Which containment options should be offered to the Asset Owner?',
     answerType: 'select',
-    answerLabel: 'Affected accounts',
-    options: ['svc-finance-batch', 'j.martinez', 'Shared helpdesk mailbox'],
+    answerLabel: 'Proposed options',
+    options: ['EDR network isolation', 'Disable compromised account', 'Block source at edge'],
     selectionMode: 'multi',
     allowOther: true,
-    dependsOn: ['investigator-c2'],
-    meta: 'After Investigator response',
+    meta: 'Required · propose to Owner',
   },
   {
-    id: 'generated-containment',
+    id: 'contain-owner',
     phaseId: 'containment',
-    title: 'Apply selected isolation',
-    role: 'generated',
-    roleLabel: TASK_ROLE_LABEL.generated,
+    title: 'Select containment actions',
+    role: 'owner',
+    roleLabel: TASK_ROLE_LABEL.owner,
     required: true,
-    question: 'Execute the containment action generated from the confirmed Investigation answers.',
-    answerType: 'generated',
-    meta: 'Created from Investigation answers',
+    question: 'Select one or more proposed options and assign execution to Asset Admin.',
+    answerType: 'select',
+    answerLabel: 'Owner selection',
+    selectionMode: 'multi',
+    allowOther: false,
+    dependsOn: ['contain-propose'],
+    optionsFromDependency: true,
+    meta: 'After proposals · assign Admin',
+  },
+  {
+    id: 'contain-admin',
+    phaseId: 'containment',
+    title: 'Execute containment tasks',
+    role: 'admin',
+    roleLabel: TASK_ROLE_LABEL.admin,
+    required: true,
+    question:
+      'For each Owner-selected action: set Duration and Due time, then after work starts mark Done or Rejected. Notes are optional.',
+    answerType: 'execution',
+    answerLabel: 'Per-action execution',
+    selectionMode: 'multi',
+    dependsOn: ['contain-owner'],
+    optionsFromDependency: true,
+    meta: 'After Owner selection · per action',
   },
 ];
 
 export const PHASE_GUIDANCE: Record<string, string> = {
   detected:
-    'Review the discovered incident before continuing. Severity and intake are already recorded — open Incident Context when you need full detail.',
+    'Intake is already complete — the incident was received from a source or added manually. Review context, then complete this phase.',
   detection:
     'Initial incident intake is complete. The alert and source context are preserved as the starting record.',
   triage:
-    'Severity is already assigned from the discovered incident. Capture optional triage notes, then continue into Investigation.',
+    'Severity is already on the incident. Optionally confirm operating severity, capture triage notes, or let the Commander ask a clarifying question.',
   investigation:
-    'Confirm impact, isolation method, investigation notes, then affected scope — one role at a time, in order.',
-  containment: 'Tasks in this phase are generated from the confirmed Investigation answers.',
+    'Share and review gathered data only. Response decisions happen after SOC proposes options in Containment, Eradication, or Recovery.',
+  containment:
+    'Propose options → Owner selects and assigns Admin → Admin schedules each action (Duration/Due), then marks Done or Rejected with optional notes.',
   eradication:
-    'Remove attacker artifacts, persistence, and compromised access after containment holds the threat.',
-  recovery: 'Restore services safely and confirm monitoring coverage after eradication.',
+    'Same response flow as containment, with eradication options for this incident. Skip when no eradication work applies.',
+  recovery:
+    'Same response flow as containment, with recovery options for this incident. Skip when no recovery work applies.',
   'lessons-learned':
-    'Capture what worked, what failed, and follow-up actions so the next response improves.',
+    'Capture what the team learned and optional follow-up rules so the same attack path is harder next time.',
   prepare: 'Preparation phase is complete for this playbook.',
   identify: 'Identification outcomes are recorded.',
   respond: 'Response actions are in progress.',
@@ -146,29 +189,27 @@ export interface CollabThreadDef {
 }
 
 /**
- * Investigation collaboration threads (sequential across the room):
- * - Attack vector → TI finding → account decision
- * - Lateral movement
- * - C2 confirmation → isolation decision
+ * Collaboration threads for response decision phases (not Investigation).
+ * Investigation is share/review only; Q → F → D lives on Containment by default.
  * Only one thread item is active at a time (after role work unlocks collab).
  */
 export const COLLAB_THREADS: CollabThreadDef[] = [
   {
     id: 'attack-vector',
     label: 'Attack vector',
-    phaseId: 'investigation',
+    phaseId: 'containment',
     itemIds: [1, 3, 2],
   },
   {
     id: 'lateral-movement',
     label: 'Lateral movement',
-    phaseId: 'investigation',
+    phaseId: 'containment',
     itemIds: [4],
   },
   {
     id: 'c2-isolation',
     label: 'C2 & isolation',
-    phaseId: 'investigation',
+    phaseId: 'containment',
     itemIds: [5, 6],
   },
 ];

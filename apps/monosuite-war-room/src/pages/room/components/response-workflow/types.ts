@@ -9,6 +9,7 @@ import type {
   WorkflowStep,
 } from '../../data';
 import type { RoomWorkflowFetchStatus } from '../../hooks/useRoomWorkflow';
+import type { WorkAnswersState } from '../../workAnswers';
 import type { CollabThreadDef, WorkflowWorkItem } from './workflowCanvasData';
 
 export type WorkflowViewMode = 'current' | 'canvas';
@@ -76,4 +77,9 @@ export interface ResponseWorkflowProps {
   completedPhaseIds?: string[];
   /** Persist phase completion in room state when provided. */
   onCompletePhase?: (phaseId: string) => void;
+  /** Lifted work-card answers (for minutes export / remount). */
+  workAnswers?: WorkAnswersState;
+  onWorkAnswersChange?: (answers: WorkAnswersState) => void;
+  /** Optional minutes export from the journey view. */
+  onExportMinutes?: () => void;
 }

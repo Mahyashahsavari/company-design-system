@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import {
   IconCheck,
+  IconDownload,
   IconPencil,
   IconRoute2,
 } from '@tabler/icons-react';
@@ -49,6 +50,7 @@ interface ResponseJourneyViewProps {
   incidentSeverity: RoomSeverity;
   evidence: EvidenceItem[];
   onEdit: () => void;
+  onExportMinutes?: () => void;
 }
 
 function collabKind(question: Question): 'question' | 'finding' | 'decision' {
@@ -116,6 +118,7 @@ export function ResponseJourneyView({
   incidentSeverity,
   evidence,
   onEdit,
+  onExportMinutes,
 }: ResponseJourneyViewProps) {
   const questionsById = new Map(questions.map((question) => [question.id, question]));
 
@@ -154,15 +157,27 @@ export function ResponseJourneyView({
             </Text>
           </Stack>
         </Group>
-        <Button
-          variant="light"
-          color="brand"
-          size="xs"
-          leftSection={<IconPencil size={14} />}
-          onClick={onEdit}
-        >
-          Edit
-        </Button>
+        <Group gap="xs">
+          {onExportMinutes ? (
+            <Button
+              variant="default"
+              size="xs"
+              leftSection={<IconDownload size={14} />}
+              onClick={onExportMinutes}
+            >
+              Export minutes
+            </Button>
+          ) : null}
+          <Button
+            variant="light"
+            color="brand"
+            size="xs"
+            leftSection={<IconPencil size={14} />}
+            onClick={onEdit}
+          >
+            Edit
+          </Button>
+        </Group>
       </Group>
 
       <ScrollArea className="monosuite-response-journey-scroll" type="auto" offsetScrollbars>
@@ -264,8 +279,8 @@ export function ResponseJourneyView({
                     <JourneyEntry
                       roleLabel="Intake"
                       color="accent"
-                      answer="Incident acknowledged"
-                      question="Detection intake confirmed and response room opened."
+                      answer="Incident already known from source / manual intake"
+                      question="Detected phase had no required work — room opened after the team was informed."
                     />
                   ) : null}
 

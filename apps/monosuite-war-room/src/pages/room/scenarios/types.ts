@@ -63,6 +63,8 @@ export interface RoomScenarioPack {
   history: HistoryEntry[];
   /** Override NIST step statuses — Detected starts as current for 0→100 walks. */
   workflowStepStatuses: Record<string, WorkflowStatus>;
+  /** Seed Commander phase-skip policy (e.g. no eradication/recovery work). */
+  initialPhaseSkippable?: Record<string, boolean>;
 }
 
 export function applyWorkflowStepStatuses(
